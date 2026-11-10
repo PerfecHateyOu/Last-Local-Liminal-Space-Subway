@@ -110,6 +110,20 @@ export interface SusLogEntry {
   stop: number;
 }
 
+/** One conductor announcement, as the PA board records it. The text is exactly what the
+ * conductor said — including a false stop's lie, which the board never labels as one. */
+export interface PaFeedEntry {
+  /** The announcement text, verbatim. */
+  text: string;
+  /** Game time (GT) when it was announced. */
+  at: number;
+  /** Stop index the train was on when it was announced (1 before the first segment). */
+  stop: number;
+  /** Monotonic id for this page session. The unread badge compares these, not array length,
+   * so a capped feed and a new run still count. */
+  seq: number;
+}
+
 export interface SanLogEntry {
   t: number;
   d: number;

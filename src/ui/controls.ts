@@ -26,6 +26,7 @@ export const CONTROLS = {
   camera: { action: 'Camera', keyboard: 'C', key: 'C', touch: 'Camera button' },
   recorder: { action: 'Recorder', keyboard: 'R', key: 'R', touch: 'Recorder button' },
   evidence: { action: 'Evidence log', short: 'Evidence', keyboard: 'Tab', key: 'TAB', touch: 'Evidence button' },
+  board: { action: 'PA board', short: 'PA Board', keyboard: 'B', key: 'B', touch: 'PA Board button' },
   walk: { action: 'Walk between cars', short: 'Walk', keyboard: 'WASD', key: 'WASD', touch: 'WALK stick, bottom left' },
   pause: { action: 'Pause', keyboard: 'Esc or P', touch: 'Pause button' },
   mute: { action: 'Mute', keyboard: 'M', touch: 'Sound button' },
@@ -37,11 +38,11 @@ export type ControlId = keyof typeof CONTROLS;
 export const how = (id: ControlId, input: InputKind): string => CONTROLS[id][input];
 
 /** The title's Controls block, in reading order. */
-export const BRIEFING_CONTROLS: ControlId[] = ['look', 'flag', 'answer', 'steady', 'camera', 'evidence', 'walk', 'pause', 'mute'];
+export const BRIEFING_CONTROLS: ControlId[] = ['look', 'flag', 'answer', 'steady', 'camera', 'evidence', 'board', 'walk', 'pause', 'mute'];
 
 /** The HUD's key-hint strip (keyboard only; touch has labelled buttons). The recorder joins it
  * once Dad has given it to you. */
-export const HINT_STRIP: ControlId[] = ['flag', 'camera', 'recorder', 'evidence', 'walk'];
+export const HINT_STRIP: ControlId[] = ['flag', 'camera', 'recorder', 'evidence', 'board', 'walk'];
 
 /** "[F] FLAG" style entries for the hint strip. */
 export const hintStrip = (hasRecorder: boolean) =>

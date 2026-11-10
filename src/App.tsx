@@ -10,6 +10,7 @@ import { audioEngine } from './audio/audioEngine';
 import { settings } from './settings';
 import { practice } from './game/practice';
 import { pointerLock } from './input/pointerLock';
+import { syncPaSeen } from './ui/paBoardModel';
 import { KeyLook, limitYaw } from './input/keyLook';
 import { evp } from './game/evpManager';
 import { passengerBehavior } from './game/passengerBehavior';
@@ -59,13 +60,13 @@ const HUD_IDLE_S = 6;
  * haven't touched anything for a while. Its station card, tools and key hints then dim to 40%
  * (index.css, .hud-dim), which suits the empty car.
  */
-function hudIdle(G: GameEngine, quietFor: number): boolean {
+function hudIdle(G: GameEngine, quietFor: number, paBoardOpen = false): boolean {
   if (G.paused || G.phase === 'menu' || G.phase === 'end') return false;
-  if (quietFor < HUD_IDLE_S || hudNeedsLiveRefresh(G)) return false;
+  if (quietFor < HUD_IDLE_S || hudNeedsLiveRefresh(G, paBoardOpen)) return false;
   return !G.subHtml && !G.paText && !G.tutorial && !polaroidManager.isViewfinderOpen && !polaroidManager.isAlbumOpen;
 }
 
-function hudNeedsLiveRefresh(G: GameEngine): boolean {
+function hudNeedsLiveRefresh(G: GameEngine, paBoardOpen = false): boolean {
   if (G.paused || G.phase === 'menu' || G.phase === 'end') return false;
   return (
     G.flagHeld ||
@@ -76,7 +77,8 @@ function hudNeedsLiveRefresh(G: GameEngine): boolean {
     G.debug ||
     G.GT < G.hintUntil ||
     G.GT - G.notedT < 0.7 ||
-    !G.shutterReady // the shutter button shows EJECTING until the print is out
+    !G.shutterReady || // the shutter button shows EJECTING until the print is out
+    paBoardOpen // the board's ride clock and suspicion meter move while it is open
   );
 }
 
@@ -96,6 +98,13 @@ export default function App() {
   const [routeSelectorOpen, setRouteSelectorOpen] = useState(false);
   const routeSelectorOpenRef = useRef(false);
   routeSelectorOpenRef.current = routeSelectorOpen;
+
+  // PA board panel (B, or the HUD's PA Board button). The ref lets the key handler and the
+  // idle timer see it; paBoardSeenRef is the last announcement seq the player had on screen.
+  const [paBoardOpen, setPaBoardOpen] = useState(false);
+  const paBoardOpenRef = useRef(false);
+  paBoardOpenRef.current = paBoardOpen;
+  const paBoardSeenRef = useRef(0);
 
   // Held arrow keys; the render loop turns the view while they're down.
   const keyLookRef = useRef(new KeyLook());
@@ -132,6 +141,8 @@ export default function App() {
 
   useEffect(() => {
     if (phase !== 'menu' && !paused) setSettingsOpen(false);
+    // The board closes with the ride (menu, report) like the other overlays.
+    if (phase === 'menu' || phase === 'end') setPaBoardOpen(false);
     // The route selector opens mid-ride (L or the HUD), so it stays up while the train runs and
     // closes when the train stops or the ride ends: the doors, the Haven, a Trial and the report need you.
     if (phase !== 'intro' && phase !== 'ride') setRouteSelectorOpen(false);
@@ -195,6 +206,7 @@ export default function App() {
   const pauseGame = useCallback(() => {
     const G = engineRef.current;
     if (!G || G.paused) return;
+    setPaBoardOpen(false); // the board closes with the ride; B reopens it on resume
     G.pause();
     if (!G.paused) return; // menu or report: nothing to pause
     haptics.stop();
@@ -352,7 +364,7 @@ export default function App() {
       // Live HUD: flag ring fill, answer countdown bars, hint expiry, debug overlay.
       // One extra refresh after the last live frame lets them settle (e.g. a hint disappearing).
       hudAcc += deltaMs;
-      const hudLive = hudNeedsLiveRefresh(engine);
+      const hudLive = hudNeedsLiveRefresh(engine, paBoardOpenRef.current);
       if ((hudLive || hudWasLive) && hudAcc >= HUD_REFRESH_MS) {
         hudAcc = 0;
         hudWasLive = hudLive;
@@ -543,6 +555,13 @@ export default function App() {
     setRouteSelectorOpen(true);
   }, [releaseHeldKeys]);
 
+  // The PA board (B, or the HUD's PA Board button). Opening it marks the feed read on the
+  // next render (syncPaSeen), so the HUD badge counts only announcements made while it was closed.
+  const togglePaBoard = useCallback(() => {
+    setPaBoardOpen((open) => !open);
+    triggerUpdate();
+  }, [triggerUpdate]);
+
   // Idle HUD: any input wakes it; a slow timer checks whether it can rest (hudIdle). A data
   // attribute on <html> does the dimming in CSS, so the HUD doesn't re-render for it.
   useEffect(() => {
@@ -556,7 +575,7 @@ export default function App() {
     events.forEach((ev) => window.addEventListener(ev, poke, opts));
     const timer = window.setInterval(() => {
       const G = engineRef.current;
-      const idle = !!G && hudIdle(G, (performance.now() - last) / 1000);
+      const idle = !!G && hudIdle(G, (performance.now() - last) / 1000, paBoardOpenRef.current);
       document.documentElement.toggleAttribute('data-hud-idle', idle);
     }, 500);
     return () => {
@@ -566,23 +585,24 @@ export default function App() {
     };
   }, []);
 
-  // The evidence log can open mid-ride (Tab, the HUD, the viewfinder). The ride keeps going behind
-  // it, so, like the route selector, it frees a captured mouse (without pausing) so its tabs,
-  // filters and close button can be clicked.
-  // Closing it (Tab again, Esc, its close button) captures the mouse again, so you're straight back
-  // to looking around.
+  // The evidence log and the PA board can open mid-ride. The ride keeps going behind them, so
+  // either one frees a captured mouse (without pausing). The mouse is captured again only once
+  // both are closed — closing one must not lock the pointer while the other is still up.
+  // The route selector frees the mouse itself and does not recapture on close.
   const albumOpen = polaroidManager.isAlbumOpen;
-  const albumFreedLockRef = useRef(false);
+  const rideOverlay = albumOpen || paBoardOpen;
+  const overlayFreedLockRef = useRef(false);
   useEffect(() => {
-    if (albumOpen && pointerLock.isLocked) {
-      albumFreedLockRef.current = true;
+    if (rideOverlay && pointerLock.isLocked) {
+      overlayFreedLockRef.current = true;
       pointerLock.unlock({ quiet: true });
-    } else if (!albumOpen && albumFreedLockRef.current) {
-      albumFreedLockRef.current = false;
+    } else if (!rideOverlay && overlayFreedLockRef.current) {
+      overlayFreedLockRef.current = false;
+      if (routeSelectorOpenRef.current) return;
       const G = engineRef.current;
       if (G && !G.paused && G.phase !== 'menu' && G.phase !== 'end') requestLock();
     }
-  }, [albumOpen, requestLock]);
+  }, [rideOverlay, requestLock]);
 
   // Keyboard Event Handlers
   useEffect(() => {
@@ -672,6 +692,18 @@ export default function App() {
       if (e.code === 'KeyL' && !e.repeat) {
         e.preventDefault();
         openRouteSelector();
+        return;
+      }
+
+      // PA board [B]. Tab stays the Evidence log. Ignored while typing, and it won't open
+      // underneath the camera (it can still close if it was already open).
+      if (e.code === 'KeyB' && !e.repeat) {
+        const target = e.target as HTMLElement | null;
+        const typing = !!target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable);
+        if (typing) return;
+        if (polaroidManager.isViewfinderOpen && !paBoardOpenRef.current) return;
+        e.preventDefault();
+        togglePaBoard();
         return;
       }
 
@@ -834,7 +866,7 @@ export default function App() {
       window.removeEventListener('blur', handleBlur);
       document.removeEventListener('visibilitychange', handleVisibility);
     };
-  }, [triggerUpdate, pauseGame, resumeGame, releaseHeldKeys, openRouteSelector]);
+  }, [triggerUpdate, pauseGame, resumeGame, releaseHeldKeys, openRouteSelector, togglePaBoard]);
 
   const handleStartGame = (nightmare = false, startChapter = 1) => {
     const { startMuted } = settings.get();
@@ -899,6 +931,17 @@ export default function App() {
   const handlePause = pauseGame;
   const handleResume = resumeGame;
 
+  // Announcements still in the feed that were made while the board was closed.
+  // While it is open the count is 0 and those lines count as seen.
+  const paSync = syncPaSeen(
+    engineRef.current?.paFeed ?? [],
+    paBoardSeenRef.current,
+    paBoardOpen,
+    engineRef.current?.paSeq ?? 0,
+  );
+  paBoardSeenRef.current = paSync.seen;
+  const paBoardUnread = paSync.unread;
+
   // Restart from the pause menu: a fresh run from the same starting chapter. The abandoned
   // ride is not saved to run history (only endGame() saves).
   const handleRestart = () => {
@@ -957,6 +1000,9 @@ export default function App() {
             triggerUpdate();
           }}
           onOpenRouteSelector={openRouteSelector}
+          paBoardOpen={paBoardOpen}
+          paBoardUnread={paBoardUnread}
+          onTogglePaBoard={togglePaBoard}
         />
       )}
 

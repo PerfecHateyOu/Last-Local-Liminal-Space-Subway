@@ -15,7 +15,7 @@ import { settings } from '../settings';
 
 export interface LockChange {
   locked: boolean;
-  /** The game freed the mouse itself (route selector, evidence log): don't pause. */
+  /** The game freed the mouse itself (route selector, evidence log, PA board): don't pause. */
   quiet: boolean;
 }
 

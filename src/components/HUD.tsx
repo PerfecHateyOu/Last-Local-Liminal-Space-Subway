@@ -11,7 +11,7 @@
 import React from 'react';
 import { GameEngine } from '../game/gameState';
 import { STOPS, TIER_NAMES, CFG } from '../constants';
-import { Volume2, VolumeX, Pause, Camera, Image as ImageIcon, DoorOpen, GitBranch, Mic, Maximize2, Minimize2 } from 'lucide-react';
+import { Volume2, VolumeX, Pause, Camera, Image as ImageIcon, DoorOpen, GitBranch, Mic, Maximize2, Minimize2, Megaphone } from 'lucide-react';
 import { fullscreenSupported, toggleFullscreen, useFullscreen } from '../ui/fullscreen';
 import { HeartbeatTrace } from './HeartbeatTrace';
 import { MoveStick } from './MoveStick';
@@ -22,6 +22,7 @@ import { useSettings } from '../settings';
 import { pointerLock } from '../input/pointerLock';
 import { EvpRecorder } from './EvpRecorder';
 import { AnalogRollsign } from './AnalogRollsign';
+import { PaBoard } from './PaBoard';
 import { hintStrip } from '../ui/controls';
 import { modelLoader } from '../graphics/modelLoader';
 
@@ -45,6 +46,11 @@ interface HUDProps {
   onToggleCamera?: () => void;
   onToggleAlbum?: () => void;
   onOpenRouteSelector?: () => void;
+  /** PA board panel state (App owns it so the B key and the HUD button share it). */
+  paBoardOpen: boolean;
+  /** Announcements made while the board was closed; 0 while it is open. */
+  paBoardUnread: number;
+  onTogglePaBoard: () => void;
 }
 
 export const HUD: React.FC<HUDProps> = ({
@@ -57,6 +63,9 @@ export const HUD: React.FC<HUDProps> = ({
   onToggleCamera,
   onToggleAlbum,
   onOpenRouteSelector,
+  paBoardOpen,
+  paBoardUnread,
+  onTogglePaBoard,
 }) => {
   const full = useFullscreen();
   // Publish the top bar's height (--hud-h) so cards that dock under it (the practice stretch's
@@ -149,6 +158,17 @@ export const HUD: React.FC<HUDProps> = ({
       {/* Chapter Transition Rollsign */}
       <AnalogRollsign engine={G} />
 
+      {/* PA Board panel (B): route strip, announcements feed, suspicion meter, flag.
+          It docks under the top bar (--hud-h) and stops above the FLAG button. */}
+      <PaBoard
+        engine={G}
+        open={paBoardOpen}
+        unread={paBoardUnread}
+        onToggle={onTogglePaBoard}
+        onFlagDown={onFlagDown}
+        onFlagUp={onFlagUp}
+      />
+
       {/* Central Reticle */}
       {!isTrial && !polaroidManager.isViewfinderOpen && (
         <div
@@ -221,9 +241,10 @@ export const HUD: React.FC<HUDProps> = ({
           </span>
         </button>
 
-        {/* Tools: gameplay (Camera, Recorder, Evidence, Route) | system (Sound, Full screen, Pause).
-            40px circles (44px on touch); only Camera and Evidence carry labels, on wide screens. */}
-        <div className="justify-self-end shrink-0 flex items-center gap-1 min-[360px]:gap-1.5 pointer-events-auto">
+        {/* Tools: gameplay (Camera, Recorder, Evidence, PA Board, Route) | system (Sound, Full screen, Pause).
+            40px circles (44px on touch); only Camera and Evidence carry labels, on wide screens.
+            The row wraps on a narrow phone so the station card and these buttons never overlap. */}
+        <div className="justify-self-end w-full md:w-auto min-w-0 flex flex-wrap justify-end items-center gap-1 min-[360px]:gap-1.5 pointer-events-auto">
           <button
             onClick={onToggleCamera}
             // While an answer or the restraint needs you, the camera can't come up; pressing it says why.
@@ -279,6 +300,31 @@ export const HUD: React.FC<HUDProps> = ({
             <ImageIcon className="w-4 h-4 text-g-line" />
             <span className="hidden lg:inline">Evidence</span>
             <span className="text-3xs bg-white/10 px-1 py-0.5 rounded font-mono tabular-nums">{polaroidManager.photos.length}</span>
+          </button>
+
+          {/* PA Board (B): the announcements feed, route strip and suspicion meter. The
+              badge counts announcements made while it was closed. */}
+          <button
+            id="pa-board-toggle"
+            data-testid="pa-board-toggle"
+            onClick={onTogglePaBoard}
+            title="PA board (B)"
+            aria-label={paBoardUnread > 0 ? `PA Board, ${paBoardUnread} unread` : 'PA Board'}
+            aria-keyshortcuts="B"
+            aria-pressed={paBoardOpen}
+            className={`relative flex ${TOOL} ${
+              paBoardOpen ? 'bg-warn text-[#1a1205] border-warn-hi' : `${GLASS} text-cream hover:bg-black/80`
+            }`}
+          >
+            <Megaphone className={`w-4 h-4 ${paBoardOpen ? 'text-current' : 'text-warn'}`} />
+            {paBoardUnread > 0 && !paBoardOpen && (
+              <span
+                data-testid="pa-board-unread"
+                className="absolute -top-1.5 -right-1.5 min-w-5 h-5 px-1 rounded-full bg-bad text-white text-3xs font-extrabold flex items-center justify-center border border-white/40"
+              >
+                {paBoardUnread}
+              </span>
+            )}
           </button>
 
           <button
