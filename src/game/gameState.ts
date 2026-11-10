@@ -61,6 +61,8 @@ const TRESTLE_FOG = new THREE.Color('#322018');
 /** "The next stop is…" PA: seconds into the stretch, and how long it shows. */
 const NEXT_STOP_PA_AT = 7.0;
 const NEXT_STOP_PA_S = 4.5;
+/** How many announcements the PA board keeps (oldest drop off). */
+const PA_FEED_MAX = 12;
 /** The parents' chat on a stretch: when its two lines start, and how long each shows. */
 const CHAT_AT = [15.0, 18.6] as const;
 const CHAT_LINE_S = 3.4;
@@ -74,6 +76,7 @@ import {
   ChoiceItem,
   ChoiceState,
   GamePhase,
+  PaFeedEntry,
   PersonObject,
   RestraintState,
   RunHistoryRecord,
@@ -203,6 +206,11 @@ export class GameEngine {
   public hintUntil: number = 0;
   public subHtml: string = '';
   public paText: string = '';
+  /** The PA board's feed: every announcement setPA has made this run, oldest first, capped
+   * at PA_FEED_MAX. Recorded verbatim, so a false stop's lie reads exactly as announced.
+   * `paSeq` is the id of the latest one (0 if none); it resets with the feed in newGame. */
+  public paFeed: PaFeedEntry[] = [];
+  public paSeq: number = 0;
   public hintText: string = '';
   public clackD: number = 6;
   public whisperT: number = 20;
@@ -386,6 +394,9 @@ export class GameEngine {
   public setPA(text: string, dur: number) {
     this.paText = text;
     this.paUntil = this.GT + dur;
+    this.paSeq += 1;
+    this.paFeed.push({ text, at: this.GT, stop: this.seg ? this.seg.stop : 1, seq: this.paSeq });
+    if (this.paFeed.length > PA_FEED_MAX) this.paFeed.splice(0, this.paFeed.length - PA_FEED_MAX);
     this.notifyUI();
   }
 
@@ -510,6 +521,8 @@ export class GameEngine {
     this.intervening = false;
     this.tier = 0;
     this.susLog = [];
+    this.paFeed = [];
+    this.paSeq = 0;
     this.sanLog = [];
     this.sanSamples = [];
     this.stopLog = [];
