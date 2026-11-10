@@ -389,12 +389,23 @@ export const HUD: React.FC<HUDProps> = ({
         </div>
       )}
 
-      {/* Subway PA Announcement LED Display */}
+      {/* Subway PA Announcement LED Display.
+          The outer box is absolute against the HUD root and z-30, above the PA Board (z-10).
+          It used to list both `absolute` and `relative`; `relative` won in the built CSS, so the
+          toast was offset from its in-flow spot instead of the HUD. The flicker animation also
+          sets `transform`, which would wipe a centering translate, so the scale lives on the
+          inner box and the outer box keeps the centering. pointer-events stay none: the toast
+          covers the panel while it is up, and clicks pass through to the controls under it. */}
       {G.paText && (
-        <div className="absolute left-1/2 top-28 sm:top-16 -translate-x-1/2 max-w-[min(90vw,640px)] px-4 py-2 rounded bg-[#120d05] border border-warn/60 text-warn text-center font-bold text-sm sm:text-base tracking-wide shadow-[0_0_18px_rgba(227,168,58,0.25)] transit-sign-flicker relative overflow-hidden">
-          <div className="absolute inset-0 pointer-events-none transit-sign-raster opacity-30" />
-          <span className="inline-block w-2 h-2 rounded-full bg-warn mr-2 animate-ping" />
-          <span className="relative z-10">{G.paText}</span>
+        <div
+          data-testid="pa-toast"
+          className="pointer-events-none absolute z-30 left-1/2 top-28 sm:top-16 -translate-x-1/2 max-w-[min(90vw,640px)]"
+        >
+          <div className="relative overflow-hidden px-4 py-2 rounded bg-[#120d05] border border-warn/60 text-warn text-center font-bold text-sm sm:text-base tracking-wide shadow-[0_0_18px_rgba(227,168,58,0.25)] transit-sign-flicker">
+            <div className="absolute inset-0 pointer-events-none transit-sign-raster opacity-30" />
+            <span className="inline-block w-2 h-2 rounded-full bg-warn mr-2 animate-ping" />
+            <span className="relative z-10">{G.paText}</span>
+          </div>
         </div>
       )}
 

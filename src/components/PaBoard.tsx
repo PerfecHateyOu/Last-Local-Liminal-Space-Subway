@@ -167,8 +167,20 @@ export const PaBoard: React.FC<PaBoardProps> = ({ engine, open, unread, onToggle
       <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-3 py-3 flex flex-col gap-4">
         {/* Route strip: passed / at / next / upcoming, from the active route and the segment */}
         <div>
-          <h2 className="font-mono text-3xs font-bold tracking-[0.2em] uppercase text-cream/60 mb-1.5 truncate">
-            {route.id} · {stops[0]} → {stops[stops.length - 1]}
+          {/* Origin and terminus are separate spans so a narrow or wide-font line wraps
+              instead of ellipsizing. A name that still exceeds the panel wraps inside
+              its span (max width of the row); it is not clipped and not nowrap. */}
+          <h2
+            data-testid="pa-board-route-header"
+            className="font-mono text-3xs font-bold tracking-[0.08em] sm:tracking-[0.2em] uppercase text-cream/60 mb-1.5 leading-snug flex flex-wrap items-baseline gap-x-1 min-w-0"
+          >
+            <span>{route.id}</span>
+            <span aria-hidden="true">·</span>
+            <span data-testid="pa-board-origin" className="max-w-full shrink-0 [overflow-wrap:anywhere]">{stops[0]}</span>
+            <span aria-hidden="true">→</span>
+            <span data-testid="pa-board-terminus" className="max-w-full shrink-0 [overflow-wrap:anywhere]">
+              {stops[stops.length - 1]}
+            </span>
           </h2>
           <ol ref={routeRef} className="relative flex flex-col gap-0.5 max-h-32 overflow-y-auto overscroll-contain" aria-label="Route progress">
             {stops.map((name, i) => {

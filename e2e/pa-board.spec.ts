@@ -383,4 +383,185 @@ test.describe('PA board on a phone', () => {
     expect(Math.min(close.width, close.height)).toBeGreaterThanOrEqual(44);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   });
+
+  test('the announcement toast stacks above the open panel and does not take clicks', async ({ page, game }) => {
+    await game(`G.isTouch = true; G.Q = []; G.paFeed = []; G.paSeq = 0; ride(0); G.chapterRollsign = null; G.notifyUI();`);
+    await page.getByTestId('pa-board-toggle').tap();
+    await expect(page.getByTestId('pa-board')).toBeVisible();
+    await game(`G.setPA('Stand clear of the closing doors, please.', 30); G.chapterRollsign = null; G.notifyUI();`);
+    const toast = page.getByTestId('pa-toast');
+    await expect(toast).toBeVisible();
+    await expect(toast).toContainText('Stand clear of the closing doors, please.');
+
+    const stacked = await page.evaluate(() => {
+      const t = document.querySelector('[data-testid="pa-toast"]') as HTMLElement;
+      const panel = document.querySelector('[data-testid="pa-board"]') as HTMLElement;
+      const inner = t.firstElementChild as HTMLElement;
+      const tcs = getComputedStyle(t);
+      const pcs = getComputedStyle(panel);
+      const r = t.getBoundingClientRect();
+      const pause = document.querySelector('button[aria-label="Pause"]') as HTMLElement;
+      const close = document.querySelector('button[aria-label="Close PA board"]') as HTMLElement;
+      const flag = document.querySelector('button[aria-label="Flag: hold to catch"]') as HTMLElement;
+      const hit = (el: HTMLElement) => {
+        const b = el.getBoundingClientRect();
+        const top = document.elementFromPoint(b.x + b.width / 2, b.y + b.height / 2) as HTMLElement | null;
+        return top && (top === el || el.contains(top));
+      };
+      // Clicks pass through the toast (pointer-events none). Enabling them is only for the paint check.
+      const clicksPass =
+        getComputedStyle(t).pointerEvents === 'none' && hit(pause) && hit(close) && hit(flag);
+      t.style.pointerEvents = 'auto';
+      const mid = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2) as HTMLElement | null;
+      const onTop = !!mid && (mid === t || t.contains(mid));
+      return {
+        position: tcs.position,
+        toastZ: tcs.zIndex,
+        panelZ: pcs.zIndex,
+        onTop,
+        clicksPass,
+        anim: getComputedStyle(inner).animationName,
+      };
+    });
+    expect(stacked.position).toBe('absolute');
+    expect(Number(stacked.toastZ)).toBeGreaterThan(Number(stacked.panelZ));
+    expect(stacked.onTop).toBe(true);
+    expect(stacked.clicksPass).toBe(true);
+    expect(stacked.anim).toContain('transitSignFlicker');
+  });
+});
+
+/** The name span is fully inside the panel and its own text is not clipped. */
+async function expectNameInside(page: import('@playwright/test').Page, testId: string, text: string) {
+  const el = page.getByTestId(testId);
+  await expect(el).toHaveText(text);
+  const fit = await el.evaluate((node) => {
+    const n = node as HTMLElement;
+    const panel = document.querySelector('[data-testid="pa-board"]') as HTMLElement;
+    const t = n.getBoundingClientRect();
+    const p = panel.getBoundingClientRect();
+    const cs = getComputedStyle(n);
+    return {
+      inside:
+        t.x >= p.x - 0.5 &&
+        t.x + t.width <= p.x + p.width + 0.5 &&
+        t.y >= p.y - 0.5 &&
+        t.y + t.height <= p.y + p.height + 0.5,
+      clipped: n.scrollWidth > n.clientWidth + 1 || n.scrollHeight > n.clientHeight + 1,
+      overflow: cs.overflow,
+      textOverflow: cs.textOverflow,
+    };
+  });
+  expect(fit.inside, `${testId} box inside the panel`).toBe(true);
+  expect(fit.clipped, `${testId} text clipped`).toBe(false);
+  expect(fit.textOverflow).not.toBe('ellipsis');
+}
+
+const PHONE_WIDTHS = [320, 360, 390] as const;
+
+for (const width of PHONE_WIDTHS) {
+  test.describe(`PA board route header at ${width}px`, () => {
+    test.use({ viewport: { width, height: 700 }, hasTouch: true, isMobile: true });
+
+    test('G, L and 7 origin and terminus stay fully readable', async ({ page, game }) => {
+      await game(`G.isTouch = true; G.Q = []; ride(0); G.chapterRollsign = null; G.notifyUI();`);
+      await page.getByTestId('pa-board-toggle').tap();
+      const lines = [
+        { id: 'G', origin: 'Hoyt–Schermerhorn', terminus: 'Court Sq' },
+        { id: 'L', origin: '8th Av', terminus: 'Myrtle–Wyckoff Avs' },
+        { id: '7', origin: 'Times Sq–42nd St', terminus: 'Terminal Echo' },
+      ] as const;
+      for (const line of lines) {
+        await game(`window.__RT.setRoute('${line.id}'); G.chapterRollsign = null; G.notifyUI();`);
+        await expectNameInside(page, 'pa-board-origin', line.origin);
+        await expectNameInside(page, 'pa-board-terminus', line.terminus);
+      }
+    });
+  });
+}
+
+test.describe('PA board route header with a wider font', () => {
+  test.use({ viewport: { width: 320, height: 700 }, hasTouch: true, isMobile: true });
+
+  test('a larger type size still shows the full L terminus', async ({ page, game }) => {
+    await game(`G.isTouch = true; G.Q = []; ride(0); G.chapterRollsign = null; G.notifyUI();`);
+    await page.getByTestId('pa-board-toggle').tap();
+    await page.evaluate(() => {
+      document.documentElement.style.setProperty('--text-3xs', '18px');
+      const header = document.querySelector('[data-testid="pa-board-route-header"]') as HTMLElement;
+      header.style.letterSpacing = '0.14em';
+    });
+    await game(`window.__RT.setRoute('L'); G.notifyUI();`);
+    await expectNameInside(page, 'pa-board-origin', '8th Av');
+    await expectNameInside(page, 'pa-board-terminus', 'Myrtle–Wyckoff Avs');
+    await game(`window.__RT.setRoute('G'); G.notifyUI();`);
+    await expectNameInside(page, 'pa-board-origin', 'Hoyt–Schermerhorn');
+    await expectNameInside(page, 'pa-board-terminus', 'Court Sq');
+  });
+});
+
+test.describe('PA toast geometry and flicker', () => {
+  test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+
+  test('with the flicker finished, the toast stays centered and opaque', async ({ page, game }) => {
+    await game(`G.Q = []; ride(0); G.setPA('Stand clear of the closing doors, please.', 30); G.chapterRollsign = null; G.notifyUI();`);
+    await expect(page.getByTestId('pa-toast')).toBeVisible();
+    const done = await page.evaluate(async () => {
+      const t = document.querySelector('[data-testid="pa-toast"]') as HTMLElement;
+      const inner = t.firstElementChild as HTMLElement;
+      await Promise.all(inner.getAnimations().map((a) => a.finished.catch(() => undefined)));
+      for (const a of inner.getAnimations()) a.finish();
+      const cs = getComputedStyle(t);
+      const ics = getComputedStyle(inner);
+      const r = t.getBoundingClientRect();
+      return {
+        // Tailwind v4 centers with the `translate` property, not `transform`, so the
+        // flicker's transform: scale() on the inner box cannot un-center the toast.
+        outerTranslate: cs.translate,
+        outerTransform: cs.transform,
+        innerTransform: ics.transform,
+        innerOpacity: Number(ics.opacity),
+        centerDelta: Math.abs(r.x + r.width / 2 - window.innerWidth / 2),
+        anim: ics.animationName,
+      };
+    });
+    expect(done.anim).toContain('transitSignFlicker');
+    expect(done.innerOpacity).toBeGreaterThan(0.95);
+    expect(done.centerDelta).toBeLessThan(8);
+    expect(done.outerTranslate).toMatch(/-50%/);
+    expect(done.outerTransform).toBe('none');
+  });
+
+  test('with screen effects reduced, the toast is still centered above the panel', async ({ page, game }) => {
+    await page.evaluate(() => document.documentElement.setAttribute('data-effects', 'reduced'));
+    await game(`G.Q = []; ride(0); G.notifyUI();`);
+    await page.keyboard.press('KeyB');
+    await game(`G.setPA('The next stop is Fulton St.', 30); G.notifyUI();`);
+    await expect(page.getByTestId('pa-toast')).toBeVisible();
+    const geom = await page.evaluate(async () => {
+      const t = document.querySelector('[data-testid="pa-toast"]') as HTMLElement;
+      const inner = t.firstElementChild as HTMLElement;
+      const panel = document.querySelector('[data-testid="pa-board"]') as HTMLElement;
+      for (const a of inner.getAnimations()) a.finish();
+      const r = t.getBoundingClientRect();
+      const tcs = getComputedStyle(t);
+      const ics = getComputedStyle(inner);
+      t.style.pointerEvents = 'auto';
+      const mid = document.elementFromPoint(r.x + r.width / 2, r.y + Math.min(r.height, 12) / 2) as HTMLElement | null;
+      return {
+        position: tcs.position,
+        above: Number(tcs.zIndex) > Number(getComputedStyle(panel).zIndex),
+        centerDelta: Math.abs(r.x + r.width / 2 - window.innerWidth / 2),
+        opacity: Number(ics.opacity),
+        onTop: !!mid && (mid === t || t.contains(mid)),
+        anim: ics.animationName,
+      };
+    });
+    expect(geom.position).toBe('absolute');
+    expect(geom.above).toBe(true);
+    expect(geom.centerDelta).toBeLessThan(8);
+    expect(geom.opacity).toBeGreaterThan(0.95);
+    expect(geom.onTop).toBe(true);
+    expect(geom.anim).toContain('simpleFadeIn');
+  });
 });
