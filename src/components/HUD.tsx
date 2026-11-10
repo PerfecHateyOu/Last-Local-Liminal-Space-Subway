@@ -164,6 +164,7 @@ export const HUD: React.FC<HUDProps> = ({
         engine={G}
         open={paBoardOpen}
         unread={paBoardUnread}
+        toastUp={!!G.paText}
         onToggle={onTogglePaBoard}
         onFlagDown={onFlagDown}
         onFlagUp={onFlagUp}
@@ -395,7 +396,8 @@ export const HUD: React.FC<HUDProps> = ({
           toast was offset from its in-flow spot instead of the HUD. The flicker animation also
           sets `transform`, which would wipe a centering translate, so the scale lives on the
           inner box and the outer box keeps the centering. pointer-events stay none: the toast
-          covers the panel while it is up, and clicks pass through to the controls under it. */}
+          covers the scene while it is up, and clicks pass through to the controls under it.
+          On a phone the board moves down to the toast's layout height so the header stays clear. */}
       {G.paText && (
         <div
           data-testid="pa-toast"

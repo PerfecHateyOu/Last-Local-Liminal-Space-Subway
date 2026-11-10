@@ -19,7 +19,7 @@
  * - "Last noticed" repeats the engine's own suspicion-log string (the same words the report
  *   lists at the end of a run). It is not a new reason and it is not an anomaly name.
  */
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useLayoutEffect, useRef } from 'react';
 import { GameEngine } from '../game/gameState';
 import { routeManager } from '../game/routeManager';
 import { TIER_NAMES, CFG, SUS } from '../constants';
@@ -43,12 +43,14 @@ interface PaBoardProps {
   open: boolean;
   /** Announcements made while the panel was closed; 0 while it is open. */
   unread: number;
+  /** A PA toast is showing (HUD, from G.paText). On a phone the panel moves below it. */
+  toastUp: boolean;
   onToggle: () => void;
   onFlagDown: () => void;
   onFlagUp: () => void;
 }
 
-export const PaBoard: React.FC<PaBoardProps> = ({ engine, open, unread, onToggle, onFlagDown, onFlagUp }) => {
+export const PaBoard: React.FC<PaBoardProps> = ({ engine, open, unread, toastUp, onToggle, onFlagDown, onFlagUp }) => {
   const G = engine;
   const panelRef = useRef<HTMLElement>(null);
   const routeRef = useRef<HTMLOListElement>(null);
@@ -83,6 +85,53 @@ export const PaBoard: React.FC<PaBoardProps> = ({ engine, open, unread, onToggle
     if (!list || !here) return;
     list.scrollTop = Math.max(0, here.offsetTop - list.clientHeight / 2 + here.clientHeight / 2);
   }, [open, hereStop]);
+
+  // On a phone, sit the panel just under the toast. The gap follows the toast's layout
+  // height, so a longer line or a wider font dips further than a short one. Desktop
+  // (640px and up) keeps the usual top. The dip is a jump: a top transition lingered
+  // mid-glide under software rendering. It stops at a floor so the scroll area and
+  // the flag button stay on screen.
+  useLayoutEffect(() => {
+    const panel = panelRef.current;
+    if (!panel) return;
+    const drop = () => {
+      panel.style.top = '';
+    };
+    const narrow = typeof window !== 'undefined' && window.matchMedia('(max-width: 639px)').matches;
+    if (!open || !toastUp || !narrow) {
+      drop();
+      return;
+    }
+    const measure = () => {
+      const toast = document.querySelector('[data-testid="pa-toast"]') as HTMLElement | null;
+      if (!toast || !panel.isConnected) {
+        drop();
+        return;
+      }
+      const parent = panel.offsetParent as HTMLElement | null;
+      const parentH = parent?.clientHeight ?? window.innerHeight;
+      const hudVar = getComputedStyle(document.documentElement).getPropertyValue('--hud-h');
+      const hudH = parseFloat(hudVar) || 96;
+      const normalTop = hudH + 8;
+      const desired = toast.offsetTop + toast.offsetHeight + 8;
+      const headerH = (panel.querySelector('header') as HTMLElement | null)?.offsetHeight ?? 0;
+      const footerH = (panel.querySelector('[data-testid="pa-board-footer"]') as HTMLElement | null)?.offsetHeight ?? 0;
+      const bottom = parseFloat(getComputedStyle(panel).bottom) || 108;
+      // Don't dip so far that the scroll area disappears. Past that, the toast may
+      // still meet the header; the tests cover the real lines and a wider font.
+      const maxTop = parentH - bottom - headerH - footerH - 8;
+      const next = Math.min(Math.max(desired, normalTop), Math.max(normalTop, maxTop));
+      panel.style.top = `${Math.round(next)}px`;
+    };
+    measure();
+    const toast = document.querySelector('[data-testid="pa-toast"]');
+    const ro = typeof ResizeObserver !== 'undefined' && toast ? new ResizeObserver(measure) : null;
+    if (toast) ro?.observe(toast);
+    return () => {
+      ro?.disconnect();
+      panel.style.top = '';
+    };
+  }, [open, toastUp, engine.paText]);
 
   const endHold = (e?: { pointerId?: number }) => {
     if (!holdingRef.current) return;
@@ -129,17 +178,18 @@ export const PaBoard: React.FC<PaBoardProps> = ({ engine, open, unread, onToggle
       aria-label="PA board"
       data-testid="pa-board"
       tabIndex={-1}
-      className={`${GLASS} absolute right-3 top-[calc(var(--hud-h,6rem)+0.5rem)] bottom-[6.75rem] z-10 w-[min(92vw,380px)] max-[540px]:w-[calc(100%-9.5rem)] flex flex-col overflow-hidden rounded-xl text-cream pointer-events-auto`}
+      className={`${GLASS} absolute right-3 top-[calc(var(--hud-h,6rem)+0.5rem)] bottom-[6.75rem] z-10 w-[min(92vw,380px)] max-[540px]:w-[calc(100%-9.5rem)] max-h-[calc(100dvh-var(--hud-h,6rem)-7.25rem)] flex flex-col overflow-hidden rounded-xl text-cream pointer-events-auto`}
     >
-      {/* Header: line bullet, title, ride clock, close */}
-      <header className="shrink-0 flex flex-wrap items-center gap-x-2 gap-y-1 px-3 py-2.5 bg-black/70 border-b border-white/10">
+      {/* Header: line bullet, title, ride clock, close.
+          Under 400px the title is a step smaller so the badge and title share one row. */}
+      <header className="shrink-0 flex flex-wrap items-center gap-x-1.5 gap-y-1 px-3 py-2.5 max-[400px]:py-1.5 bg-black/70 border-b border-white/10">
         <span
           className="shrink-0 w-6 h-6 rounded-full font-extrabold flex items-center justify-center text-xs shadow"
           style={{ backgroundColor: route.bulletColor, color: route.bulletTextColor }}
         >
           {route.id}
         </span>
-        <span className="flex items-center gap-1.5 font-extrabold tracking-[0.14em] text-sm whitespace-nowrap">
+        <span className="flex items-center gap-1.5 font-extrabold tracking-[0.14em] text-sm max-[400px]:text-xs whitespace-nowrap">
           <Megaphone className="w-4 h-4 text-warn" />
           PA BOARD
         </span>
@@ -164,7 +214,7 @@ export const PaBoard: React.FC<PaBoardProps> = ({ engine, open, unread, onToggle
         </span>
       </header>
 
-      <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-3 py-3 flex flex-col gap-4">
+      <div data-testid="pa-board-body" className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain px-3 py-3 flex flex-col gap-4">
         {/* Route strip: passed / at / next / upcoming, from the active route and the segment */}
         <div>
           {/* Origin and terminus are separate spans so a narrow or wide-font line wraps
@@ -217,9 +267,9 @@ export const PaBoard: React.FC<PaBoardProps> = ({ engine, open, unread, onToggle
 
         {/* Suspicion meter: G.sus, clamped 0–100 by addSus. Stage names are display only. */}
         <div>
-          <div className="flex items-baseline justify-between mb-1 gap-2">
-            <h2 className="font-mono text-3xs font-bold tracking-[0.2em] uppercase text-cream/60">Suspicion</h2>
-            <span className="font-mono text-xs tabular-nums text-right">
+          <div className="flex flex-wrap items-baseline justify-between mb-1 gap-x-2 gap-y-0.5">
+            <h2 className="font-mono text-3xs font-bold tracking-[0.2em] uppercase text-cream/60 [overflow-wrap:anywhere]">Suspicion</h2>
+            <span className="ml-auto font-mono text-xs tabular-nums text-right">
               <b className={G.sus >= SUS.intervene ? 'text-bad-pale' : 'text-cream'}>{Math.round(G.sus)}</b>
               <span className="text-cream/50"> / 100 · peak {Math.round(G.peak)}</span>
               <span className="ml-2 font-bold tracking-widest text-warn">{susStage(G.sus)}</span>
@@ -252,7 +302,7 @@ export const PaBoard: React.FC<PaBoardProps> = ({ engine, open, unread, onToggle
 
         {/* PA feed: every announcement this run, latest first, verbatim. */}
         <div>
-          <h2 className="font-mono text-3xs font-bold tracking-[0.2em] uppercase text-cream/60 mb-1.5">Announcements</h2>
+          <h2 className="font-mono text-3xs font-bold tracking-[0.2em] uppercase text-cream/60 mb-1.5 [overflow-wrap:anywhere]">Announcements</h2>
           {feed.length === 0 ? (
             <p className="text-sm text-cream/60">No announcements yet — the conductor speaks as the ride goes on.</p>
           ) : (
@@ -268,10 +318,17 @@ export const PaBoard: React.FC<PaBoardProps> = ({ engine, open, unread, onToggle
             </ol>
           )}
         </div>
+
+        {/* Same words as before. They scroll with the feed so a short phone can reach the
+            end of the sentence; the pinned footer is only the flag control. */}
+        <p className="text-3xs text-cream/60 leading-snug" data-testid="pa-board-flags-note">
+          Flags placed this stretch: {G.segFlags.length} · A flag never says whether you were right — catches
+          and misses are scored when the train arrives.
+        </p>
       </div>
 
       {/* Flag stays put under the scroll, so a phone can still hold it. Same hold as the HUD. */}
-      <div className="shrink-0 px-3 pt-2 pb-3 border-t border-white/10">
+      <div data-testid="pa-board-footer" className="shrink-0 px-3 pt-2 pb-3 max-[400px]:pt-1.5 max-[400px]:pb-2 border-t border-white/10">
         <button
           type="button"
           data-testid="pa-board-flag"
@@ -294,7 +351,7 @@ export const PaBoard: React.FC<PaBoardProps> = ({ engine, open, unread, onToggle
           onContextMenu={(e) => e.preventDefault()}
           aria-label="Flag: hold to catch"
           aria-disabled={handsBusy || undefined}
-          className={`touch-none w-full flex items-center justify-center gap-2 min-h-11 px-3 py-2 rounded-lg border font-extrabold tracking-wider text-sm transition-colors active:translate-y-px focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cream ${
+          className={`touch-none w-full flex items-center justify-center gap-2 min-h-11 px-3 py-2 rounded-lg border font-extrabold tracking-wider text-sm max-[400px]:text-xs max-[400px]:tracking-normal max-[400px]:gap-1.5 max-[400px]:px-2 transition-colors active:translate-y-px focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cream ${
             handsBusy
               ? 'bg-black/60 border-white/10 text-cream/40 cursor-not-allowed'
               : G.flagHeld
@@ -302,17 +359,13 @@ export const PaBoard: React.FC<PaBoardProps> = ({ engine, open, unread, onToggle
               : 'bg-black/65 border-white/30 text-cream hover:bg-black/80'
           }`}
         >
-          <Flag className="w-4 h-4" />
+          <Flag className="w-4 h-4 shrink-0" />
           {handsBusy ? 'FLAG — HANDS BUSY' : G.flagHeld ? 'FLAGGING…' : 'HOLD TO FLAG'}
-          <kbd className="text-3xs opacity-70 bg-white/10 px-1 py-0.5 rounded font-mono">F</kbd>
+          <kbd className="text-3xs opacity-70 bg-white/10 px-1 py-0.5 rounded font-mono max-[400px]:hidden">F</kbd>
         </button>
         <div className="mt-1.5 h-1 rounded-full bg-white/15 overflow-hidden" aria-hidden="true">
           <div className="h-full bg-g-line transition-all duration-100" style={{ width: `${flagRatio * 100}%` }} />
         </div>
-        <p className="mt-1.5 text-3xs text-cream/60 leading-snug">
-          Flags placed this stretch: {G.segFlags.length} · A flag never says whether you were right — catches
-          and misses are scored when the train arrives.
-        </p>
         <p className="mt-1.5 text-3xs text-cream/40 font-mono">[B] PA board · [F] hold to flag</p>
       </div>
     </section>
