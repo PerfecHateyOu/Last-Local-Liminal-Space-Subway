@@ -565,3 +565,187 @@ test.describe('PA toast geometry and flicker', () => {
     expect(geom.anim).toContain('simpleFadeIn');
   });
 });
+
+/** Real announcements, including the longest signed next-stop and the longest filled line. */
+const TOAST_LINES = [
+  'This is Court Square. Last stop. Everybody off the train.',
+  'This is the Last Local. Myrtle–Wyckoff–bound L train.',
+  'Myrtle–Wyckoff. This is the last stop on this train.',
+  'The next stop is Abandoned Steinway Platform.',
+  'The next stop is Sub-River Tube Level -4.',
+  'Stand clear of the closing doors, please.',
+] as const;
+
+async function finishToast(page: import('@playwright/test').Page) {
+  await page.evaluate(() => {
+    const inner = document.querySelector('[data-testid="pa-toast"]')?.firstElementChild as HTMLElement | null;
+    for (const a of inner?.getAnimations() ?? []) a.finish();
+  });
+}
+
+/** Layout boxes after the flicker is finished, so geometry is not the first animation frame. */
+async function toastVsHeader(page: import('@playwright/test').Page) {
+  await finishToast(page);
+  return page.evaluate(() => {
+    const rect = (el: Element | null) => {
+      if (!el) return null;
+      const b = el.getBoundingClientRect();
+      return { x: b.x, y: b.y, width: b.width, height: b.height, bottom: b.bottom, right: b.right };
+    };
+    const panel = document.querySelector('[data-testid="pa-board"]') as HTMLElement;
+    const header = panel.querySelector('header') as HTMLElement;
+    const toast = document.querySelector('[data-testid="pa-toast"]') as HTMLElement;
+    const body = document.querySelector('[data-testid="pa-board-body"]') as HTMLElement;
+    const overlap = (a: { x: number; y: number; right: number; bottom: number }, b: typeof a) =>
+      a.x < b.right - 0.5 && b.x < a.right - 0.5 && a.y < b.bottom - 0.5 && b.y < a.bottom - 0.5;
+    const t = rect(toast)!;
+    const h = rect(header)!;
+    const pause = document.querySelector('button[aria-label="Pause"]') as HTMLElement;
+    const close = document.querySelector('button[aria-label="Close PA board"]') as HTMLElement;
+    const flag = document.querySelector('[data-testid="pa-board-flag"]') as HTMLElement;
+    const hit = (el: HTMLElement) => {
+      const b = el.getBoundingClientRect();
+      if (b.width < 8 || b.height < 8) return false;
+      const top = document.elementFromPoint(b.x + b.width / 2, b.y + Math.min(b.height / 2, b.height - 2)) as HTMLElement | null;
+      return !!top && (top === el || el.contains(top));
+    };
+    return {
+      toast: t,
+      header: h,
+      panel: rect(panel),
+      bodyH: body.clientHeight,
+      scrollW: body.scrollWidth,
+      clientW: body.clientWidth,
+      scrollH: body.scrollHeight,
+        overHeader: t && h ? overlap(t, h) : true,
+        panelTop: panel.style.top,
+        toastOffset: toast ? toast.offsetTop + toast.offsetHeight : -1,
+      toastZ: Number(getComputedStyle(toast).zIndex),
+      panelZ: Number(getComputedStyle(panel).zIndex),
+      hits: { pause: hit(pause), close: hit(close), flag: hit(flag) },
+    };
+  });
+}
+
+const PHONE_TOAST = [
+  [320, 568],
+  [360, 640],
+  [390, 844],
+] as const;
+
+for (const [width, height] of PHONE_TOAST) {
+  test.describe(`toast clears the header at ${width}×${height}`, () => {
+    test.use({ viewport: { width, height }, hasTouch: true, isMobile: true });
+
+    test('every real announcement sits above the header, and the panel stays usable', async ({ page, game }) => {
+      await game(`G.isTouch = true; G.Q = []; ride(0); G.chapterRollsign = null; G.notifyUI();`);
+      await page.getByTestId('pa-board-toggle').tap();
+      await expect(page.getByTestId('pa-board')).toBeVisible();
+      for (const line of TOAST_LINES) {
+        await game(`G.setPA(${JSON.stringify(line)}, 30); G.chapterRollsign = null; G.notifyUI();`);
+        await expect(page.getByTestId('pa-toast')).toContainText(line.slice(0, 18));
+        const g = await toastVsHeader(page);
+        expect(g.overHeader, `${line} ${JSON.stringify({ toast: g.toast, header: g.header, bodyH: g.bodyH, panelTop: g.panelTop, toastOffset: g.toastOffset })}`).toBe(false);
+        expect(g.toast.bottom).toBeLessThanOrEqual(g.header.y + 1);
+        expect(g.toastZ).toBeGreaterThan(g.panelZ);
+        expect(g.bodyH, line).toBeGreaterThanOrEqual(36);
+        expect(g.scrollW, line).toBeLessThanOrEqual(g.clientW + 1);
+        expect(g.hits.pause, line).toBe(true);
+        expect(g.hits.close, line).toBe(true);
+        expect(g.hits.flag, line).toBe(true);
+        const vp = page.viewportSize()!;
+        expect(g.panel!.y).toBeGreaterThanOrEqual(0);
+        expect(g.panel!.bottom).toBeLessThanOrEqual(vp.height + 0.5);
+        expect(g.panel!.height).toBeGreaterThan(120);
+      }
+    });
+  });
+}
+
+test.describe('320×568 with a wider font and the longest toast', () => {
+  test.use({ viewport: { width: 320, height: 568 }, hasTouch: true, isMobile: true });
+
+  test('the header stays clear and the flags note can be scrolled to', async ({ page, game }) => {
+    await game(`G.isTouch = true; G.Q = []; ride(0); window.__RT.setRoute('L'); G.chapterRollsign = null; G.notifyUI();`);
+    await page.getByTestId('pa-board-toggle').tap();
+    await page.evaluate(() => {
+      document.documentElement.style.setProperty('--text-3xs', '18px');
+      const header = document.querySelector('[data-testid="pa-board-route-header"]') as HTMLElement;
+      header.style.letterSpacing = '0.14em';
+    });
+    await game(`G.setPA('The next stop is Abandoned Steinway Platform.', 30); G.notifyUI();`);
+    await expect(page.getByTestId('pa-toast')).toBeVisible();
+    const g = await toastVsHeader(page);
+    expect(g.overHeader, JSON.stringify({ toast: g.toast, header: g.header, bodyH: g.bodyH, panelTop: g.panelTop, toastOffset: g.toastOffset })).toBe(false);
+    expect(g.toast.bottom).toBeLessThanOrEqual(g.header.y + 1);
+    expect(g.bodyH).toBeGreaterThanOrEqual(16);
+    expect(g.hits.close).toBe(true);
+    expect(g.hits.pause).toBe(true);
+    expect(g.hits.flag).toBe(true);
+    expect(g.scrollW).toBeLessThanOrEqual(g.clientW + 1);
+    await expectNameInside(page, 'pa-board-origin', '8th Av');
+    await expectNameInside(page, 'pa-board-terminus', 'Myrtle–Wyckoff Avs');
+    await page.evaluate(() => {
+      const m = document.querySelector('[data-testid="pa-board-body"]') as HTMLElement;
+      m.scrollTop = m.scrollHeight;
+    });
+    const seen = await page.evaluate(() => {
+      const m = document.querySelector('[data-testid="pa-board-body"]') as HTMLElement;
+      const note = document.querySelector('[data-testid="pa-board-flags-note"]') as HTMLElement;
+      const mb = m.getBoundingClientRect();
+      const nb = note.getBoundingClientRect();
+      return {
+        atEnd: m.scrollTop + m.clientHeight >= m.scrollHeight - 1,
+        noteEnd: nb.bottom,
+        bodyEnd: mb.bottom,
+        noteStart: nb.top,
+      };
+    });
+    expect(seen.atEnd).toBe(true);
+    expect(seen.noteEnd).toBeLessThanOrEqual(seen.bodyEnd + 1);
+    expect(seen.noteStart).toBeLessThan(seen.bodyEnd);
+    await expect(page.getByTestId('pa-board-flags-note')).toContainText('A flag never says whether you were right');
+  });
+});
+
+test.describe('toast dismissal restores the panel and does not drop a held flag', () => {
+  test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+
+  test('clearing the toast lifts the panel and leaves the hold down', async ({ page, game }) => {
+    await game(`G.isTouch = true; G.Q = []; ride(0); G.chapterRollsign = null; G.notifyUI();`);
+    await page.getByTestId('pa-board-toggle').tap();
+    const before = await page.getByTestId('pa-board').evaluate((el) => el.getBoundingClientRect().y);
+    await page.getByTestId('pa-board-flag').dispatchEvent('pointerdown', { pointerId: 1, bubbles: true, pointerType: 'touch', button: 0 });
+    expect(await game(`return G.flagHeld;`)).toBe(true);
+    await game(`G.setPA('This is Court Square. Last stop. Everybody off the train.', 30); G.notifyUI();`);
+    await finishToast(page);
+    const dipped = await page.getByTestId('pa-board').evaluate((el) => el.getBoundingClientRect().y);
+    expect(dipped).toBeGreaterThan(before + 8);
+    expect(await game(`return G.flagHeld;`)).toBe(true);
+    await game(`G.paText = ''; G.paUntil = 0; G.notifyUI();`);
+    await expect(page.getByTestId('pa-toast')).toHaveCount(0);
+    const after = await page.getByTestId('pa-board').evaluate((el) => el.getBoundingClientRect().y);
+    expect(Math.abs(after - before)).toBeLessThan(2);
+    expect(await game(`return G.flagHeld;`)).toBe(true);
+    await page.getByTestId('pa-board-flag').dispatchEvent('pointerup', { pointerId: 1, bubbles: true, pointerType: 'touch' });
+  });
+});
+
+test.describe('desktop panel does not dip for a toast', () => {
+  test.use({ viewport: { width: 1280, height: 720 } });
+
+  test('the panel top stays under the HUD bar', async ({ page, game }) => {
+    await game(`G.Q = []; ride(0); G.chapterRollsign = null; G.notifyUI();`);
+    await page.keyboard.press('KeyB');
+    const open = await page.getByTestId('pa-board').evaluate((el) => el.getBoundingClientRect().y);
+    await game(`G.setPA('This is Court Square. Last stop. Everybody off the train.', 30); G.notifyUI();`);
+    await finishToast(page);
+    const withToast = await page.getByTestId('pa-board').evaluate((el) => {
+      const y = el.getBoundingClientRect().y;
+      const hud = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--hud-h')) || 0;
+      return { y, hud };
+    });
+    expect(Math.abs(withToast.y - open)).toBeLessThan(2);
+    expect(Math.abs(withToast.y - (withToast.hud + 8))).toBeLessThan(3);
+  });
+});
