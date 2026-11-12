@@ -84,7 +84,9 @@ You board at Hoyt–Schermerhorn, with that name on the platform signs. The firs
 
 Between stations the line is "The next stop is …" with the signed station name. The ride uses the same three parts as that timer: a short speed-up, a steady run, then braking. Tunnel walls, rail ties, and lamps stream toward the back of the car. Those lamps are only glowing parts outside. They do not dim or flicker the lights inside the car.
 
-The next platform slides in from the front and stops lined up with the doors, signs showing that station's name. At a normal station the line is "This is …", the doors open, then "Stand clear of the closing doors, please." and you leave. When the doors open, a banner reads MINIMUM DWELL TIME and counts down. The train does not leave until that time is up. You cannot close the doors yourself. While you are stopped, the view does not bob.
+The next platform slides in from the front and stops lined up with the doors, signs showing that station's name. At a normal station the line is "This is …", the doors open, then "Stand clear of the closing doors, please." and you leave. When the doors open, a banner reads MINIMUM DWELL TIME and counts down. You watch it. You cannot close the doors or send the train off. While you are stopped, the view does not bob.
+
+During a stretch, a board at the top right shows the next stop and a minute count. On the way to Flushing Av the announcement says "The next stop is Court Sq." On the way to Nassau Av the board shows 4 MIN. An amber plate appears on the wall for that tell. Hold F while looking at the plate. Caught means you flagged it while it was wrong.
 
 Two arrivals are different, on purpose:
 

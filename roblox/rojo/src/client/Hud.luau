@@ -252,6 +252,34 @@ function Hud.start()
 	dwellCount.Position = UDim2.fromOffset(12, 22)
 	dwellCount.Size = UDim2.new(1, -24, 0, 28)
 
+	local boardCard = Instance.new("Frame")
+	boardCard.Name = "CountdownBoard"
+	boardCard.AnchorPoint = Vector2.new(1, 0)
+	boardCard.Position = UDim2.new(1, -12, 0, 10)
+	boardCard.Size = UDim2.fromOffset(168, 58)
+	boardCard.BackgroundColor3 = Color3.new(0, 0, 0)
+	boardCard.BackgroundTransparency = 0.35
+	boardCard.BorderSizePixel = 0
+	boardCard.Visible = false
+	boardCard.Parent = gui
+	corner(boardCard, 10)
+
+	local boardNext = label(boardCard, Lines.NEXT_LABEL, 13, Color3.fromRGB(180, 176, 166))
+	boardNext.Position = UDim2.fromOffset(10, 6)
+	boardNext.Size = UDim2.new(1, -20, 0, 16)
+
+	local boardName = label(boardCard, "", 15, Constants.COLOR.cream)
+	boardName.Name = "Stop"
+	boardName.Font = Enum.Font.GothamBold
+	boardName.Position = UDim2.fromOffset(10, 22)
+	boardName.Size = UDim2.new(1, -20, 0, 16)
+
+	local boardMinutes = label(boardCard, "", 13, Constants.COLOR.warn)
+	boardMinutes.Name = "Minutes"
+	boardMinutes.Font = Enum.Font.GothamBold
+	boardMinutes.Position = UDim2.fromOffset(10, 38)
+	boardMinutes.Size = UDim2.new(1, -20, 0, 16)
+
 	local cross = Instance.new("Frame")
 	cross.Name = "Crosshair"
 	cross.AnchorPoint = Vector2.new(0.5, 0.5)
@@ -277,6 +305,13 @@ function Hud.start()
 		nextName.Text = stopName
 		nextLabel.Visible = stopName ~= ""
 		chapter.Text = textOf("ChapterLine")
+
+		local boardStop = textOf("BoardStop")
+		local minutesValue = ride:GetAttribute("BoardMinutes")
+		local minutes = if typeof(minutesValue) == "number" then minutesValue else nil
+		boardCard.Visible = boardStop ~= "" and minutes ~= nil
+		boardName.Text = boardStop
+		boardMinutes.Text = if minutes ~= nil then Lines.minutesLabel(minutes) else ""
 
 		local paText = textOf("PaText")
 		pa.Text = paText

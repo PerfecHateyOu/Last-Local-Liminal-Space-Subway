@@ -47,6 +47,16 @@ function Ride.start(car: CarBuilder.BuiltCar)
 	ride:SetAttribute("ChapterLine", Route.chapterLine(1))
 	ride:SetAttribute("DwellUntil", 0)
 	ride:SetAttribute("Suspicion", 0)
+	ride:SetAttribute("BoardStop", "")
+	ride:SetAttribute("BoardMinutes", 0)
+
+	CarBuilder.addTells(
+		car.passengers,
+		AnomalySystem.ANNOUNCE_ID,
+		Lines.ANNOUNCEMENT,
+		AnomalySystem.COUNTDOWN_ID,
+		Lines.COUNTDOWN
+	)
 
 	local paToken = 0
 	local subToken = 0
@@ -217,10 +227,11 @@ function Ride.start(car: CarBuilder.BuiltCar)
 	local caught = false
 	local suspicion = 0
 
-	-- Passenger slice. Nothing here closes the doors or asks the train to
-	-- leave. A conductor control (not in this port) would return true when
-	-- that control is used before the dwell ends, and the penalty below
-	-- would add EARLY_DEPARTURE_SUSPICION. There is no fail state.
+	-- Passenger, on purpose. The player is the kid riding with Mom and Dad.
+	-- They cannot close the doors or dispatch the train, so this stays
+	-- false. It is intentionally unused. A depart control would return
+	-- true and add EARLY_DEPARTURE_SUSPICION. There is no such control,
+	-- and there is no fail state.
 	local function playerAskedToDepartEarly(): boolean
 		return false
 	end
@@ -244,6 +255,29 @@ function Ride.start(car: CarBuilder.BuiltCar)
 			Constants.SUSPICION_MAX
 		)
 		ride:SetAttribute("Suspicion", suspicion)
+	end
+
+	local function setTell(id: string, active: boolean)
+		local model = car.passengers:FindFirstChild(id)
+		if model == nil or not model:IsA("Model") then
+			return
+		end
+		model:SetAttribute("Anomaly", active)
+		model:SetAttribute("Hidden", not active)
+		for _, desc in model:GetDescendants() do
+			if desc:IsA("BasePart") and desc.Name ~= "Root" then
+				desc.Transparency = if active then 0 else 1
+				desc.CanQuery = active
+				desc.Color = if active then Constants.COLOR.warn else Constants.COLOR.dark
+			end
+		end
+	end
+
+	local function clearTells()
+		setTell(AnomalySystem.ANNOUNCE_ID, false)
+		setTell(AnomalySystem.COUNTDOWN_ID, false)
+		ride:SetAttribute("BoardStop", "")
+		ride:SetAttribute("BoardMinutes", 0)
 	end
 
 	flagRemote.OnServerEvent:Connect(function(player: Player, passengerId: any)
@@ -280,7 +314,11 @@ function Ride.start(car: CarBuilder.BuiltCar)
 		flagged[passengerId] = true
 		local labelAttr = model:GetAttribute("Label")
 		local label = if typeof(labelAttr) == "string" then labelAttr else passengerId
-		if model:GetAttribute("Anomaly") == true then
+		local tellKind = model:GetAttribute("Tell")
+		local isTell = typeof(tellKind) == "string"
+		local marked = model:GetAttribute("Anomaly") == true
+		local verdict = AnomalySystem.verdict(marked and not isTell, isTell, marked)
+		if verdict == "noticed" then
 			caught = true
 			showFeedback("caught", Lines.CAUGHT, false)
 		else
@@ -314,23 +352,45 @@ function Ride.start(car: CarBuilder.BuiltCar)
 			beginDim(Constants.FINAL_DIM, length)
 		end
 
+		local picked = AnomalySystem.pick(seg.stop, seg.b, {
+			posterStop = Constants.ANOMALY_POSTER_STOP,
+			announceStop = Constants.ANOMALY_ANNOUNCE_STOP,
+			countdownStop = Constants.ANOMALY_COUNTDOWN_STOP,
+		})
+		local wrongCountdown = picked == "wrong_countdown"
+		setTell(AnomalySystem.COUNTDOWN_ID, wrongCountdown)
+		setTell(AnomalySystem.ANNOUNCE_ID, false)
+		ride:SetAttribute("BoardStop", Route.stopName(seg.stop))
+		ride:SetAttribute(
+			"BoardMinutes",
+			AnomalySystem.boardMinutes(Constants.COUNTDOWN_MINUTES, Constants.WRONG_COUNTDOWN_MINUTES, wrongCountdown)
+		)
+
 		if not seg.silent then
 			task.delay(Constants.NEXT_STOP_AT, function()
 				if token ~= segToken then
 					return
 				end
-				showPa(Lines.nextStop(Route.stopName(seg.stop)), Constants.NEXT_STOP_FOR)
+				local actual = Route.stopName(seg.stop)
+				local announced = actual
+				if picked == "wrong_announcement" then
+					announced = AnomalySystem.wrongStop(
+						actual,
+						Route.stopName(Constants.WRONG_ANNOUNCE_STOP),
+						Route.stopName(Constants.WRONG_ANNOUNCE_FALLBACK_STOP)
+					)
+					setTell(AnomalySystem.ANNOUNCE_ID, true)
+					task.delay(Constants.NEXT_STOP_FOR, function()
+						if token ~= segToken then
+							return
+						end
+						setTell(AnomalySystem.ANNOUNCE_ID, false)
+					end)
+				end
+				showPa(Lines.nextStop(announced), Constants.NEXT_STOP_FOR)
 			end)
 		end
-		local function anomalyWanted(kind: string): boolean
-			for _, name in AnomalySystem.types() do
-				if name == kind then
-					return true
-				end
-			end
-			return false
-		end
-		if anomalyWanted("poster_changed") and not seg.b and seg.stop == 3 then
+		if picked == "poster_changed" then
 			task.delay(8, function()
 				if token ~= segToken then
 					return
@@ -383,6 +443,7 @@ function Ride.start(car: CarBuilder.BuiltCar)
 	local function arrive(seg: Route.Segment)
 		segToken += 1
 		local token = segToken
+		clearTells()
 		for part, color in posterOriginal do
 			part.Color = color
 			posterOriginal[part] = nil

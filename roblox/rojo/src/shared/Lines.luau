@@ -1,6 +1,7 @@
 --!strict
--- On-screen strings copied from the web game, plus the dwell banner.
--- Do not add new dialogue here. The dwell banner is a label and a number.
+-- On-screen strings copied from the web game, plus the dwell banner,
+-- the minute board, and the two tell labels. Do not add new dialogue.
+-- The dwell banner and the board are labels and numbers.
 -- Sources: src/constants.ts (STOPS, the Stop 9 paLie), src/game/gameState.ts
 -- (PA, boarding, the Court Sq line), src/components/HUD.tsx ("Next:"),
 -- src/components/ReportScreen.tsx (Caught / Missed / false flag).
@@ -66,5 +67,16 @@ function Lines.dwellCountdown(secondsLeft: number): string
 	end
 	return tostring(whole)
 end
+
+-- Minute board. The number is the count. MIN is the unit.
+Lines.MIN_LABEL = "MIN"
+
+function Lines.minutesLabel(minutes: number): string
+	return tostring(minutes) .. " " .. Lines.MIN_LABEL
+end
+
+-- Flag labels for the two tells. Not spoken lines.
+Lines.ANNOUNCEMENT = "the announcement"
+Lines.COUNTDOWN = "the countdown"
 
 return Lines

@@ -98,11 +98,30 @@ Constants.PA_LIE_HOLD = 5.4
 -- between the doors opening and "Stand clear".
 Constants.MIN_DWELL_SECONDS = 2.6
 
--- Closing the doors or leaving before that dwell ends. Added on the
--- server and clamped. The ride does not end.
+-- Closing the doors or leaving before that dwell ends. The player is a
+-- passenger and cannot depart, so the ride never adds this. The hook
+-- stays. Clamped. The ride does not end.
 Constants.EARLY_DEPARTURE_SUSPICION = 10
 Constants.SUSPICION_MIN = 0
 Constants.SUSPICION_MAX = 100
+
+-- One tell per stop, by the arrival number on the segment. Other stops
+-- have none. 3 is the poster. 7 is the ride into Flushing Av. 10 is the
+-- ride into Nassau Av. The scripted arrival lie stays on stop 9 and is
+-- not one of these.
+Constants.ANOMALY_POSTER_STOP = 3
+Constants.ANOMALY_ANNOUNCE_STOP = 7
+Constants.ANOMALY_COUNTDOWN_STOP = 10
+
+-- Signed names the wrong announcement may say. 13 is Court Sq. 2 is
+-- Fulton St, used only when 13 is the stop the train is actually nearing.
+Constants.WRONG_ANNOUNCE_STOP = 13
+Constants.WRONG_ANNOUNCE_FALLBACK_STOP = 2
+
+-- The board's minute count. Every stretch in this slice is under a minute,
+-- so the honest board reads 1. The wrong board reads 4.
+Constants.COUNTDOWN_MINUTES = 1
+Constants.WRONG_COUNTDOWN_MINUTES = 4
 
 -- Final stretch only. Linear, from full to this fraction. Not a flicker.
 Constants.FINAL_DIM = 0.62
@@ -275,8 +294,9 @@ return KeepOut
         <Properties>
           <string name="Name">Lines</string>
           <string name="Source"><![CDATA[--!strict
--- On-screen strings copied from the web game, plus the dwell banner.
--- Do not add new dialogue here. The dwell banner is a label and a number.
+-- On-screen strings copied from the web game, plus the dwell banner,
+-- the minute board, and the two tell labels. Do not add new dialogue.
+-- The dwell banner and the board are labels and numbers.
 -- Sources: src/constants.ts (STOPS, the Stop 9 paLie), src/game/gameState.ts
 -- (PA, boarding, the Court Sq line), src/components/HUD.tsx ("Next:"),
 -- src/components/ReportScreen.tsx (Caught / Missed / false flag).
@@ -342,6 +362,17 @@ function Lines.dwellCountdown(secondsLeft: number): string
 	end
 	return tostring(whole)
 end
+
+-- Minute board. The number is the count. MIN is the unit.
+Lines.MIN_LABEL = "MIN"
+
+function Lines.minutesLabel(minutes: number): string
+	return tostring(minutes) .. " " .. Lines.MIN_LABEL
+end
+
+-- Flag labels for the two tells. Not spoken lines.
+Lines.ANNOUNCEMENT = "the announcement"
+Lines.COUNTDOWN = "the countdown"
 
 return Lines
 ]]></string>
@@ -838,14 +869,69 @@ end
         <Properties>
           <string name="Name">AnomalySystem</string>
           <string name="Source"><![CDATA[--!strict
--- Stub. Step 8 turns the slice's one poster into the full catalog.
--- The first slice schedules poster_changed from the server ride script.
--- Do not add types beyond GameData.Anomalies.types.
+-- Anomaly catalog for this slice. The ride asks pick() which one tell a
+-- stop gets, applies it, and validates flags with verdict(). The arrival
+-- PA lie in Route is a separate scripted line. It is not this catalog.
 
 local AnomalySystem = {}
 
+AnomalySystem.ANNOUNCE_ID = "announcement"
+AnomalySystem.COUNTDOWN_ID = "countdown"
+
+export type Schedule = {
+	posterStop: number,
+	announceStop: number,
+	countdownStop: number,
+}
+
 function AnomalySystem.types(): { string }
-	return { "poster_changed" }
+	return { "poster_changed", "wrong_announcement", "wrong_countdown" }
+end
+
+-- At most one tell. A repeated stop number keeps the earlier entry.
+-- b stretches (the silent 6b blackout) get none.
+function AnomalySystem.pick(stop: number, b: boolean, schedule: Schedule): string?
+	if b then
+		return nil
+	end
+	if stop == schedule.posterStop then
+		return "poster_changed"
+	end
+	if stop == schedule.announceStop then
+		return "wrong_announcement"
+	end
+	if stop == schedule.countdownStop then
+		return "wrong_countdown"
+	end
+	return nil
+end
+
+-- Another signed station. Never the stop the train is actually approaching
+-- when some other signed name exists.
+function AnomalySystem.wrongStop(actual: string, candidate: string, fallback: string): string
+	if candidate ~= "" and candidate ~= actual then
+		return candidate
+	end
+	if fallback ~= "" and fallback ~= actual then
+		return fallback
+	end
+	return actual
+end
+
+function AnomalySystem.boardMinutes(honest: number, wrong: number, telling: boolean): number
+	if telling then
+		return wrong
+	end
+	return honest
+end
+
+-- Same split as a passenger flag. An active tell is noticed. Anything else
+-- the server accepts is a false flag. Hidden targets never reach this.
+function AnomalySystem.verdict(passengerAnomaly: boolean, targetIsTell: boolean, tellActive: boolean): "noticed" | "false"
+	if passengerAnomaly or (targetIsTell and tellActive) then
+		return "noticed"
+	end
+	return "false"
 end
 
 return AnomalySystem
@@ -1844,6 +1930,42 @@ function CarBuilder.build(): BuiltCar
 	}
 end
 
+-- Two plates on the wall. Hidden until a tell is active. The player flags
+-- one the same way as a passenger: look at it and hold Flag. They are not
+-- crowd, so the crowd toggle leaves them alone.
+function CarBuilder.addTells(folder: Folder, announceId: string, announceLabel: string, boardId: string, boardLabel: string)
+	local function plate(id: string, label: string, kind: string, x: number)
+		local model = Instance.new("Model")
+		model.Name = id
+		model:SetAttribute("PassengerId", id)
+		model:SetAttribute("Label", label)
+		model:SetAttribute("Anomaly", false)
+		model:SetAttribute("Hidden", true)
+		model:SetAttribute("Tell", kind)
+		model:SetAttribute("Crowd", false)
+		local part = Instance.new("Part")
+		part.Name = "Sign"
+		part.Anchored = true
+		part.Size = sizeM(0.72, 0.28, 0.04)
+		part.CFrame = CFrame.new(metres(x, 1.55, -1.36))
+		part.Color = Constants.COLOR.dark
+		part.Material = Enum.Material.SmoothPlastic
+		part.TopSurface = Enum.SurfaceType.Smooth
+		part.BottomSurface = Enum.SurfaceType.Smooth
+		part.CanCollide = false
+		part.CanTouch = false
+		part.CanQuery = false
+		part.Transparency = 1
+		part:SetAttribute("PassengerId", id)
+		part.Parent = model
+		model.PrimaryPart = part
+		model:PivotTo(part.CFrame)
+		model.Parent = folder
+	end
+	plate(announceId, announceLabel, "wrong_announcement", 0.2)
+	plate(boardId, boardLabel, "wrong_countdown", 1.15)
+end
+
 return CarBuilder
 ]]></string>
         </Properties>
@@ -1900,6 +2022,16 @@ function Ride.start(car: CarBuilder.BuiltCar)
 	ride:SetAttribute("ChapterLine", Route.chapterLine(1))
 	ride:SetAttribute("DwellUntil", 0)
 	ride:SetAttribute("Suspicion", 0)
+	ride:SetAttribute("BoardStop", "")
+	ride:SetAttribute("BoardMinutes", 0)
+
+	CarBuilder.addTells(
+		car.passengers,
+		AnomalySystem.ANNOUNCE_ID,
+		Lines.ANNOUNCEMENT,
+		AnomalySystem.COUNTDOWN_ID,
+		Lines.COUNTDOWN
+	)
 
 	local paToken = 0
 	local subToken = 0
@@ -2070,10 +2202,11 @@ function Ride.start(car: CarBuilder.BuiltCar)
 	local caught = false
 	local suspicion = 0
 
-	-- Passenger slice. Nothing here closes the doors or asks the train to
-	-- leave. A conductor control (not in this port) would return true when
-	-- that control is used before the dwell ends, and the penalty below
-	-- would add EARLY_DEPARTURE_SUSPICION. There is no fail state.
+	-- Passenger, on purpose. The player is the kid riding with Mom and Dad.
+	-- They cannot close the doors or dispatch the train, so this stays
+	-- false. It is intentionally unused. A depart control would return
+	-- true and add EARLY_DEPARTURE_SUSPICION. There is no such control,
+	-- and there is no fail state.
 	local function playerAskedToDepartEarly(): boolean
 		return false
 	end
@@ -2097,6 +2230,29 @@ function Ride.start(car: CarBuilder.BuiltCar)
 			Constants.SUSPICION_MAX
 		)
 		ride:SetAttribute("Suspicion", suspicion)
+	end
+
+	local function setTell(id: string, active: boolean)
+		local model = car.passengers:FindFirstChild(id)
+		if model == nil or not model:IsA("Model") then
+			return
+		end
+		model:SetAttribute("Anomaly", active)
+		model:SetAttribute("Hidden", not active)
+		for _, desc in model:GetDescendants() do
+			if desc:IsA("BasePart") and desc.Name ~= "Root" then
+				desc.Transparency = if active then 0 else 1
+				desc.CanQuery = active
+				desc.Color = if active then Constants.COLOR.warn else Constants.COLOR.dark
+			end
+		end
+	end
+
+	local function clearTells()
+		setTell(AnomalySystem.ANNOUNCE_ID, false)
+		setTell(AnomalySystem.COUNTDOWN_ID, false)
+		ride:SetAttribute("BoardStop", "")
+		ride:SetAttribute("BoardMinutes", 0)
 	end
 
 	flagRemote.OnServerEvent:Connect(function(player: Player, passengerId: any)
@@ -2133,7 +2289,11 @@ function Ride.start(car: CarBuilder.BuiltCar)
 		flagged[passengerId] = true
 		local labelAttr = model:GetAttribute("Label")
 		local label = if typeof(labelAttr) == "string" then labelAttr else passengerId
-		if model:GetAttribute("Anomaly") == true then
+		local tellKind = model:GetAttribute("Tell")
+		local isTell = typeof(tellKind) == "string"
+		local marked = model:GetAttribute("Anomaly") == true
+		local verdict = AnomalySystem.verdict(marked and not isTell, isTell, marked)
+		if verdict == "noticed" then
 			caught = true
 			showFeedback("caught", Lines.CAUGHT, false)
 		else
@@ -2167,23 +2327,45 @@ function Ride.start(car: CarBuilder.BuiltCar)
 			beginDim(Constants.FINAL_DIM, length)
 		end
 
+		local picked = AnomalySystem.pick(seg.stop, seg.b, {
+			posterStop = Constants.ANOMALY_POSTER_STOP,
+			announceStop = Constants.ANOMALY_ANNOUNCE_STOP,
+			countdownStop = Constants.ANOMALY_COUNTDOWN_STOP,
+		})
+		local wrongCountdown = picked == "wrong_countdown"
+		setTell(AnomalySystem.COUNTDOWN_ID, wrongCountdown)
+		setTell(AnomalySystem.ANNOUNCE_ID, false)
+		ride:SetAttribute("BoardStop", Route.stopName(seg.stop))
+		ride:SetAttribute(
+			"BoardMinutes",
+			AnomalySystem.boardMinutes(Constants.COUNTDOWN_MINUTES, Constants.WRONG_COUNTDOWN_MINUTES, wrongCountdown)
+		)
+
 		if not seg.silent then
 			task.delay(Constants.NEXT_STOP_AT, function()
 				if token ~= segToken then
 					return
 				end
-				showPa(Lines.nextStop(Route.stopName(seg.stop)), Constants.NEXT_STOP_FOR)
+				local actual = Route.stopName(seg.stop)
+				local announced = actual
+				if picked == "wrong_announcement" then
+					announced = AnomalySystem.wrongStop(
+						actual,
+						Route.stopName(Constants.WRONG_ANNOUNCE_STOP),
+						Route.stopName(Constants.WRONG_ANNOUNCE_FALLBACK_STOP)
+					)
+					setTell(AnomalySystem.ANNOUNCE_ID, true)
+					task.delay(Constants.NEXT_STOP_FOR, function()
+						if token ~= segToken then
+							return
+						end
+						setTell(AnomalySystem.ANNOUNCE_ID, false)
+					end)
+				end
+				showPa(Lines.nextStop(announced), Constants.NEXT_STOP_FOR)
 			end)
 		end
-		local function anomalyWanted(kind: string): boolean
-			for _, name in AnomalySystem.types() do
-				if name == kind then
-					return true
-				end
-			end
-			return false
-		end
-		if anomalyWanted("poster_changed") and not seg.b and seg.stop == 3 then
+		if picked == "poster_changed" then
 			task.delay(8, function()
 				if token ~= segToken then
 					return
@@ -2236,6 +2418,7 @@ function Ride.start(car: CarBuilder.BuiltCar)
 	local function arrive(seg: Route.Segment)
 		segToken += 1
 		local token = segToken
+		clearTells()
 		for part, color in posterOriginal do
 			part.Color = color
 			posterOriginal[part] = nil
@@ -3169,6 +3352,34 @@ function Hud.start()
 	dwellCount.Position = UDim2.fromOffset(12, 22)
 	dwellCount.Size = UDim2.new(1, -24, 0, 28)
 
+	local boardCard = Instance.new("Frame")
+	boardCard.Name = "CountdownBoard"
+	boardCard.AnchorPoint = Vector2.new(1, 0)
+	boardCard.Position = UDim2.new(1, -12, 0, 10)
+	boardCard.Size = UDim2.fromOffset(168, 58)
+	boardCard.BackgroundColor3 = Color3.new(0, 0, 0)
+	boardCard.BackgroundTransparency = 0.35
+	boardCard.BorderSizePixel = 0
+	boardCard.Visible = false
+	boardCard.Parent = gui
+	corner(boardCard, 10)
+
+	local boardNext = label(boardCard, Lines.NEXT_LABEL, 13, Color3.fromRGB(180, 176, 166))
+	boardNext.Position = UDim2.fromOffset(10, 6)
+	boardNext.Size = UDim2.new(1, -20, 0, 16)
+
+	local boardName = label(boardCard, "", 15, Constants.COLOR.cream)
+	boardName.Name = "Stop"
+	boardName.Font = Enum.Font.GothamBold
+	boardName.Position = UDim2.fromOffset(10, 22)
+	boardName.Size = UDim2.new(1, -20, 0, 16)
+
+	local boardMinutes = label(boardCard, "", 13, Constants.COLOR.warn)
+	boardMinutes.Name = "Minutes"
+	boardMinutes.Font = Enum.Font.GothamBold
+	boardMinutes.Position = UDim2.fromOffset(10, 38)
+	boardMinutes.Size = UDim2.new(1, -20, 0, 16)
+
 	local cross = Instance.new("Frame")
 	cross.Name = "Crosshair"
 	cross.AnchorPoint = Vector2.new(0.5, 0.5)
@@ -3194,6 +3405,13 @@ function Hud.start()
 		nextName.Text = stopName
 		nextLabel.Visible = stopName ~= ""
 		chapter.Text = textOf("ChapterLine")
+
+		local boardStop = textOf("BoardStop")
+		local minutesValue = ride:GetAttribute("BoardMinutes")
+		local minutes = if typeof(minutesValue) == "number" then minutesValue else nil
+		boardCard.Visible = boardStop ~= "" and minutes ~= nil
+		boardName.Text = boardStop
+		boardMinutes.Text = if minutes ~= nil then Lines.minutesLabel(minutes) else ""
 
 		local paText = textOf("PaText")
 		pa.Text = paText

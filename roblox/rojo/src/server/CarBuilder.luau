@@ -987,4 +987,40 @@ function CarBuilder.build(): BuiltCar
 	}
 end
 
+-- Two plates on the wall. Hidden until a tell is active. The player flags
+-- one the same way as a passenger: look at it and hold Flag. They are not
+-- crowd, so the crowd toggle leaves them alone.
+function CarBuilder.addTells(folder: Folder, announceId: string, announceLabel: string, boardId: string, boardLabel: string)
+	local function plate(id: string, label: string, kind: string, x: number)
+		local model = Instance.new("Model")
+		model.Name = id
+		model:SetAttribute("PassengerId", id)
+		model:SetAttribute("Label", label)
+		model:SetAttribute("Anomaly", false)
+		model:SetAttribute("Hidden", true)
+		model:SetAttribute("Tell", kind)
+		model:SetAttribute("Crowd", false)
+		local part = Instance.new("Part")
+		part.Name = "Sign"
+		part.Anchored = true
+		part.Size = sizeM(0.72, 0.28, 0.04)
+		part.CFrame = CFrame.new(metres(x, 1.55, -1.36))
+		part.Color = Constants.COLOR.dark
+		part.Material = Enum.Material.SmoothPlastic
+		part.TopSurface = Enum.SurfaceType.Smooth
+		part.BottomSurface = Enum.SurfaceType.Smooth
+		part.CanCollide = false
+		part.CanTouch = false
+		part.CanQuery = false
+		part.Transparency = 1
+		part:SetAttribute("PassengerId", id)
+		part.Parent = model
+		model.PrimaryPart = part
+		model:PivotTo(part.CFrame)
+		model.Parent = folder
+	end
+	plate(announceId, announceLabel, "wrong_announcement", 0.2)
+	plate(boardId, boardLabel, "wrong_countdown", 1.15)
+end
+
 return CarBuilder
