@@ -1,0 +1,3297 @@
+<roblox version="4">
+  <Item class="Lighting" referent="0">
+    <Properties>
+      <string name="Name">Lighting</string>
+      <Color3 name="Ambient">
+        <R>0.047</R>
+        <G>0.043</G>
+        <B>0.039</B>
+      </Color3>
+      <float name="Brightness">0</float>
+      <float name="ClockTime">0</float>
+      <float name="EnvironmentDiffuseScale">0</float>
+      <float name="EnvironmentSpecularScale">0</float>
+      <float name="ExposureCompensation">-0.85</float>
+      <Color3 name="FogColor">
+        <R>0.016</R>
+        <G>0.02</G>
+        <B>0.016</B>
+      </Color3>
+      <float name="FogEnd">90</float>
+      <float name="FogStart">27</float>
+      <float name="GeographicLatitude">0</float>
+      <bool name="GlobalShadows">true</bool>
+      <Color3 name="OutdoorAmbient">
+        <R>0</R>
+        <G>0</G>
+        <B>0</B>
+      </Color3>
+      <float name="ShadowSoftness">0.3</float>
+      <token name="Technology">4</token>
+    </Properties>
+  </Item>
+  <Item class="ReplicatedStorage" referent="1">
+    <Properties>
+      <string name="Name">ReplicatedStorage</string>
+    </Properties>
+    <Item class="Folder" referent="2">
+      <Properties>
+        <string name="Name">Models</string>
+      </Properties>
+    </Item>
+    <Item class="Folder" referent="3">
+      <Properties>
+        <string name="Name">Shared</string>
+      </Properties>
+      <Item class="ModuleScript" referent="4">
+        <Properties>
+          <string name="Name">Constants</string>
+          <string name="Source"><![CDATA[--!strict
+-- Tuning copied from the web game (src/constants.ts, src/game/gameState.ts,
+-- src/game/personKeepOut.ts). Distances in the tables stay in metres; the car
+-- builder multiplies by STUDS_PER_METER.
+
+local Constants = {}
+
+-- A default Roblox character is about 5 studs tall. 3 studs per metre makes a
+-- 1.7 m rider about 5.1 studs, so the imported people and the player match.
+Constants.STUDS_PER_METER = 3
+
+-- personKeepOut.ts: eye to the standing passenger's centre.
+Constants.KEEP_OUT_METERS = 0.75
+
+-- Default HumanoidRootPart is 2 studs wide. The solid keep-out cylinder is
+-- this much smaller than 0.75 m so the root's centre, not its skin, stops at
+-- the radius.
+Constants.ROOT_HALF_WIDTH_STUDS = 1
+
+-- gameState.ts walking speed (m/s) and the eye height the web camera uses.
+Constants.WALK_SPEED_MPS = 2.4
+Constants.EYE_HEIGHT_M = 1.18
+
+-- constants.ts CFG.flagHold. How long Flag must be held on one person.
+Constants.FLAG_HOLD = 0.7
+
+-- Web timings, in seconds: TA = 5, TD = 6, default cruise 26.
+-- NEXT_STOP_PA_AT = 7, NEXT_STOP_PA_S = 4.5.
+-- This slice shortens accel, cruise and brake so a playtest can hear every
+-- stop. The "next stop" line still starts 7 seconds into the stretch.
+Constants.ACCEL = 3
+Constants.BRAKE = 3
+Constants.CRUISE = 12
+Constants.NEXT_STOP_AT = 7
+Constants.NEXT_STOP_FOR = 4.5
+
+-- arrive(): flickerUntil = GT + 0.16. Whole-car blackout, flicker tick only.
+Constants.FLICKER_TICK_SECONDS = 0.16
+
+-- Far door leaves slide this many metres when doorOpen goes from 0 to 1.
+Constants.DOOR_SLIDE_M = 0.62
+
+-- Final stretch only. Linear, from full to this fraction. Not a flicker.
+Constants.FINAL_DIM = 0.62
+
+-- Published MeshPart budget. The importer's hard ceiling is about 21,000.
+-- https://create.roblox.com/docs/art/modeling/specifications
+Constants.MESH_TRIANGLE_LIMIT = 20000
+
+-- How far a flag ray reaches, in metres. Long enough to cover one car.
+Constants.FLAG_RANGE_M = 20
+
+-- constants.ts V. Cruise speed in metres per second. The slice's accel, cruise
+-- and brake times scale the distance; they do not change this speed.
+Constants.TOP_SPEED_MPS = 14
+
+-- View motion only. The car and the player do not move with the train.
+-- Peak bob is 2.2 cm and roll stays under 1 degree, times speed/top speed,
+-- so a stop is still and cruise stays inside comfort limits.
+Constants.BOB_Y_M = 0.022
+Constants.BOB_X_M = 0.01
+Constants.ROLL_DEG = 0.7
+Constants.PITCH_DEG = 0.4
+
+-- Web point light: 0xfff0d4, intensity 0.55, distance 9.5 m, decay 1.6
+-- (subwayCarBuilder.setupLighting, gameState.applyLighting). Roblox's light
+-- units are hotter, and 9.5 m of range washed the whole car in the playtest.
+-- The shorter range is the decay: a pool under each lamp, ends in shadow.
+Constants.LAMP_BRIGHTNESS = 0.48
+Constants.LAMP_RANGE_M = 4.2
+
+Constants.COLOR = {
+	-- Web wall 0xc9ccc4, ceiling 0xe6e4db. Those hexes are the paint under
+	-- three.js Lambert. On Roblox SmoothPlastic they read as white, so the
+	-- value is pulled down and the hue is kept (sage gray, warm ceiling).
+	wall = Color3.fromRGB(86, 90, 82),
+	lowWall = Color3.fromRGB(62, 66, 62),
+	seatOrange = Color3.fromRGB(176, 90, 28),
+	seatYellow = Color3.fromRGB(184, 122, 38),
+	underSeat = Color3.fromRGB(42, 44, 46),
+	door = Color3.fromRGB(96, 100, 96),
+	steel = Color3.fromRGB(118, 120, 122),
+	ceiling = Color3.fromRGB(78, 76, 68),
+	floor = Color3.fromRGB(32, 32, 30),
+	glass = Color3.fromRGB(70, 92, 86),
+	dark = Color3.fromRGB(6, 8, 9),
+	-- Tube body. Not 0xfff4de: Neon at that hex is a white bar. The point
+	-- light carries 0xfff0d4; the strip is the dimmer fixture around it.
+	lightOn = Color3.fromRGB(150, 128, 88),
+	lightOff = Color3.fromRGB(12, 10, 8),
+	lamp = Color3.fromRGB(255, 240, 212),
+	gLine = Color3.fromRGB(108, 190, 69),
+	warn = Color3.fromRGB(227, 168, 58),
+	cream = Color3.fromRGB(243, 239, 226),
+	ink = Color3.fromRGB(12, 10, 8),
+	paBg = Color3.fromRGB(18, 13, 5),
+}
+
+function Constants.meters(metres: number): number
+	return metres * Constants.STUDS_PER_METER
+end
+
+return Constants
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="5">
+        <Properties>
+          <string name="Name">KeepOut</string>
+          <string name="Source"><![CDATA[--!strict
+-- Port of src/game/personKeepOut.ts. Standing passengers occupy a circle on
+-- the floor. The eye (here, the HumanoidRootPart centre) is pushed to the
+-- edge of any circle it lands inside. Seated passengers are not in the list;
+-- the benches keep the player off those spots.
+
+local Constants = require(script.Parent.Constants)
+
+local KeepOut = {}
+
+export type Circle = {
+	x: number,
+	z: number,
+	r: number,
+}
+
+function KeepOut.radiusStuds(): number
+	return Constants.meters(Constants.KEEP_OUT_METERS)
+end
+
+-- Solid cylinder radius. Smaller than the eye radius by half the root width,
+-- so a default character's centre stops on the 0.75 m circle.
+function KeepOut.cylinderRadiusStuds(): number
+	local radius = KeepOut.radiusStuds() - Constants.ROOT_HALF_WIDTH_STUDS
+	return math.max(0.4, radius)
+end
+
+function KeepOut.pushOut(x: number, z: number, circles: { Circle }, prevX: number, prevZ: number): (number, number)
+	for _, c in circles do
+		local dx = x - c.x
+		local dz = z - c.z
+		local d = math.sqrt(dx * dx + dz * dz)
+		if d < c.r then
+			if d < 1e-6 then
+				dx = prevX - c.x
+				dz = prevZ - c.z
+				local pd = math.sqrt(dx * dx + dz * dz)
+				if pd < 1e-6 then
+					dx = 0
+					dz = if c.z > 0 then -1 else 1
+				else
+					dx /= pd
+					dz /= pd
+				end
+			else
+				dx /= d
+				dz /= d
+			end
+			x = c.x + dx * c.r
+			z = c.z + dz * c.r
+		end
+	end
+	return x, z
+end
+
+return KeepOut
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="6">
+        <Properties>
+          <string name="Name">Lines</string>
+          <string name="Source"><![CDATA[--!strict
+-- On-screen strings copied from the web game. Do not add new lines here.
+-- Sources: src/constants.ts (STOPS, the Stop 9 paLie), src/game/gameState.ts
+-- (PA, boarding, the Court Sq line), src/components/HUD.tsx ("Next:"),
+-- src/components/ReportScreen.tsx (Caught / Missed / false flag).
+
+local Lines = {}
+
+-- fillRoute('This is the Last Local. {terminus}–bound {line} train.') on the G.
+Lines.INTRO_PA = "This is the Last Local. Court Square–bound G train."
+
+-- departNext() and the boarding close.
+Lines.STAND_CLEAR = "Stand clear of the closing doors, please."
+
+-- fillRoute('{terminus}. This is the last stop on this train.')
+Lines.LAST_PA = "Court Square. This is the last stop on this train."
+
+-- SEGS stop 9, paLie. The conductor says this instead of "This is Metropolitan Av."
+Lines.PA_LIE = "This is Court Square. Last stop. Everybody off the train."
+
+-- say(1, ...) during boarding. The subtitle is "Dad: " plus the line.
+Lines.DAD_BOARD = "Dad: Grab a seat. It’s a long one."
+
+-- say(0, fillRoute('Here we are. {terminus}.'))
+Lines.MOM_ARRIVE = "Mom: Here we are. Court Square."
+
+-- The first-ride hint (keyboard).
+Lines.HINT = "Move the mouse to look. Hold F while looking at anything that changes."
+
+-- Report words. A correct flag and a miss use these alone.
+Lines.CAUGHT = "Caught"
+Lines.MISSED = "Missed"
+
+-- HUD station card.
+Lines.NEXT_LABEL = "Next:"
+
+-- ReportScreen: "False flag: {name}"
+function Lines.falseFlag(label: string): string
+	return "False flag: " .. label
+end
+
+-- "This is Fulton St."
+function Lines.thisIs(name: string): string
+	return "This is " .. name .. "."
+end
+
+-- "The next stop is Fulton St."
+function Lines.nextStop(name: string): string
+	return "The next stop is " .. name .. "."
+end
+
+-- "{miss} missed, {fp} false flag(s)."
+function Lines.scoreLine(miss: number, fp: number): string
+	local suffix = if fp == 1 then "" else "s"
+	return string.format("%d missed, %d false flag%s.", miss, fp, suffix)
+end
+
+return Lines
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="7">
+        <Properties>
+          <string name="Name">Motion</string>
+          <string name="Source"><![CDATA[--!strict
+-- Speed and distance along one stretch. Port of gameState.segVel / segPos.
+-- smoothstep accel, steady cruise, smoothstep brake. Times are the slice's
+-- ACCEL, sliceCruise and BRAKE, so the scenery and the stop timer agree.
+
+local Motion = {}
+
+function Motion.smooth(x: number): number
+	local u = math.clamp(x, 0, 1)
+	return u * u * (3 - 2 * u)
+end
+
+function Motion.speed(t: number, accel: number, cruise: number, brake: number, top: number): number
+	if t <= 0 or accel <= 0 or brake <= 0 then
+		return 0
+	end
+	if t < accel then
+		return top * Motion.smooth(t / accel)
+	end
+	if t < accel + cruise then
+		return top
+	end
+	if t < accel + cruise + brake then
+		return top * (1 - Motion.smooth((t - accel - cruise) / brake))
+	end
+	return 0
+end
+
+-- Metres travelled since the start of the stretch. At the end of braking
+-- this is top * (accel/2 + cruise + brake/2), matching segDist.
+function Motion.distance(t: number, accel: number, cruise: number, brake: number, top: number): number
+	if t <= 0 or accel <= 0 or brake <= 0 then
+		return 0
+	end
+	local length = accel + cruise + brake
+	if t >= length then
+		return top * (accel / 2 + cruise + brake / 2)
+	end
+	if t <= accel then
+		local u = t / accel
+		return top * accel * (u * u * u - (u * u * u * u) / 2)
+	end
+	local travelled = top * accel / 2
+	if t <= accel + cruise then
+		return travelled + top * (t - accel)
+	end
+	travelled += top * cruise
+	local u = math.clamp((t - accel - cruise) / brake, 0, 1)
+	return travelled + top * brake * (u - (u * u * u - (u * u * u * u) / 2))
+end
+
+function Motion.segmentDistance(accel: number, cruise: number, brake: number, top: number): number
+	return top * (accel / 2 + cruise + brake / 2)
+end
+
+return Motion
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="8">
+        <Properties>
+          <string name="Name">Passengers</string>
+          <string name="Source"><![CDATA[--!strict
+-- Fixed seats and standing spots from subwayCarBuilder.buildPassengers.
+-- modelName is the instance name under ReplicatedStorage.Models, which is the
+-- manifest file name without ".glb". A missing model falls back to parts.
+
+local Passengers = {}
+
+export type PassengerDef = {
+	id: string,
+	label: string,
+	modelName: string?,
+	x: number,
+	z: number,
+	ry: number,
+	standing: boolean,
+	anomaly: boolean,
+	crowd: boolean,
+	-- Optional prop model names under ReplicatedStorage.Models.
+	props: { string }?,
+	skin: Color3,
+	shirt: Color3,
+	pants: Color3,
+	hair: Color3,
+}
+
+local LIST: { PassengerDef } = {
+	{
+		id = "mom",
+		label = "Mom",
+		modelName = "mom",
+		x = -0.95,
+		z = -1.3,
+		ry = 0,
+		standing = false,
+		anomaly = false,
+		crowd = false,
+		skin = Color3.fromRGB(198, 142, 108),
+		shirt = Color3.fromRGB(122, 74, 94),
+		pants = Color3.fromRGB(44, 49, 64),
+		hair = Color3.fromRGB(42, 28, 22),
+		props = { "prop_phone" },
+	},
+	{
+		id = "dad",
+		label = "Dad",
+		modelName = "dad",
+		x = -0.3,
+		z = -1.3,
+		ry = 0,
+		standing = false,
+		anomaly = false,
+		crowd = false,
+		skin = Color3.fromRGB(185, 128, 98),
+		shirt = Color3.fromRGB(62, 90, 110),
+		pants = Color3.fromRGB(58, 58, 54),
+		hair = Color3.fromRGB(28, 26, 24),
+		props = { "prop_phone" },
+	},
+	{
+		id = "s1",
+		label = "the man across the aisle",
+		modelName = "passenger_mta",
+		x = 2.35,
+		z = -1.3,
+		ry = 0,
+		standing = false,
+		anomaly = false,
+		crowd = false,
+		skin = Color3.fromRGB(138, 90, 60),
+		shirt = Color3.fromRGB(91, 107, 58),
+		pants = Color3.fromRGB(34, 34, 34),
+		hair = Color3.fromRGB(17, 17, 17),
+	},
+	{
+		id = "s2",
+		label = "the woman on your bench",
+		modelName = "passenger_coat",
+		x = -2.6,
+		z = 1.3,
+		ry = math.pi,
+		standing = false,
+		anomaly = false,
+		crowd = false,
+		skin = Color3.fromRGB(224, 184, 154),
+		shirt = Color3.fromRGB(154, 154, 144),
+		pants = Color3.fromRGB(64, 64, 74),
+		hair = Color3.fromRGB(155, 150, 141),
+		props = { "prop_tote_bag" },
+	},
+	{
+		id = "s3",
+		label = "the standing passenger",
+		modelName = "passenger_puffer",
+		x = 5.0,
+		z = 0.55,
+		ry = -math.pi / 2,
+		standing = true,
+		anomaly = false,
+		crowd = false,
+		skin = Color3.fromRGB(164, 112, 80),
+		shirt = Color3.fromRGB(45, 45, 51),
+		pants = Color3.fromRGB(81, 81, 74),
+		hair = Color3.fromRGB(25, 21, 18),
+	},
+	-- The far-seat stranger. Web id "seat6", manifest file anomaly_extra.glb.
+	-- Label is the web target label. anomaly_faceless / anomaly_stretched are
+	-- tiny meshes (about 12 cm), not bodies, so this seat does not use them.
+	{
+		id = "seat6",
+		label = "the seat at the far end",
+		modelName = "anomaly_extra",
+		x = 6.4,
+		z = -1.3,
+		ry = 0,
+		standing = false,
+		anomaly = true,
+		crowd = false,
+		skin = Color3.fromRGB(217, 194, 168),
+		shirt = Color3.fromRGB(28, 28, 28),
+		pants = Color3.fromRGB(28, 28, 28),
+		hair = Color3.fromRGB(12, 12, 12),
+	},
+	{
+		id = "c1",
+		label = "a passenger in the aisle",
+		modelName = "passenger_hoodie_standing",
+		x = 3.0,
+		z = 0.5,
+		ry = -math.pi / 2,
+		standing = true,
+		anomaly = false,
+		crowd = true,
+		skin = Color3.fromRGB(155, 106, 74),
+		shirt = Color3.fromRGB(107, 47, 47),
+		pants = Color3.fromRGB(42, 42, 42),
+		hair = Color3.fromRGB(17, 17, 17),
+		props = { "prop_backpack" },
+	},
+	{
+		id = "c2",
+		label = "a passenger at the end",
+		modelName = "passenger_texter_seated",
+		x = -6.6,
+		z = -1.3,
+		ry = 0,
+		standing = false,
+		anomaly = false,
+		crowd = true,
+		skin = Color3.fromRGB(226, 196, 168),
+		shirt = Color3.fromRGB(61, 95, 138),
+		pants = Color3.fromRGB(46, 46, 58),
+		hair = Color3.fromRGB(106, 74, 42),
+		props = { "prop_phone_texter", "prop_backpack" },
+	},
+	{
+		id = "c3",
+		label = "a passenger behind you",
+		modelName = "passenger_overcoat",
+		x = 6.0,
+		z = 1.3,
+		ry = math.pi,
+		standing = false,
+		anomaly = false,
+		crowd = true,
+		skin = Color3.fromRGB(122, 78, 52),
+		shirt = Color3.fromRGB(199, 166, 74),
+		pants = Color3.fromRGB(42, 42, 42),
+		hair = Color3.fromRGB(14, 14, 14),
+	},
+	{
+		id = "c4",
+		label = "a passenger by the door",
+		modelName = "passenger_office_standing",
+		x = -3.2,
+		z = -0.25,
+		ry = math.pi / 2,
+		standing = true,
+		anomaly = false,
+		crowd = true,
+		skin = Color3.fromRGB(201, 154, 122),
+		shirt = Color3.fromRGB(77, 77, 77),
+		pants = Color3.fromRGB(60, 51, 38),
+		hair = Color3.fromRGB(42, 26, 16),
+		props = { "prop_newspaper_folded" },
+	},
+	{
+		id = "c5",
+		label = "a passenger across",
+		modelName = nil,
+		x = 3.15,
+		z = -1.3,
+		ry = 0,
+		standing = false,
+		anomaly = false,
+		crowd = true,
+		skin = Color3.fromRGB(176, 122, 88),
+		shirt = Color3.fromRGB(122, 122, 58),
+		pants = Color3.fromRGB(38, 38, 38),
+		hair = Color3.fromRGB(26, 26, 26),
+	},
+}
+
+Passengers.LIST = LIST
+
+-- Names to try under ReplicatedStorage.Models. Seated riders prefer the
+-- seated NPC export from Bill's blend; standing riders prefer the standing one.
+-- The older manifest file name still works.
+function Passengers.modelNames(def: PassengerDef): { string }
+	local names: { string } = {}
+	local function add(name: string?)
+		if name == nil or name == "" then
+			return
+		end
+		for _, existing in names do
+			if existing == name then
+				return
+			end
+		end
+		table.insert(names, name)
+	end
+	local archetype = if def.id == "mom"
+		then "mom"
+		elseif def.id == "dad" then "dad"
+		elseif def.id == "s1" then "mta"
+		elseif def.id == "s2" then "coat"
+		elseif def.id == "s3" then "puffer"
+		elseif def.id == "c1" then "hoodie"
+		elseif def.id == "c2" then "texter"
+		elseif def.id == "c3" then "overcoat"
+		elseif def.id == "c4" then "office"
+		else nil
+	if archetype ~= nil and not def.standing then
+		add("NPC_" .. archetype .. "_seated")
+	end
+	add(def.modelName)
+	if archetype ~= nil then
+		add("NPC_" .. archetype)
+		if def.standing then
+			add("NPC_" .. archetype .. "_seated")
+		end
+	end
+	return names
+end
+
+return Passengers
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="9">
+        <Properties>
+          <string name="Name">Route</string>
+          <string name="Source"><![CDATA[--!strict
+-- G train stops and the stretch table from src/constants.ts (STOPS, SEGS,
+-- CHAPTERS). Only the fields this slice plays are kept: the name, whether the
+-- stretch is real / false / haven, which arrival tick it uses, and whether
+-- the PA stays quiet. Parent chats, mask checks, the haven, and the trial
+-- are not in this slice.
+
+local Route = {}
+
+export type Tick = "doors" | "flicker"
+export type StopKind = "real" | "false" | "haven"
+
+export type Segment = {
+	stop: number,
+	b: boolean,
+	kind: StopKind,
+	tick: Tick?,
+	silent: boolean,
+	crowd: boolean,
+	final: boolean,
+	paLie: string?,
+	-- Web cruise is 26 unless noted. The slice uses a shorter cruise.
+	sliceCruise: number,
+}
+
+-- Signed names, stop numbers 1 through 13. The web array has an empty [0].
+local STOPS: { [number]: string } = {
+	[1] = "Hoyt–Schermerhorn",
+	[2] = "Fulton St",
+	[3] = "Clinton–Washington Avs",
+	[4] = "Classon Av",
+	[5] = "Bedford–Nostrand Avs",
+	[6] = "Myrtle–Willoughby Avs",
+	[7] = "Flushing Av",
+	[8] = "Broadway",
+	[9] = "Metropolitan Av",
+	[10] = "Nassau Av",
+	[11] = "Greenpoint Av",
+	[12] = "21 St",
+	[13] = "Court Sq",
+}
+
+local CHAPTERS = {
+	{ from = 1, to = 5, numeral = "I", title = "THE DESCENT" },
+	{ from = 6, to = 10, numeral = "II", title = "SIGNAL DRIFT" },
+	{ from = 11, to = 13, numeral = "III", title = "OPERATION SKYWARD" },
+}
+
+-- Same order as SEGS. sliceCruise is the shortened stand-in for the web cruise
+-- (26, or the override on 6b and the last stretch).
+local SEGMENTS: { Segment } = {
+	{ stop = 2, b = false, kind = "real", tick = nil, silent = false, crowd = false, final = false, paLie = nil, sliceCruise = 12 },
+	{ stop = 3, b = false, kind = "real", tick = nil, silent = false, crowd = false, final = false, paLie = nil, sliceCruise = 12 },
+	{ stop = 4, b = false, kind = "false", tick = "doors", silent = false, crowd = false, final = false, paLie = nil, sliceCruise = 12 },
+	{ stop = 5, b = false, kind = "real", tick = nil, silent = false, crowd = false, final = false, paLie = nil, sliceCruise = 12 },
+	{ stop = 6, b = false, kind = "haven", tick = nil, silent = false, crowd = false, final = false, paLie = nil, sliceCruise = 12 },
+	-- 6b. No announcement. The arrival flicker is the whole-car blackout.
+	{ stop = 6, b = true, kind = "false", tick = "flicker", silent = true, crowd = false, final = false, paLie = nil, sliceCruise = 8 },
+	{ stop = 7, b = false, kind = "real", tick = nil, silent = false, crowd = true, final = false, paLie = nil, sliceCruise = 12 },
+	{ stop = 8, b = false, kind = "real", tick = nil, silent = false, crowd = true, final = false, paLie = nil, sliceCruise = 12 },
+	{
+		stop = 9,
+		b = false,
+		kind = "false",
+		tick = "doors",
+		silent = false,
+		crowd = false,
+		final = false,
+		paLie = "This is Court Square. Last stop. Everybody off the train.",
+		sliceCruise = 12,
+	},
+	{ stop = 10, b = false, kind = "real", tick = nil, silent = false, crowd = false, final = false, paLie = nil, sliceCruise = 12 },
+	{ stop = 11, b = false, kind = "real", tick = nil, silent = false, crowd = false, final = false, paLie = nil, sliceCruise = 12 },
+	-- 21 St. False stop. Flicker tick: the lights go out for 0.16 s. No "This is".
+	{ stop = 12, b = false, kind = "false", tick = "flicker", silent = false, crowd = false, final = false, paLie = nil, sliceCruise = 12 },
+	{ stop = 13, b = false, kind = "real", tick = nil, silent = false, crowd = false, final = true, paLie = nil, sliceCruise = 10 },
+}
+
+Route.SEGMENTS = SEGMENTS
+
+function Route.stopName(stop: number): string
+	return STOPS[stop] or ""
+end
+
+-- HUD chapter line. "CAR B (MID)" is the only car in this slice.
+function Route.chapterLine(stop: number): string
+	local numeral = "I"
+	local title = "THE DESCENT"
+	for _, chapter in CHAPTERS do
+		if stop >= chapter.from and stop <= chapter.to then
+			numeral = chapter.numeral
+			title = chapter.title
+			break
+		end
+	end
+	return "CH. " .. numeral .. " · " .. title .. " · CAR B (MID)"
+end
+
+function Route.segmentLength(segment: Segment, accel: number, brake: number): number
+	return accel + segment.sliceCruise + brake
+end
+
+return Route
+]]></string>
+        </Properties>
+      </Item>
+    </Item>
+  </Item>
+  <Item class="ServerScriptService" referent="10">
+    <Properties>
+      <string name="Name">ServerScriptService</string>
+    </Properties>
+    <Item class="Script" referent="11">
+      <Properties>
+        <string name="Name">Server</string>
+        <token name="RunContext">0</token>
+        <string name="Source"><![CDATA[--!strict
+-- Builds the car, then runs the stop cycle. Characters load after the car
+-- exists so nobody spawns into the void.
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local CarBuilder = require(script.CarBuilder)
+local Ride = require(script.Ride)
+local WorldLight = require(script.WorldLight)
+local Constants = require(ReplicatedStorage.Shared.Constants)
+
+Players.CharacterAutoLoads = false
+workspace.StreamingEnabled = false
+workspace.Gravity = 196.2
+workspace.FallenPartsDestroyHeight = -50
+
+-- Forced again if Studio resets Lighting when play starts.
+WorldLight.bind()
+
+local car = CarBuilder.build()
+Ride.start(car)
+
+local function prepare(player: Player, character: Model)
+	local humanoid = character:WaitForChild("Humanoid") :: Humanoid
+	humanoid.WalkSpeed = Constants.WALK_SPEED_MPS * Constants.STUDS_PER_METER
+	humanoid.JumpHeight = 0
+	humanoid.AutoRotate = true
+	humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
+	humanoid.HealthDisplayType = Enum.HumanoidHealthDisplayType.AlwaysOff
+	humanoid:SetStateEnabled(Enum.HumanoidStateType.Jumping, false)
+	player.CameraMode = Enum.CameraMode.LockFirstPerson
+	player.RespawnLocation = car.board
+
+	humanoid.Died:Connect(function()
+		task.wait(2)
+		if player.Parent == Players then
+			player:LoadCharacterAsync()
+		end
+	end)
+end
+
+local function spawnPlayer(player: Player)
+	player.CharacterAdded:Connect(function(character: Model)
+		prepare(player, character)
+	end)
+	player:LoadCharacterAsync()
+end
+
+Players.PlayerAdded:Connect(spawnPlayer)
+for _, player in Players:GetPlayers() do
+	spawnPlayer(player)
+end
+]]></string>
+      </Properties>
+      <Item class="ModuleScript" referent="12">
+        <Properties>
+          <string name="Name">AnomalySystem</string>
+          <string name="Source"><![CDATA[--!strict
+-- Stub. Step 8 turns the slice's one poster into the full catalog.
+-- The first slice schedules poster_changed from the server ride script.
+-- Do not add types beyond GameData.Anomalies.types.
+
+local AnomalySystem = {}
+
+function AnomalySystem.types(): { string }
+	return { "poster_changed" }
+end
+
+return AnomalySystem
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="13">
+        <Properties>
+          <string name="Name">CarBuilder</string>
+          <string name="Source"><![CDATA[--!strict
+-- One G-train car, in parts, from the measurements in subwayCarBuilder.ts.
+-- Passengers stand or sit on the web game's spots. A model named in
+-- ReplicatedStorage.Models replaces the part figure; a missing model does not
+-- stop the car from building.
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Constants = require(ReplicatedStorage.Shared.Constants)
+local KeepOut = require(ReplicatedStorage.Shared.KeepOut)
+local Passengers = require(ReplicatedStorage.Shared.Passengers)
+
+local CarBuilder = {}
+
+export type DoorLeaf = {
+	model: Model,
+	x0: number,
+	y: number,
+	z: number,
+	side: number,
+}
+
+export type Lamp = {
+	part: BasePart,
+	light: PointLight?,
+}
+
+export type BuiltCar = {
+	model: Model,
+	doors: { DoorLeaf },
+	lamps: { Lamp },
+	passengers: Folder,
+	board: SpawnLocation,
+}
+
+local function metres(x: number, y: number, z: number): Vector3
+	local s = Constants.STUDS_PER_METER
+	return Vector3.new(x * s, y * s, z * s)
+end
+
+local function sizeM(x: number, y: number, z: number): Vector3
+	return metres(x, y, z)
+end
+
+type PartOpts = {
+	name: string,
+	parent: Instance,
+	size: Vector3,
+	cframe: CFrame,
+	color: Color3?,
+	material: Enum.Material?,
+	transparency: number?,
+	collide: boolean?,
+	query: boolean?,
+	shape: Enum.PartType?,
+}
+
+local function makePart(opts: PartOpts): Part
+	local part = Instance.new("Part")
+	part.Name = opts.name
+	part.Anchored = true
+	part.Size = opts.size
+	part.CFrame = opts.cframe
+	part.Color = opts.color or Constants.COLOR.wall
+	part.Material = opts.material or Enum.Material.SmoothPlastic
+	part.TopSurface = Enum.SurfaceType.Smooth
+	part.BottomSurface = Enum.SurfaceType.Smooth
+	part.CanCollide = if opts.collide == nil then true else opts.collide
+	part.CanQuery = if opts.query == nil then false else opts.query
+	part.CanTouch = false
+	part.Transparency = opts.transparency or 0
+	if opts.shape ~= nil then
+		part.Shape = opts.shape
+	end
+	part.Parent = opts.parent
+	return part
+end
+
+local function applyShown(model: Model, shown: boolean)
+	model:SetAttribute("Hidden", not shown)
+	for _, desc in model:GetDescendants() do
+		if desc:IsA("BasePart") then
+			if desc.Name == "KeepOut" then
+				desc.CanCollide = shown
+				desc.CanQuery = false
+			elseif desc.Name == "Root" then
+				desc.Transparency = 1
+				desc.CanQuery = false
+				desc.CanCollide = false
+			else
+				local base = desc:GetAttribute("ShownTransparency")
+				local shownTransparency = if typeof(base) == "number" then base else 0
+				desc.Transparency = if shown then shownTransparency else 1
+				desc.CanQuery = shown
+				desc.CanCollide = false
+			end
+		end
+		if desc:IsA("Decal") or desc:IsA("Texture") then
+			(desc :: Decal).Transparency = if shown then 0 else 1
+		end
+	end
+end
+
+function CarBuilder.setCrowd(folder: Folder, shown: boolean)
+	for _, child in folder:GetChildren() do
+		if child:IsA("Model") and child:GetAttribute("Crowd") == true then
+			applyShown(child, shown)
+		end
+	end
+end
+
+local function rememberTransparency(model: Model)
+	for _, desc in model:GetDescendants() do
+		if desc:IsA("BasePart") and desc.Name ~= "KeepOut" and desc.Name ~= "Root" then
+			desc:SetAttribute("ShownTransparency", desc.Transparency)
+		end
+	end
+end
+
+local function tagPassenger(model: Model, def: Passengers.PassengerDef)
+	model.Name = def.id
+	model:SetAttribute("PassengerId", def.id)
+	model:SetAttribute("Label", def.label)
+	model:SetAttribute("Standing", def.standing)
+	model:SetAttribute("Anomaly", def.anomaly)
+	model:SetAttribute("Crowd", def.crowd)
+	for _, desc in model:GetDescendants() do
+		if desc:IsA("BasePart") then
+			desc:SetAttribute("PassengerId", def.id)
+		end
+	end
+end
+
+local function addBox(model: Model, name: string, boxSize: Vector3, localPos: Vector3, color: Color3): Part
+	local part = Instance.new("Part")
+	part.Name = name
+	part.Anchored = true
+	part.Size = boxSize
+	part.CFrame = CFrame.new(localPos)
+	part.Color = color
+	part.Material = Enum.Material.SmoothPlastic
+	part.TopSurface = Enum.SurfaceType.Smooth
+	part.BottomSurface = Enum.SurfaceType.Smooth
+	part.CanCollide = false
+	part.CanTouch = false
+	part.CanQuery = true
+	part.Parent = model
+	return part
+end
+
+local function studs(metresLength: number): number
+	return Constants.meters(metresLength)
+end
+
+-- Part figure facing local +Z, feet on the pivot. Seated laps sit near the bench.
+local function buildFallback(def: Passengers.PassengerDef): Model
+	local model = Instance.new("Model")
+	local root = Instance.new("Part")
+	root.Name = "Root"
+	root.Size = Vector3.new(0.2, 0.2, 0.2)
+	root.Anchored = true
+	root.CanCollide = false
+	root.CanQuery = false
+	root.CanTouch = false
+	root.Transparency = 1
+	root.CFrame = CFrame.new()
+	root.Parent = model
+	model.PrimaryPart = root
+
+	local s = Constants.STUDS_PER_METER
+	if def.standing then
+		for _, dx in { -0.09, 0.09 } do
+			addBox(model, "Leg", Vector3.new(0.14 * s, 0.8 * s, 0.16 * s), Vector3.new(dx * s, 0.44 * s, 0), def.pants)
+			addBox(model, "Shoe", Vector3.new(0.14 * s, 0.08 * s, 0.26 * s), Vector3.new(dx * s, 0.04 * s, 0.04 * s), Constants.COLOR.ink)
+		end
+		addBox(model, "Torso", Vector3.new(0.42 * s, 0.55 * s, 0.24 * s), Vector3.new(0, 1.12 * s, 0), def.shirt)
+		addBox(model, "Arm", Vector3.new(0.12 * s, 0.5 * s, 0.12 * s), Vector3.new(-0.28 * s, 1.1 * s, 0), def.shirt)
+		addBox(model, "Arm", Vector3.new(0.12 * s, 0.5 * s, 0.12 * s), Vector3.new(0.28 * s, 1.1 * s, 0), def.shirt)
+		addBox(model, "Head", Vector3.new(0.26 * s, 0.28 * s, 0.26 * s), Vector3.new(0, 1.55 * s, 0), def.skin)
+		addBox(model, "Hair", Vector3.new(0.28 * s, 0.12 * s, 0.28 * s), Vector3.new(0, 1.7 * s, 0), def.hair)
+		if not def.anomaly then
+			addBox(model, "Eye", Vector3.new(0.045 * s, 0.045 * s, 0.03 * s), Vector3.new(-0.06 * s, 1.57 * s, 0.14 * s), Constants.COLOR.ink)
+			addBox(model, "Eye", Vector3.new(0.045 * s, 0.045 * s, 0.03 * s), Vector3.new(0.06 * s, 1.57 * s, 0.14 * s), Constants.COLOR.ink)
+		end
+	else
+		addBox(model, "Shin", Vector3.new(0.13 * s, 0.42 * s, 0.14 * s), Vector3.new(-0.1 * s, 0.24 * s, 0.36 * s), def.pants)
+		addBox(model, "Shin", Vector3.new(0.13 * s, 0.42 * s, 0.14 * s), Vector3.new(0.1 * s, 0.24 * s, 0.36 * s), def.pants)
+		addBox(model, "Shoe", Vector3.new(0.13 * s, 0.08 * s, 0.22 * s), Vector3.new(-0.1 * s, 0.04 * s, 0.42 * s), Constants.COLOR.ink)
+		addBox(model, "Shoe", Vector3.new(0.13 * s, 0.08 * s, 0.22 * s), Vector3.new(0.1 * s, 0.04 * s, 0.42 * s), Constants.COLOR.ink)
+		addBox(model, "Lap", Vector3.new(0.38 * s, 0.16 * s, 0.4 * s), Vector3.new(0, 0.5 * s, 0.12 * s), def.pants)
+		addBox(model, "Torso", Vector3.new(0.4 * s, 0.48 * s, 0.24 * s), Vector3.new(0, 0.92 * s, 0), def.shirt)
+		addBox(model, "Head", Vector3.new(0.26 * s, 0.28 * s, 0.26 * s), Vector3.new(0, 1.32 * s, 0), def.skin)
+		addBox(model, "Hair", Vector3.new(0.28 * s, 0.1 * s, 0.28 * s), Vector3.new(0, 1.46 * s, -0.02 * s), def.hair)
+		if not def.anomaly then
+			addBox(model, "Eye", Vector3.new(0.045 * s, 0.045 * s, 0.03 * s), Vector3.new(-0.06 * s, 1.34 * s, 0.14 * s), Constants.COLOR.ink)
+			addBox(model, "Eye", Vector3.new(0.045 * s, 0.045 * s, 0.03 * s), Vector3.new(0.06 * s, 1.34 * s, 0.14 * s), Constants.COLOR.ink)
+		end
+	end
+
+	model:SetAttribute("ModelSource", "fallback")
+	return model
+end
+
+local function stripImported(model: Model)
+	for _, desc in model:GetDescendants() do
+		if desc:IsA("BaseScript") or desc:IsA("Humanoid") or desc:IsA("Animator") or desc:IsA("AnimationController") then
+			desc:Destroy()
+		end
+	end
+end
+
+local function wrapClone(source: Instance): Model?
+	local clone = source:Clone()
+	if clone:IsA("Model") then
+		stripImported(clone)
+		return clone
+	end
+	if clone:IsA("BasePart") then
+		local model = Instance.new("Model")
+		model.Name = source.Name
+		clone.Parent = model
+		return model
+	end
+	if clone:IsA("Folder") then
+		local model = Instance.new("Model")
+		model.Name = source.Name
+		for _, child in clone:GetChildren() do
+			child.Parent = model
+		end
+		clone:Destroy()
+		stripImported(model)
+		if #model:GetChildren() == 0 then
+			model:Destroy()
+			return nil
+		end
+		return model
+	end
+	clone:Destroy()
+	return nil
+end
+
+local function hasParts(model: Model): boolean
+	return model:FindFirstChildWhichIsA("BasePart", true) ~= nil
+end
+
+local function scaleToHeight(model: Model, targetMetres: number): boolean
+	local ok, boxSize = pcall(function(): Vector3
+		local _, size = model:GetBoundingBox()
+		return size
+	end)
+	if not ok or typeof(boxSize) ~= "Vector3" or boxSize.Y < 0.05 then
+		return false
+	end
+	local scale = studs(targetMetres) / boxSize.Y
+	if math.abs(scale - 1) < 0.02 then
+		return true
+	end
+	local scaled = pcall(function()
+		model:ScaleTo(scale)
+	end)
+	return scaled
+end
+
+-- glTF models face +Z. PivotTo turns local +Z onto `face` and puts the feet
+-- on the floor point. A YawOffset attribute (degrees) on the imported model
+-- adds to the web-game yaw when the FBX comes in backwards.
+local function placeModel(model: Model, feetWorld: Vector3, ry: number)
+	local pivot = model:GetPivot()
+	local boxCf, boxSize = model:GetBoundingBox()
+	local feetNow = Vector3.new(boxCf.Position.X, boxCf.Position.Y - boxSize.Y / 2, boxCf.Position.Z)
+	local feetLocal = pivot:PointToObjectSpace(feetNow)
+	local face = Vector3.new(math.sin(ry), 0, math.cos(ry))
+	local rot = CFrame.lookAt(Vector3.zero, -face)
+	local pos = feetWorld - rot:VectorToWorldSpace(feetLocal)
+	model:PivotTo(CFrame.new(pos) * rot.Rotation)
+end
+
+local function addKeepOut(model: Model, feet: Vector3, passengerId: string)
+	local radius = KeepOut.cylinderRadiusStuds()
+	local height = studs(1.7)
+	local cylinder = Instance.new("Part")
+	cylinder.Name = "KeepOut"
+	cylinder.Shape = Enum.PartType.Cylinder
+	cylinder.Size = Vector3.new(height, radius * 2, radius * 2)
+	cylinder.CFrame = CFrame.new(feet + Vector3.new(0, height / 2, 0)) * CFrame.Angles(0, 0, math.rad(90))
+	cylinder.Anchored = true
+	cylinder.Material = Enum.Material.SmoothPlastic
+	cylinder.Transparency = 1
+	cylinder.CanCollide = true
+	cylinder.CanQuery = false
+	cylinder.CanTouch = false
+	cylinder.Parent = model
+	cylinder:SetAttribute("PassengerId", passengerId)
+end
+
+local function prepareParts(model: Model)
+	for _, desc in model:GetDescendants() do
+		if desc:IsA("BasePart") then
+			desc.Anchored = true
+			desc.CanCollide = false
+			desc.CanTouch = false
+			desc.CanQuery = desc.Name ~= "Root"
+			desc.Massless = true
+		end
+	end
+end
+
+local attachProps: (Model, Passengers.PassengerDef) -> ()
+
+local function buildPassenger(def: Passengers.PassengerDef, folder: Folder): string
+	local template: Instance? = nil
+	local modelsFolder = ReplicatedStorage:FindFirstChild("Models")
+	if modelsFolder ~= nil then
+		for _, name in Passengers.modelNames(def) do
+			local found = modelsFolder:FindFirstChild(name)
+			if found ~= nil then
+				template = found
+				break
+			end
+		end
+	end
+
+	local model: Model? = nil
+	local source = "fallback"
+	if template ~= nil then
+		model = wrapClone(template)
+		if model ~= nil and hasParts(model) then
+			model.Parent = folder
+			prepareParts(model)
+			local targetHeight = if def.standing then 1.7 else 1.3
+			if scaleToHeight(model, targetHeight) then
+				source = "imported"
+			else
+				model:Destroy()
+				model = nil
+			end
+		elseif model ~= nil then
+			model:Destroy()
+			model = nil
+		end
+	end
+
+	local built: Model
+	if model ~= nil then
+		built = model
+	else
+		built = buildFallback(def)
+		built.Parent = folder
+		source = "fallback"
+	end
+
+	local yaw = def.ry
+	if source == "imported" then
+		local extra = built:GetAttribute("YawOffset")
+		if typeof(extra) == "number" then
+			yaw += math.rad(extra)
+		end
+	end
+
+	local feet = metres(def.x, 0, def.z)
+	placeModel(built, feet, yaw)
+	prepareParts(built)
+	tagPassenger(built, def)
+	built:SetAttribute("ModelSource", source)
+	rememberTransparency(built)
+
+	if def.standing then
+		addKeepOut(built, feet, def.id)
+	end
+	if def.crowd then
+		applyShown(built, false)
+	end
+	attachProps(built, def)
+
+	local reported = def.modelName or def.id
+	return if source == "imported" then reported else reported .. " (parts)"
+end
+
+local function findModel(name: string): Instance?
+	local modelsFolder = ReplicatedStorage:FindFirstChild("Models")
+	if modelsFolder == nil then
+		return nil
+	end
+	return modelsFolder:FindFirstChild(name)
+end
+
+local PROP_ALIASES: { [string]: { string } } = {
+	prop_phone = { "prop_phone", "Prop_Phone" },
+	prop_phone_texter = { "prop_phone_texter", "Prop_PhoneTexter" },
+	prop_tote_bag = { "prop_tote_bag", "Prop_ToteBag" },
+	prop_backpack = { "prop_backpack", "Prop_Backpack" },
+	prop_newspaper_folded = { "prop_newspaper_folded", "Prop_Newspaper" },
+	prop_newspaper_open = { "prop_newspaper_open", "Prop_NewspaperOpen" },
+}
+
+attachProps = function(host: Model, def: Passengers.PassengerDef)
+	local props = def.props
+	if props == nil then
+		return
+	end
+	local cf = host:GetPivot()
+	for index, propName in props do
+		local template: Instance? = nil
+		local aliases = PROP_ALIASES[propName]
+		if aliases == nil then
+			template = findModel(propName)
+		else
+			for _, alias in aliases do
+				template = findModel(alias)
+				if template ~= nil then
+					break
+				end
+			end
+		end
+		if template == nil then
+			continue
+		end
+		local clone = template:Clone()
+		local propModel: Model
+		if clone:IsA("Model") then
+			propModel = clone
+		elseif clone:IsA("BasePart") then
+			propModel = Instance.new("Model")
+			clone.Parent = propModel
+		else
+			clone:Destroy()
+			continue
+		end
+		propModel.Name = propName
+		propModel.Parent = host
+		prepareParts(propModel)
+		local _, size = propModel:GetBoundingBox()
+		local target = if string.find(propName, "phone", 1, true)
+			then Constants.meters(0.14)
+			elseif string.find(propName, "tote", 1, true) then Constants.meters(0.47)
+			elseif string.find(propName, "backpack", 1, true) then Constants.meters(0.36)
+			elseif string.find(propName, "open", 1, true) then Constants.meters(0.2)
+			else Constants.meters(0.26)
+		if size.Y > 0.001 then
+			pcall(function()
+				propModel:ScaleTo(target / size.Y)
+			end)
+		end
+		local side = (index - 1) * 0.18
+		local localOffset = if string.find(propName, "backpack", 1, true)
+			then Vector3.new(side, 0.95, -0.22)
+			elseif string.find(propName, "tote", 1, true) then Vector3.new(0.22, 0.45, 0.05)
+			elseif string.find(propName, "newspaper", 1, true) then Vector3.new(0.12, 0.9, 0.18)
+			else Vector3.new(0.08, 0.85, 0.2)
+		local world = cf.Position + cf:VectorToWorldSpace(localOffset * Constants.STUDS_PER_METER)
+		propModel:PivotTo(CFrame.new(world) * cf.Rotation)
+	end
+end
+
+local function buildDoorLeaf(parent: Instance, xMetres: number, zMetres: number, side: number, doors: { DoorLeaf })
+	local doorModel = Instance.new("Model")
+	doorModel.Name = "DoorLeaf"
+	doorModel.Parent = parent
+	local x0 = Constants.meters(xMetres)
+	local y = Constants.meters(1)
+	local z = Constants.meters(zMetres)
+	local leaf = makePart({
+		name = "Leaf",
+		parent = doorModel,
+		size = sizeM(0.66, 2, 0.05),
+		cframe = CFrame.new(x0, y, z),
+		color = Constants.COLOR.door,
+		collide = false,
+	})
+	makePart({
+		name = "Window",
+		parent = doorModel,
+		size = sizeM(0.3, 0.62, 0.03),
+		cframe = CFrame.new(x0, y + Constants.meters(0.36), z),
+		color = Constants.COLOR.dark,
+		transparency = 0.45,
+		collide = false,
+	})
+	doorModel.PrimaryPart = leaf
+	table.insert(doors, {
+		model = doorModel,
+		x0 = x0,
+		y = y,
+		z = z,
+		side = side,
+	})
+end
+
+local function doorSide(key: string): number
+	-- Leaves open away from the gap. W48 and E42 carry the inner edge on +X.
+	if string.find(key, "W48", 1, true) or string.find(key, "E42", 1, true) then
+		return -1
+	end
+	return 1
+end
+
+local function adoptModeledCar(car: Model): ({ DoorLeaf }?, { Lamp }?)
+	local template = findModel("Car_B") or findModel("car_B_interior")
+	if template == nil then
+		return nil, nil
+	end
+	local clone = template:Clone()
+	local model: Model
+	if clone:IsA("Model") then
+		model = clone
+	elseif clone:IsA("BasePart") then
+		model = Instance.new("Model")
+		clone.Parent = model
+	else
+		model = Instance.new("Model")
+		if clone:IsA("Folder") then
+			for _, child in clone:GetChildren() do
+				child.Parent = model
+			end
+			clone:Destroy()
+		else
+			clone:Destroy()
+			return nil, nil
+		end
+	end
+	model.Name = "Car_B"
+	model.Parent = car
+	if not hasParts(model) then
+		model:Destroy()
+		return nil, nil
+	end
+	local ok, boxSize = pcall(function(): Vector3
+		local _, size = model:GetBoundingBox()
+		return size
+	end)
+	if not ok or typeof(boxSize) ~= "Vector3" then
+		model:Destroy()
+		return nil, nil
+	end
+	local longest = math.max(boxSize.X, boxSize.Z)
+	local target = Constants.meters(18.09)
+	if longest > 0.05 then
+		local scaled = pcall(function()
+			model:ScaleTo(target / longest)
+		end)
+		if not scaled then
+			model:Destroy()
+			return nil, nil
+		end
+	end
+	local boxCf, sized = model:GetBoundingBox()
+	local bottom = boxCf.Position.Y - sized.Y / 2
+	model:PivotTo(model:GetPivot() + Vector3.new(0, Constants.meters(-0.06) - bottom, 0))
+
+	for _, desc in model:GetDescendants() do
+		if desc:IsA("BasePart") then
+			desc.Anchored = true
+			desc.CanCollide = false
+			desc.CanTouch = false
+			desc.CanQuery = false
+			desc.Massless = true
+			if string.match(desc.Name, "^LightStrip_%d+") then
+				desc.Material = Enum.Material.Neon
+				desc.Color = Constants.COLOR.lightOn
+			end
+		end
+	end
+
+	local groups: { [string]: { BasePart } } = {}
+	local order: { string } = {}
+	for _, desc in model:GetDescendants() do
+		if desc:IsA("BasePart") then
+			local key = string.match(desc.Name, "^(DoorLeaf_[^_]+_%d+)")
+			if key ~= nil then
+				if groups[key] == nil then
+					groups[key] = {}
+					table.insert(order, key)
+				end
+				table.insert(groups[key], desc)
+			end
+		end
+	end
+	local doors: { DoorLeaf } = {}
+	for _, key in order do
+		local group = Instance.new("Model")
+		group.Name = key
+		group.Parent = model
+		local parts = groups[key]
+		for _, part in parts do
+			part.Parent = group
+		end
+		local pivot = group:GetPivot()
+		table.insert(doors, {
+			model = group,
+			x0 = pivot.Position.X,
+			y = pivot.Position.Y,
+			z = pivot.Position.Z,
+			side = doorSide(key),
+		})
+	end
+
+	local lamps: { Lamp } = {}
+	local lightIndex = 0
+	for _, desc in model:GetDescendants() do
+		if desc:IsA("BasePart") and string.match(desc.Name, "^LightStrip_%d+") then
+			local point: PointLight? = nil
+			if lightIndex % 3 == 0 then
+				local glow = Instance.new("PointLight")
+				glow.Name = "Glow"
+				glow.Color = Constants.COLOR.lamp
+				glow.Brightness = Constants.LAMP_BRIGHTNESS
+				glow.Range = Constants.meters(Constants.LAMP_RANGE_M)
+				glow.Shadows = true
+				glow.Parent = desc
+				point = glow
+			end
+			local lamp: Lamp = { part = desc, light = point }
+			table.insert(lamps, lamp)
+			lightIndex += 1
+		end
+	end
+	if #doors == 0 or #lamps == 0 then
+		model:Destroy()
+		return nil, nil
+	end
+	return doors, lamps
+end
+
+local function hidePartCarVisuals(car: Model)
+	local keepCollider = {
+		Floor = true,
+		SeatLip = true,
+		DoorSeal = true,
+		ShellWall = true,
+		Bulkhead = true,
+		GangwayDoor = true,
+		Lintel = true,
+		Ceiling = true,
+	}
+	for _, folderName in { "Shell", "Seats", "Doors", "Poles", "Lights" } do
+		local folder = car:FindFirstChild(folderName)
+		if folder ~= nil then
+			for _, desc in folder:GetDescendants() do
+				if desc:IsA("BasePart") then
+					desc.Transparency = 1
+					if not keepCollider[desc.Name] then
+						desc.CanCollide = false
+					end
+					local glow = desc:FindFirstChild("Glow")
+					if glow ~= nil and glow:IsA("PointLight") then
+						glow.Enabled = false
+					end
+				end
+			end
+		end
+	end
+end
+
+function CarBuilder.build(): BuiltCar
+	local car = Instance.new("Model")
+	car.Name = "SubwayCar"
+
+	local shell = Instance.new("Folder")
+	shell.Name = "Shell"
+	shell.Parent = car
+	local seats = Instance.new("Folder")
+	seats.Name = "Seats"
+	seats.Parent = car
+	local doorFolder = Instance.new("Folder")
+	doorFolder.Name = "Doors"
+	doorFolder.Parent = car
+	local poleFolder = Instance.new("Folder")
+	poleFolder.Name = "Poles"
+	poleFolder.Parent = car
+	local lightFolder = Instance.new("Folder")
+	lightFolder.Name = "Lights"
+	lightFolder.Parent = car
+	local passengers = Instance.new("Folder")
+	passengers.Name = "Passengers"
+	passengers.Parent = car
+
+	makePart({
+		name = "Floor",
+		parent = shell,
+		size = sizeM(18, 0.4, 3.06),
+		cframe = CFrame.new(metres(0, -0.2, 0)),
+		color = Constants.COLOR.floor,
+		material = Enum.Material.Concrete,
+	})
+	-- Closes the window band so a walk can't leave the car. Invisible.
+	for _, side in { -1, 1 } do
+		makePart({
+			name = "ShellWall",
+			parent = shell,
+			size = sizeM(18.2, 2.5, 0.08),
+			cframe = CFrame.new(metres(0, 1.25, side * 1.58)),
+			transparency = 1,
+		})
+	end
+	makePart({
+		name = "Ceiling",
+		parent = shell,
+		size = sizeM(18, 0.08, 3.06),
+		cframe = CFrame.new(metres(0, 2.46, 0)),
+		color = Constants.COLOR.ceiling,
+		material = Enum.Material.Concrete,
+	})
+
+	for _, side in { -1, 1 } do
+		local z = side * 1.53
+		makePart({
+			name = "Kickboard",
+			parent = shell,
+			size = sizeM(18, 0.9, 0.08),
+			cframe = CFrame.new(metres(0, 0.45, z)),
+			color = Constants.COLOR.lowWall,
+			material = Enum.Material.Concrete,
+		})
+		makePart({
+			name = "UpperWall",
+			parent = shell,
+			size = sizeM(18, 0.7, 0.08),
+			cframe = CFrame.new(metres(0, 2.05, z)),
+			color = Constants.COLOR.wall,
+			material = Enum.Material.Concrete,
+		})
+		for i = 0, 9 do
+			local x = -8.55 + i * 1.9
+			makePart({
+				name = "Mullion",
+				parent = shell,
+				size = sizeM(0.08, 0.85, 0.08),
+				cframe = CFrame.new(metres(x, 1.325, z)),
+				color = Constants.COLOR.wall,
+				material = Enum.Material.Concrete,
+				collide = false,
+			})
+		end
+		if side < 0 then
+			makePart({
+				name = "Ad_Across_0_GREENPOINTSAVINGS",
+				parent = shell,
+				size = sizeM(1.3, 0.41, 0.04),
+				cframe = CFrame.new(metres(-6.2, 2.02, z + 0.06)),
+				color = Color3.fromRGB(20, 60, 43),
+				collide = false,
+			})
+		end
+		makePart({
+			name = "Glass",
+			parent = shell,
+			size = sizeM(18, 0.85, 0.02),
+			cframe = CFrame.new(metres(0, 1.325, z - side * 0.03)),
+			color = Constants.COLOR.glass,
+			transparency = 0.86,
+			collide = false,
+		})
+
+		local spans = { { -8.85, -5.25 }, { -3.75, 3.75 }, { 5.25, 8.85 } }
+		for index, span in spans do
+			local a = span[1]
+			local b = span[2]
+			local length = b - a
+			local cx = (a + b) / 2
+			local color = if index % 2 == 1 then Constants.COLOR.seatOrange else Constants.COLOR.seatYellow
+			makePart({
+				name = "Cushion",
+				parent = seats,
+				size = sizeM(length, 0.09, 0.46),
+				cframe = CFrame.new(metres(cx, 0.455, side * 1.25)),
+				color = color,
+			})
+			makePart({
+				name = "Back",
+				parent = seats,
+				size = sizeM(length, 0.5, 0.08),
+				cframe = CFrame.new(metres(cx, 0.76, side * 1.47)),
+				color = color,
+			})
+			makePart({
+				name = "Riser",
+				parent = seats,
+				size = sizeM(length, 0.41, 0.36),
+				cframe = CFrame.new(metres(cx, 0.205, side * 1.3)),
+				color = Constants.COLOR.underSeat,
+			})
+			-- Invisible full-height lip so the player stays in the aisle.
+			makePart({
+				name = "SeatLip",
+				parent = seats,
+				size = sizeM(length, 2.2, 0.06),
+				cframe = CFrame.new(metres(cx, 1.1, side * 1.02)),
+				color = Constants.COLOR.underSeat,
+				transparency = 1,
+			})
+		end
+
+		makePart({
+			name = "GrabBar",
+			parent = poleFolder,
+			size = sizeM(17.6, 0.04, 0.04),
+			cframe = CFrame.new(metres(0, 2.02, side * 0.98)),
+			color = Constants.COLOR.steel,
+			material = Enum.Material.Metal,
+			shape = Enum.PartType.Cylinder,
+			collide = false,
+		})
+		for _, x in { -5.3, -3.7, 3.7, 5.3 } do
+			makePart({
+				name = "Pole",
+				parent = poleFolder,
+				size = Vector3.new(Constants.meters(2.42), Constants.meters(0.045), Constants.meters(0.045)),
+				cframe = CFrame.new(metres(x, 1.21, side * 0.98)) * CFrame.Angles(0, 0, math.rad(90)),
+				color = Constants.COLOR.steel,
+				material = Enum.Material.Metal,
+				shape = Enum.PartType.Cylinder,
+				collide = false,
+			})
+		end
+	end
+
+	local doors: { DoorLeaf } = {}
+	for _, x in { -4.5, 4.5 } do
+		for _, side in { -1, 1 } do
+			local x0 = x + side * 0.335
+			buildDoorLeaf(doorFolder, x0, -1.485, side, doors)
+		end
+		makePart({
+			name = "DoorHeader",
+			parent = doorFolder,
+			size = sizeM(1.4, 0.08, 0.1),
+			cframe = CFrame.new(metres(x, 2.04, -1.5)),
+			color = Constants.COLOR.lowWall,
+			collide = false,
+		})
+		makePart({
+			name = "NearDoor",
+			parent = doorFolder,
+			size = sizeM(1.34, 2, 0.06),
+			cframe = CFrame.new(metres(x, 1, 1.485)),
+			color = Constants.COLOR.door,
+			collide = false,
+		})
+		for _, dx in { -0.3, 0.3 } do
+			makePart({
+				name = "NearDoorWindow",
+				parent = doorFolder,
+				size = sizeM(0.34, 0.62, 0.03),
+				cframe = CFrame.new(metres(x + dx, 1.36, 1.5)),
+				color = Constants.COLOR.dark,
+				transparency = 0.45,
+				collide = false,
+			})
+		end
+		for _, side in { -1, 1 } do
+			makePart({
+				name = "DoorSeal",
+				parent = shell,
+				size = sizeM(1.55, 2.5, 0.1),
+				cframe = CFrame.new(metres(x, 1.25, side * 1.66)),
+				transparency = 1,
+			})
+		end
+	end
+
+	for _, x in { -9, 9 } do
+		makePart({
+			name = "Bulkhead",
+			parent = shell,
+			size = sizeM(0.1, 2.46, 1.05),
+			cframe = CFrame.new(metres(x, 1.23, -0.98)),
+			color = Constants.COLOR.wall,
+			material = Enum.Material.Concrete,
+		})
+		makePart({
+			name = "Bulkhead",
+			parent = shell,
+			size = sizeM(0.1, 2.46, 1.05),
+			cframe = CFrame.new(metres(x, 1.23, 0.98)),
+			color = Constants.COLOR.wall,
+			material = Enum.Material.Concrete,
+		})
+		makePart({
+			name = "Lintel",
+			parent = shell,
+			size = sizeM(0.1, 0.42, 1),
+			cframe = CFrame.new(metres(x, 2.25, 0)),
+			color = Constants.COLOR.wall,
+			material = Enum.Material.Concrete,
+		})
+		makePart({
+			name = "GangwayDoor",
+			parent = shell,
+			size = sizeM(0.12, 2.15, 0.96),
+			cframe = CFrame.new(metres(x, 1.08, 0)),
+			color = Constants.COLOR.door,
+		})
+	end
+
+	local lamps: { Lamp } = {}
+	local stripIndex = 0
+	for _, z in { -0.62, 0.62 } do
+		for i = 0, 5 do
+			local x = -7.25 + i * 2.9
+			local strip = makePart({
+				name = string.format("LightStrip_%02d", stripIndex),
+				parent = lightFolder,
+				size = sizeM(2.7, 0.04, 0.18),
+				cframe = CFrame.new(metres(x, 2.38, z)),
+				color = Constants.COLOR.lightOn,
+				material = Enum.Material.Neon,
+				collide = false,
+			})
+			local stripLamp: Lamp = { part = strip, light = nil }
+			table.insert(lamps, stripLamp)
+			stripIndex += 1
+		end
+	end
+	for _, x in { -6, -2, 2, 6 } do
+		local anchor = makePart({
+			name = "CeilingLight",
+			parent = lightFolder,
+			size = Vector3.new(0.3, 0.3, 0.3),
+			cframe = CFrame.new(metres(x, 2.2, 0)),
+			color = Constants.COLOR.lightOn,
+			transparency = 1,
+			collide = false,
+		})
+		local point = Instance.new("PointLight")
+		point.Name = "Glow"
+		point.Color = Constants.COLOR.lamp
+		point.Brightness = Constants.LAMP_BRIGHTNESS
+		point.Range = Constants.meters(Constants.LAMP_RANGE_M)
+		point.Shadows = true
+		point.Parent = anchor
+		local anchorLamp: Lamp = { part = anchor, light = point }
+		table.insert(lamps, anchorLamp)
+	end
+
+	local board = Instance.new("SpawnLocation")
+	board.Name = "Board"
+	board.Size = Vector3.new(3, 0.4, 3)
+	board.CFrame = CFrame.new(metres(0, 0.25, 0.4))
+	board.Anchored = true
+	board.CanCollide = false
+	board.Transparency = 1
+	board.Duration = 0
+	board.Neutral = true
+	board.Parent = car
+
+	car.Parent = workspace
+
+	local imported: { string } = {}
+	local fallback: { string } = {}
+	for _, def in Passengers.LIST do
+		local note = buildPassenger(def, passengers)
+		if string.find(note, "parts", 1, true) then
+			table.insert(fallback, note)
+		else
+			table.insert(imported, note)
+		end
+	end
+	local meshDoors, meshLamps = adoptModeledCar(car)
+	if meshDoors ~= nil and meshLamps ~= nil then
+		doors = meshDoors
+		lamps = meshLamps
+		hidePartCarVisuals(car)
+		print("[Last Local] Using modeled Car_B. Part shell stays as invisible collision.")
+	end
+
+	print(string.format("[Last Local] Imported meshes: %s", if #imported > 0 then table.concat(imported, ", ") else "none"))
+	print(string.format("[Last Local] Part figures: %s", if #fallback > 0 then table.concat(fallback, ", ") else "none"))
+	local riding = 0
+	for _, child in passengers:GetChildren() do
+		if child:IsA("Model") and child:GetAttribute("Hidden") ~= true then
+			riding += 1
+			local at = child:GetPivot().Position
+			print(string.format("[Last Local] passenger %s at %.1f, %.1f, %.1f", child.Name, at.X, at.Y, at.Z))
+		end
+	end
+	-- mom, dad, the three strangers, and the far-seat extra. Crowd stays hidden.
+	if riding < 6 then
+		warn(string.format("[Last Local] Only %d passengers are in the car; the fallback figures did not all spawn.", riding))
+	end
+
+	return {
+		model = car,
+		doors = doors,
+		lamps = lamps,
+		passengers = passengers,
+		board = board,
+	}
+end
+
+return CarBuilder
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="14">
+        <Properties>
+          <string name="Name">Ride</string>
+          <string name="Source"><![CDATA[--!strict
+-- Stop cycle for the G, from gameState.ts.
+-- PA lines are the web game's lines (see Shared.Lines). The car stays put.
+-- The tunnel and the platforms move: accel, cruise, and brake use the same
+-- stretch times as the stop timer (Motion.luau).
+--
+-- Lighting rule (web doc, and the nightmare-bulb comment in gameState.ts):
+-- the only whole-car blackout is the flicker tick, 0.16 seconds, used on the
+-- silent stretch after Myrtle–Willoughby Avs and on the arrival at 21 St.
+-- The doors tick opens the doors early and does not touch the lights.
+-- The last stretch may dim in a straight line. Tunnel lamps are outside and
+-- never write these interior lights.
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+
+local AnomalySystem = require(script.Parent.AnomalySystem)
+local CarBuilder = require(script.Parent.CarBuilder)
+local Scenery = require(script.Parent.Scenery)
+local Constants = require(ReplicatedStorage.Shared.Constants)
+local Lines = require(ReplicatedStorage.Shared.Lines)
+local Motion = require(ReplicatedStorage.Shared.Motion)
+local Route = require(ReplicatedStorage.Shared.Route)
+
+local Ride = {}
+
+function Ride.start(car: CarBuilder.BuiltCar)
+	local ride = Instance.new("Folder")
+	ride.Name = "Ride"
+	ride.Parent = ReplicatedStorage
+
+	local remotes = Instance.new("Folder")
+	remotes.Name = "Remotes"
+	remotes.Parent = ReplicatedStorage
+	local flagRemote = Instance.new("RemoteEvent")
+	flagRemote.Name = "Flag"
+	flagRemote.Parent = remotes
+
+	ride:SetAttribute("Phase", "intro")
+	ride:SetAttribute("PaText", "")
+	ride:SetAttribute("Subtitle", "")
+	ride:SetAttribute("Hint", "")
+	ride:SetAttribute("Feedback", "")
+	ride:SetAttribute("FeedbackKind", "")
+	ride:SetAttribute("NextStop", Route.stopName(2))
+	ride:SetAttribute("ChapterLine", Route.chapterLine(1))
+
+	local paToken = 0
+	local subToken = 0
+	local hintToken = 0
+	local feedbackToken = 0
+
+	local function showTimed(attr: string, text: string, seconds: number, tokenName: string): number
+		local token = 0
+		if tokenName == "pa" then
+			paToken += 1
+			token = paToken
+		elseif tokenName == "sub" then
+			subToken += 1
+			token = subToken
+		else
+			hintToken += 1
+			token = hintToken
+		end
+		ride:SetAttribute(attr, text)
+		task.delay(seconds, function()
+			local current = if tokenName == "pa" then paToken elseif tokenName == "sub" then subToken else hintToken
+			if current == token then
+				ride:SetAttribute(attr, "")
+			end
+		end)
+		return token
+	end
+
+	local function showPa(text: string, seconds: number)
+		showTimed("PaText", text, seconds, "pa")
+	end
+
+	local function showSub(text: string, seconds: number)
+		showTimed("Subtitle", text, seconds, "sub")
+	end
+
+	local function showHint(text: string, seconds: number)
+		showTimed("Hint", text, seconds, "hint")
+	end
+
+	local function showFeedback(kind: string, text: string, sticky: boolean)
+		feedbackToken += 1
+		local token = feedbackToken
+		ride:SetAttribute("FeedbackKind", kind)
+		ride:SetAttribute("Feedback", text)
+		if not sticky then
+			task.delay(2.6, function()
+				if feedbackToken == token then
+					ride:SetAttribute("FeedbackKind", "")
+					ride:SetAttribute("Feedback", "")
+				end
+			end)
+		end
+	end
+
+	local doorOpen = 1
+	local doorTarget = 1
+	local dim = 1
+	local dimFrom = 1
+	local dimTo = 1
+	local dimStart = 0
+	local dimDuration = 1
+	local dimming = false
+	local forcedOff = false
+
+	local function blackout()
+		-- Flicker tick only. Callers are the two segments whose tick is "flicker".
+		forcedOff = true
+		task.delay(Constants.FLICKER_TICK_SECONDS, function()
+			forcedOff = false
+		end)
+	end
+
+	local function beginDim(target: number, seconds: number)
+		dimFrom = dim
+		dimTo = target
+		dimStart = os.clock()
+		dimDuration = math.max(0.1, seconds)
+		dimming = true
+	end
+
+	-- A single LightStrip can go dark on its own. That is not the door tick.
+	local stripHold: { [BasePart]: boolean } = {}
+	local posterOriginal: { [BasePart]: Color3 } = {}
+
+	local function applyLights()
+		local k = if forcedOff then 0 else dim
+		local color = Constants.COLOR.lightOff:Lerp(Constants.COLOR.lightOn, k)
+		for _, lamp in car.lamps do
+			if forcedOff or stripHold[lamp.part] ~= true then
+				lamp.part.Color = color
+			end
+			local point = lamp.light
+			if point ~= nil then
+				point.Brightness = Constants.LAMP_BRIGHTNESS * k
+				point.Range = Constants.meters(Constants.LAMP_RANGE_M)
+				point.Enabled = k > 0.03
+			end
+		end
+	end
+
+	local odo = 0
+	local leaving, arriving = Scenery.build()
+	Scenery.setName(leaving, Route.stopName(1))
+
+	type Stretch = {
+		start: number,
+		origin: number,
+		accel: number,
+		cruise: number,
+		brake: number,
+	}
+	local stretch: Stretch? = nil
+
+	local function beginStretch(seg: Route.Segment)
+		local accel = Constants.ACCEL
+		local brake = Constants.BRAKE
+		local cruise = seg.sliceCruise
+		-- Whichever platform is already at the doors is the one we leave.
+		if math.abs(arriving.base - odo) < math.abs(leaving.base - odo) then
+			local swap = leaving
+			leaving = arriving
+			arriving = swap
+		end
+		leaving.base = odo
+		local dist = Motion.segmentDistance(accel, cruise, brake, Constants.TOP_SPEED_MPS)
+		arriving.base = odo + dist
+		Scenery.setName(arriving, Route.stopName(seg.stop))
+		local now = workspace:GetServerTimeNow()
+		stretch = {
+			start = now,
+			origin = odo,
+			accel = accel,
+			cruise = cruise,
+			brake = brake,
+		}
+		ride:SetAttribute("StretchStart", now)
+		ride:SetAttribute("StretchAccel", accel)
+		ride:SetAttribute("StretchCruise", cruise)
+		ride:SetAttribute("StretchBrake", brake)
+	end
+
+	local slide = Constants.meters(Constants.DOOR_SLIDE_M)
+	RunService.Heartbeat:Connect(function(dt: number)
+		local current = stretch
+		if current ~= nil then
+			local t = workspace:GetServerTimeNow() - current.start
+			odo = current.origin + Motion.distance(t, current.accel, current.cruise, current.brake, Constants.TOP_SPEED_MPS)
+		end
+		Scenery.place(odo)
+		doorOpen += (doorTarget - doorOpen) * (1 - math.exp(-7 * dt))
+		for _, leaf in car.doors do
+			local x = leaf.x0 + leaf.side * slide * doorOpen
+			leaf.model:PivotTo(CFrame.new(x, leaf.y, leaf.z))
+		end
+		if dimming then
+			local alpha = math.clamp((os.clock() - dimStart) / dimDuration, 0, 1)
+			dim = dimFrom + (dimTo - dimFrom) * alpha
+			if alpha >= 1 then
+				dimming = false
+			end
+		end
+		applyLights()
+	end)
+
+	local flagged: { [string]: boolean } = {}
+	local falseFlags = 0
+	local caught = false
+
+	flagRemote.OnServerEvent:Connect(function(player: Player, passengerId: any)
+		if typeof(passengerId) ~= "string" then
+			return
+		end
+		if ride:GetAttribute("Phase") ~= "ride" then
+			return
+		end
+		if flagged[passengerId] then
+			return
+		end
+		local character = player.Character
+		local root = character and character:FindFirstChild("HumanoidRootPart")
+		if root == nil or not root:IsA("BasePart") then
+			return
+		end
+		local model = car.passengers:FindFirstChild(passengerId)
+		if model == nil or not model:IsA("Model") then
+			return
+		end
+		if model:GetAttribute("Hidden") == true then
+			return
+		end
+		local offset = model:GetPivot().Position - root.Position
+		local horizontal = Vector3.new(offset.X, 0, offset.Z)
+		-- In the car. The client crosshair picks who; this only rejects a flag
+		-- fired from outside the car. Body facing lags the camera, so it is
+		-- not used as a second gaze test.
+		if horizontal.Magnitude > Constants.meters(Constants.FLAG_RANGE_M) then
+			return
+		end
+
+		flagged[passengerId] = true
+		local labelAttr = model:GetAttribute("Label")
+		local label = if typeof(labelAttr) == "string" then labelAttr else passengerId
+		if model:GetAttribute("Anomaly") == true then
+			caught = true
+			showFeedback("caught", Lines.CAUGHT, false)
+		else
+			falseFlags += 1
+			showFeedback("false", Lines.falseFlag(label), false)
+		end
+	end)
+
+	local function finishScore()
+		local miss = if caught then 0 else 1
+		local kind = if caught then "caught" else "missed"
+		local word = if caught then Lines.CAUGHT else Lines.MISSED
+		showFeedback(kind, word, true)
+		showSub(Lines.scoreLine(miss, falseFlags), 30)
+	end
+
+	local segToken = 0
+
+	local function runSegment(seg: Route.Segment)
+		segToken += 1
+		local token = segToken
+		ride:SetAttribute("Phase", "ride")
+		ride:SetAttribute("NextStop", Route.stopName(seg.stop))
+		ride:SetAttribute("ChapterLine", Route.chapterLine(seg.stop))
+		CarBuilder.setCrowd(car.passengers, seg.crowd)
+		doorTarget = 0
+		beginStretch(seg)
+
+		local length = Route.segmentLength(seg, Constants.ACCEL, Constants.BRAKE)
+		if seg.final then
+			beginDim(Constants.FINAL_DIM, length)
+		end
+
+		if not seg.silent then
+			task.delay(Constants.NEXT_STOP_AT, function()
+				if token ~= segToken then
+					return
+				end
+				showPa(Lines.nextStop(Route.stopName(seg.stop)), Constants.NEXT_STOP_FOR)
+			end)
+		end
+		local function anomalyWanted(kind: string): boolean
+			for _, name in AnomalySystem.types() do
+				if name == kind then
+					return true
+				end
+			end
+			return false
+		end
+		if anomalyWanted("poster_changed") and not seg.b and seg.stop == 3 then
+			task.delay(8, function()
+				if token ~= segToken then
+					return
+				end
+				for _, desc in car.model:GetDescendants() do
+					if desc:IsA("BasePart") and string.sub(desc.Name, 1, 3) == "Ad_" and desc.Transparency < 0.5 then
+						posterOriginal[desc] = desc.Color
+						desc.Color = Color3.fromRGB(120, 36, 32)
+						break
+					end
+				end
+			end)
+		end
+		if not seg.b and seg.stop == 5 then
+			task.delay(9, function()
+				if token ~= segToken then
+					return
+				end
+				for _, lamp in car.lamps do
+					if lamp.part.Name == "LightStrip_04" then
+						stripHold[lamp.part] = true
+						lamp.part.Color = Constants.COLOR.lightOff
+						task.delay(0.15, function()
+							stripHold[lamp.part] = nil
+						end)
+						break
+					end
+				end
+			end)
+		end
+		if seg.final then
+			local lastAt = math.max(Constants.NEXT_STOP_AT + Constants.NEXT_STOP_FOR + 0.4, length - 9)
+			task.delay(lastAt, function()
+				if token ~= segToken then
+					return
+				end
+				showPa(Lines.LAST_PA, 5)
+			end)
+		end
+		task.wait(length)
+	end
+
+	local function at(t0: number, t: number)
+		local remain = t - (os.clock() - t0)
+		if remain > 0 then
+			task.wait(remain)
+		end
+	end
+
+	local function arrive(seg: Route.Segment)
+		segToken += 1
+		for part, color in posterOriginal do
+			part.Color = color
+			posterOriginal[part] = nil
+		end
+		ride:SetAttribute("Phase", "stop")
+		local t0 = os.clock()
+
+		if seg.tick == "flicker" then
+			blackout()
+		end
+
+		if seg.final then
+			at(t0, 2.3)
+			doorTarget = 1
+			at(t0, 3.4)
+			showSub(Lines.MOM_ARRIVE, 4)
+			at(t0, 6.6)
+			finishScore()
+			ride:SetAttribute("Phase", "end")
+			ride:SetAttribute("NextStop", Route.stopName(13))
+			return
+		end
+
+		if seg.paLie ~= nil then
+			at(t0, 0.2)
+			local lie = seg.paLie
+			if lie ~= nil then
+				showPa(lie, 5)
+			end
+		elseif not seg.silent and seg.kind ~= "false" then
+			at(t0, 0.9)
+			showPa(Lines.thisIs(Route.stopName(seg.stop)), 3)
+		end
+
+		local openAt = 0.35 + (if seg.tick == "doors" then 1.15 else 1.95)
+		at(t0, openAt)
+		doorTarget = 1
+
+		local departAt = openAt + 2.6
+		if seg.paLie ~= nil then
+			departAt = math.max(departAt, 5.4)
+		end
+		at(t0, departAt)
+		showPa(Lines.STAND_CLEAR, 3)
+		at(t0, departAt + 1.4)
+		doorTarget = 0
+		at(t0, departAt + 2.6)
+	end
+
+	task.spawn(function()
+		ride:SetAttribute("Phase", "intro")
+		doorOpen = 1
+		doorTarget = 1
+		task.wait(1.2)
+		showPa(Lines.INTRO_PA, 4)
+		task.wait(1.3)
+		showHint(Lines.HINT, 7)
+		task.wait(3.5)
+		showSub(Lines.DAD_BOARD, 2.8)
+		task.wait(3)
+		showPa(Lines.STAND_CLEAR, 3)
+		task.wait(1.4)
+		doorTarget = 0
+		task.wait(1.2)
+
+		for _, seg in Route.SEGMENTS do
+			runSegment(seg)
+			arrive(seg)
+			if seg.final then
+				break
+			end
+		end
+	end)
+end
+
+return Ride
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="15">
+        <Properties>
+          <string name="Name">Scenery</string>
+          <string name="Source"><![CDATA[--!strict
+-- The tunnel and the two platforms. The car stays in place (players are in
+-- it). Scenery streams toward +X as the odometer rises, which is the web
+-- game's FORWARD_X = -1: something still ahead sits at negative X.
+--
+-- Tunnel lamps are Neon parts with no PointLight. They cannot light the
+-- car, so a lamp passing a window does not flicker the interior. The only
+-- lights that fill the car are the ceiling lamps in CarBuilder.
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Constants = require(ReplicatedStorage.Shared.Constants)
+
+local Scenery = {}
+
+export type Station = {
+	model: Model,
+	base: number,
+	labels: { TextLabel },
+}
+
+type Piece = {
+	part: BasePart,
+	base: number,
+	y: number,
+	z: number,
+	period: number,
+	rotation: CFrame,
+}
+
+local pieces: { Piece } = {}
+local stations: { Station } = {}
+
+local WALL = Color3.fromRGB(24, 26, 24)
+local PIER = Color3.fromRGB(36, 39, 36)
+local LAMP = Color3.fromRGB(255, 216, 150)
+local PLATFORM = Color3.fromRGB(141, 138, 130)
+local YELLOW = Color3.fromRGB(227, 195, 65)
+local COLUMN = Color3.fromRGB(45, 72, 56)
+local TRIM = Color3.fromRGB(63, 122, 82)
+local BED = Color3.fromRGB(18, 18, 16)
+
+local LOOP = 84
+
+local function metres(x: number, y: number, z: number): Vector3
+	return Vector3.new(x, y, z) * Constants.STUDS_PER_METER
+end
+
+local function loopX(base: number, odo: number, period: number): number
+	local rel = (base - odo) % period
+	if rel < 0 then
+		rel += period
+	end
+	if rel > period / 2 then
+		rel -= period
+	end
+	return -rel
+end
+
+local function trackPart(parent: Instance, name: string, size: Vector3, cf: CFrame, color: Color3, material: Enum.Material?): BasePart
+	local part = Instance.new("Part")
+	part.Name = name
+	part.Anchored = true
+	part.Size = size
+	part.CFrame = cf
+	part.Color = color
+	part.Material = material or Enum.Material.SmoothPlastic
+	part.TopSurface = Enum.SurfaceType.Smooth
+	part.BottomSurface = Enum.SurfaceType.Smooth
+	part.CanCollide = false
+	part.CanQuery = false
+	part.CanTouch = false
+	part.Parent = parent
+	return part
+end
+
+local function addLoop(
+	parent: Instance,
+	name: string,
+	count: number,
+	spacing: number,
+	length: number,
+	y: number,
+	z: number,
+	height: number,
+	depth: number,
+	color: Color3,
+	material: Enum.Material?
+)
+	local period = count * spacing
+	for i = 0, count - 1 do
+		local part = trackPart(parent, name, metres(length, height, depth), CFrame.new(metres(0, y, z)), color, material)
+		table.insert(pieces, {
+			part = part,
+			base = i * spacing,
+			y = part.Position.Y,
+			z = part.Position.Z,
+			period = period,
+			rotation = CFrame.identity,
+		})
+	end
+end
+
+local function addSign(model: Model, labels: { TextLabel }, x: number)
+	local part = trackPart(model, "Sign", metres(3.6, 0.42, 0.08), CFrame.new(metres(x, 1.72, -2.22)), Color3.fromRGB(8, 8, 8))
+	for _, face in { Enum.NormalId.Front, Enum.NormalId.Back } do
+		local gui = Instance.new("SurfaceGui")
+		gui.Name = "Name"
+		gui.Face = face
+		gui.LightInfluence = 0
+		gui.MaxDistance = 140
+		gui.CanvasSize = Vector2.new(480, 72)
+		gui.Parent = part
+		local label = Instance.new("TextLabel")
+		label.BackgroundColor3 = Color3.fromRGB(8, 8, 8)
+		label.BorderSizePixel = 0
+		label.Size = UDim2.fromScale(1, 1)
+		label.Font = Enum.Font.GothamBold
+		label.TextColor3 = Constants.COLOR.cream
+		label.TextScaled = true
+		label.Text = ""
+		label.Parent = gui
+		table.insert(labels, label)
+	end
+end
+
+local function buildStation(): Station
+	local model = Instance.new("Model")
+	model.Name = "Station"
+	local labels: { TextLabel } = {}
+
+	trackPart(model, "Wall", metres(44, 3.2, 0.16), CFrame.new(metres(0, 1.35, -2.55)), Color3.fromRGB(42, 48, 44))
+	trackPart(model, "Trim", metres(44, 0.16, 0.06), CFrame.new(metres(0, 2.35, -2.46)), TRIM)
+	trackPart(model, "Floor", metres(44, 0.16, 0.9), CFrame.new(metres(0, -0.08, -2.05)), PLATFORM, Enum.Material.Concrete)
+	trackPart(model, "Edge", metres(44, 0.04, 0.14), CFrame.new(metres(0, 0.02, -1.68)), YELLOW)
+	for x = -20, 20, 5 do
+		trackPart(model, "Column", metres(0.18, 3.1, 0.18), CFrame.new(metres(x, 1.5, -2.15)), COLUMN)
+	end
+	for x = -15, 15, 10 do
+		addSign(model, labels, x)
+	end
+	-- Neon only. A PointLight here would wash the car when the platform arrives.
+	for x = -18, 18, 6 do
+		local lamp = trackPart(model, "PlatformLamp", metres(1.4, 0.06, 0.14), CFrame.new(metres(x, 2.85, -2.0)), LAMP)
+		lamp.Material = Enum.Material.Neon
+	end
+
+	local root = trackPart(model, "Root", Vector3.new(0.2, 0.2, 0.2), CFrame.new(), WALL)
+	root.Transparency = 1
+	model.PrimaryPart = root
+	model.Parent = workspace
+	return {
+		model = model,
+		base = 0,
+		labels = labels,
+	}
+end
+
+function Scenery.setName(station: Station, name: string)
+	for _, label in station.labels do
+		label.Text = name
+	end
+end
+
+function Scenery.build(): (Station, Station)
+	local tunnel = Instance.new("Folder")
+	tunnel.Name = "Tunnel"
+	tunnel.Parent = workspace
+
+	local chunks = 3
+	local spacing = LOOP / chunks
+	local length = spacing + 1.2
+	for _, z in { -2.9, 2.9 } do
+		addLoop(tunnel, "Wall", chunks, spacing, length, 1.35, z, 4.4, 0.28, WALL)
+	end
+	addLoop(tunnel, "Ceiling", chunks, spacing, length, 3.45, 0, 0.18, 6.4, WALL)
+	addLoop(tunnel, "Bed", chunks, spacing, length, -0.62, 0, 0.16, 6.4, BED, Enum.Material.Concrete)
+
+	for _, z in { -2.05, 2.15 } do
+		addLoop(tunnel, "Rail", chunks, spacing, length, -0.28, z - 0.28, 0.06, 0.06, Constants.COLOR.steel, Enum.Material.Metal)
+		addLoop(tunnel, "Rail", chunks, spacing, length, -0.28, z + 0.28, 0.06, 0.06, Constants.COLOR.steel, Enum.Material.Metal)
+	end
+
+	local tieCount = LOOP / 2
+	for i = 0, tieCount - 1 do
+		local base = i * 2
+		for _, z in { -2.05, 2.15 } do
+			local part = trackPart(tunnel, "Tie", metres(0.28, 0.06, 0.9), CFrame.new(metres(0, -0.36, z)), PIER)
+			table.insert(pieces, {
+				part = part,
+				base = base,
+				y = part.Position.Y,
+				z = part.Position.Z,
+				period = LOOP,
+				rotation = CFrame.identity,
+			})
+		end
+	end
+
+	local pierCount = 28
+	for i = 0, pierCount - 1 do
+		local base = i * (LOOP / pierCount)
+		-- Platform side sits behind the station wall so a stop hides the piers.
+		for _, z in { -2.78, 2.55 } do
+			local part = trackPart(tunnel, "Pier", metres(0.28, 3.3, 0.24), CFrame.new(metres(0, 1.2, z)), PIER, Enum.Material.Concrete)
+			table.insert(pieces, {
+				part = part,
+				base = base,
+				y = part.Position.Y,
+				z = part.Position.Z,
+				period = LOOP,
+				rotation = CFrame.identity,
+			})
+		end
+	end
+
+	local lampCount = 12
+	local lampSpacing = LOOP / lampCount
+	for i = 0, lampCount - 1 do
+		local base = i * lampSpacing
+		for index, z in { -2.72, 2.42 } do
+			local part = trackPart(tunnel, "TunnelLight", metres(0.55, 0.1, 0.16), CFrame.new(metres(0, 2.15, z)), LAMP)
+			part.Material = Enum.Material.Neon
+			-- Stagger one wall so the two rows don't pass the windows in step.
+			local stagger = if index == 2 then lampSpacing / 2 else 0
+			table.insert(pieces, {
+				part = part,
+				base = base + stagger,
+				y = part.Position.Y,
+				z = part.Position.Z,
+				period = LOOP,
+				rotation = CFrame.identity,
+			})
+		end
+	end
+
+	local leaving = buildStation()
+	leaving.model.Name = "StationLeaving"
+	local arriving = buildStation()
+	arriving.model.Name = "StationArriving"
+	leaving.base = 0
+	arriving.base = 4000
+	table.insert(stations, leaving)
+	table.insert(stations, arriving)
+	Scenery.place(0)
+	return leaving, arriving
+end
+
+function Scenery.place(odo: number)
+	for _, piece in pieces do
+		local x = Constants.meters(loopX(piece.base, odo, piece.period))
+		piece.part.CFrame = CFrame.new(x, piece.y, piece.z) * piece.rotation
+	end
+	for _, station in stations do
+		local x = Constants.meters(-(station.base - odo))
+		station.model:PivotTo(CFrame.new(x, 0, 0))
+	end
+end
+
+return Scenery
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="16">
+        <Properties>
+          <string name="Name">WorldLight</string>
+          <string name="Source"><![CDATA[--!strict
+-- Night lighting matched to the web game's scene setup (App.tsx and
+-- subwayCarBuilder.setupLighting / gameState.applyLighting).
+--
+-- Web: background 0x030403, fog 0x040504 from 9 m to 30 m, ACES exposure 1.05,
+-- ambient white at 0.15, hemisphere 0xfff3dc / 0x5a5850 at 0.65 then scaled
+-- in applyLighting, point lights 0xfff0d4 at intensity 0.55. Roblox's default
+-- Future exposure plus SmoothPlastic turns that same paint white, which is
+-- what the Studio playtest showed. Exposure is pulled down and the fill is
+-- kept low so the ceiling pools stay local.
+--
+-- This only touches the Lighting service. It never writes the car lamps.
+-- The flicker tick and the slow dim still own those.
+
+local Lighting = game:GetService("Lighting")
+
+local WorldLight = {}
+
+local applying = false
+
+local function killDefaultSky()
+	for _, child in Lighting:GetChildren() do
+		if child:IsA("Sky") or child:IsA("SunRaysEffect") then
+			child:Destroy()
+		end
+	end
+end
+
+local function atmosphere(): Atmosphere
+	local existing = Lighting:FindFirstChild("TunnelAir")
+	if existing ~= nil and existing:IsA("Atmosphere") then
+		return existing
+	end
+	if existing ~= nil then
+		existing:Destroy()
+	end
+	local air = Instance.new("Atmosphere")
+	air.Name = "TunnelAir"
+	air.Parent = Lighting
+	return air
+end
+
+local function grade(): ColorCorrectionEffect
+	local existing = Lighting:FindFirstChild("CarGrade")
+	if existing ~= nil and existing:IsA("ColorCorrectionEffect") then
+		return existing
+	end
+	if existing ~= nil then
+		existing:Destroy()
+	end
+	local effect = Instance.new("ColorCorrectionEffect")
+	effect.Name = "CarGrade"
+	effect.Parent = Lighting
+	return effect
+end
+
+local function bloom(): BloomEffect
+	local existing = Lighting:FindFirstChild("LampBloom")
+	if existing ~= nil and existing:IsA("BloomEffect") then
+		return existing
+	end
+	if existing ~= nil then
+		existing:Destroy()
+	end
+	local effect = Instance.new("BloomEffect")
+	effect.Name = "LampBloom"
+	effect.Parent = Lighting
+	return effect
+end
+
+function WorldLight.apply()
+	if applying then
+		return
+	end
+	applying = true
+
+	killDefaultSky()
+
+	-- Future so shadows and exposure actually apply. Brightness 0 and
+	-- midnight kill the sun. Scales at 0 kill the skybox fill.
+	Lighting.Technology = Enum.Technology.Future
+	Lighting.Brightness = 0
+	Lighting.ClockTime = 0
+	Lighting.GeographicLatitude = 0
+	Lighting.EnvironmentDiffuseScale = 0
+	Lighting.EnvironmentSpecularScale = 0
+	Lighting.GlobalShadows = true
+	Lighting.ShadowSoftness = 0.3
+	Lighting.ExposureCompensation = -0.85
+	-- Web ambient is 0.15 white, which is a dim fill, not a white wash.
+	Lighting.Ambient = Color3.fromRGB(12, 11, 10)
+	Lighting.OutdoorAmbient = Color3.fromRGB(0, 0, 0)
+	-- App.tsx: fog 0x040504, near 9 m, far 30 m.
+	Lighting.FogColor = Color3.fromRGB(4, 5, 4)
+	Lighting.FogStart = 9 * 3
+	Lighting.FogEnd = 30 * 3
+
+	local air = atmosphere()
+	air.Density = 0.45
+	air.Offset = 0
+	air.Color = Color3.fromRGB(4, 5, 4)
+	air.Decay = Color3.fromRGB(3, 4, 3)
+	air.Glare = 0
+	air.Haze = 1.1
+
+	local correction = grade()
+	correction.Brightness = -0.05
+	correction.Contrast = 0.16
+	correction.Saturation = -0.14
+	correction.TintColor = Color3.fromRGB(206, 222, 198)
+
+	-- Only the hottest pixels (the tubes) bloom. Walls stay matte.
+	local glow = bloom()
+	glow.Enabled = true
+	glow.Intensity = 0.12
+	glow.Size = 14
+	glow.Threshold = 1.45
+
+	applying = false
+end
+
+function WorldLight.bind()
+	WorldLight.apply()
+	Lighting.Changed:Connect(function(property: string)
+		if property == "Brightness" or property == "Ambient" or property == "OutdoorAmbient" or property == "ClockTime" or property == "Technology" or property == "ExposureCompensation" or property == "EnvironmentDiffuseScale" then
+			WorldLight.apply()
+		end
+	end)
+	Lighting.ChildAdded:Connect(function(child: Instance)
+		if child:IsA("Sky") or child:IsA("SunRaysEffect") then
+			child:Destroy()
+		end
+	end)
+end
+
+return WorldLight
+]]></string>
+        </Properties>
+      </Item>
+    </Item>
+  </Item>
+  <Item class="StarterPlayer" referent="17">
+    <Properties>
+      <string name="Name">StarterPlayer</string>
+      <float name="CameraMaxZoomDistance">0.5</float>
+      <float name="CameraMinZoomDistance">0.5</float>
+      <token name="CameraMode">1</token>
+    </Properties>
+    <Item class="StarterPlayerScripts" referent="18">
+      <Properties>
+        <string name="Name">StarterPlayerScripts</string>
+      </Properties>
+      <Item class="LocalScript" referent="19">
+        <Properties>
+          <string name="Name">Client</string>
+          <string name="Source"><![CDATA[--!strict
+
+local Hud = require(script.Hud)
+local Flag = require(script.Flag)
+local Walk = require(script.Walk)
+local Sway = require(script.Sway)
+
+Hud.start()
+Flag.start(Hud.flagButton())
+Walk.start()
+Sway.start()
+]]></string>
+        </Properties>
+        <Item class="ModuleScript" referent="20">
+          <Properties>
+            <string name="Name">Flag</string>
+            <string name="Source"><![CDATA[--!strict
+-- Hold Flag (F, or the button) while the crosshair is on a passenger.
+-- The hold is 0.7 seconds, the web game's CFG.flagHold. It only fills
+-- during a ride, which is when the web game counts a flag.
+-- The server decides caught vs false flag. This script does not.
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+
+local Constants = require(ReplicatedStorage.Shared.Constants)
+local Hud = require(script.Parent.Hud)
+
+local Flag = {}
+
+local function passengerFromHit(inst: Instance): string?
+	local found: string? = nil
+	local hidden = false
+	local current: Instance? = inst
+	while current ~= nil and current ~= workspace do
+		local id = current:GetAttribute("PassengerId")
+		if typeof(id) == "string" then
+			found = id
+		end
+		if current:GetAttribute("Hidden") == true then
+			hidden = true
+		end
+		current = current.Parent
+	end
+	if hidden then
+		return nil
+	end
+	return found
+end
+
+local function gazeId(): string?
+	local camera = workspace.CurrentCamera
+	if camera == nil then
+		return nil
+	end
+	local params = RaycastParams.new()
+	params.FilterType = Enum.RaycastFilterType.Exclude
+	local character = Players.LocalPlayer.Character
+	if character ~= nil then
+		params.FilterDescendantsInstances = { character }
+	end
+	local result = workspace:Raycast(camera.CFrame.Position, camera.CFrame.LookVector * Constants.meters(Constants.FLAG_RANGE_M), params)
+	if result == nil then
+		return nil
+	end
+	return passengerFromHit(result.Instance)
+end
+
+function Flag.start(button: TextButton)
+	local ride = ReplicatedStorage:WaitForChild("Ride")
+	local remotes = ReplicatedStorage:WaitForChild("Remotes")
+	local flagRemote = remotes:WaitForChild("Flag") :: RemoteEvent
+
+	local keyDown = false
+	local buttonDown = false
+	local locked = false
+	local progress = 0
+	local currentId: string? = nil
+
+	local function holding(): boolean
+		return keyDown or buttonDown
+	end
+
+	UserInputService.InputBegan:Connect(function(input: InputObject, processed: boolean)
+		if processed then
+			return
+		end
+		if input.KeyCode == Enum.KeyCode.F then
+			keyDown = true
+		end
+	end)
+
+	UserInputService.InputEnded:Connect(function(input: InputObject)
+		if input.KeyCode == Enum.KeyCode.F then
+			keyDown = false
+		elseif input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			buttonDown = false
+		end
+	end)
+
+	button.InputBegan:Connect(function(input: InputObject)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			buttonDown = true
+		end
+	end)
+
+	RunService.RenderStepped:Connect(function(dt: number)
+		local riding = ride:GetAttribute("Phase") == "ride"
+		local down = holding()
+		if not down then
+			locked = false
+			progress = 0
+			currentId = nil
+			Hud.setProgress(0, false)
+			return
+		end
+		if not riding or locked then
+			Hud.setProgress(if locked then 1 else 0, riding)
+			return
+		end
+
+		local id = gazeId()
+		if id == nil or id ~= currentId then
+			currentId = id
+			progress = 0
+		end
+		if currentId == nil then
+			Hud.setProgress(0, true)
+			return
+		end
+		progress += dt
+		local ratio = math.clamp(progress / Constants.FLAG_HOLD, 0, 1)
+		Hud.setProgress(ratio, true)
+		if progress >= Constants.FLAG_HOLD and currentId ~= nil then
+			locked = true
+			flagRemote:FireServer(currentId)
+		end
+	end)
+end
+
+return Flag
+]]></string>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="21">
+          <Properties>
+            <string name="Name">Hud</string>
+            <string name="Source"><![CDATA[--!strict
+-- On-screen text. The words come from the server (Shared.Lines). This file
+-- only places them: the amber PA line, the station card, the flag button.
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Constants = require(ReplicatedStorage.Shared.Constants)
+local Lines = require(ReplicatedStorage.Shared.Lines)
+
+local Hud = {}
+
+local flagButton: TextButton? = nil
+local progressFill: Frame? = nil
+
+local function corner(parent: Instance, radius: number)
+	local ui = Instance.new("UICorner")
+	ui.CornerRadius = UDim.new(0, radius)
+	ui.Parent = parent
+end
+
+local function label(parent: Instance, text: string, size: number, color: Color3): TextLabel
+	local ui = Instance.new("TextLabel")
+	ui.BackgroundTransparency = 1
+	ui.Font = Enum.Font.GothamMedium
+	ui.Text = text
+	ui.TextSize = size
+	ui.TextColor3 = color
+	ui.TextXAlignment = Enum.TextXAlignment.Left
+	ui.TextYAlignment = Enum.TextYAlignment.Center
+	ui.TextWrapped = true
+	ui.Parent = parent
+	return ui
+end
+
+function Hud.flagButton(): TextButton
+	assert(flagButton ~= nil, "Hud.start must run first")
+	return flagButton
+end
+
+function Hud.setProgress(ratio: number, holding: boolean)
+	local fill = progressFill
+	local button = flagButton
+	if fill == nil or button == nil then
+		return
+	end
+	local clamped = math.clamp(ratio, 0, 1)
+	fill.Size = UDim2.fromScale(clamped, 1)
+	fill.BackgroundTransparency = if clamped > 0 then 0 else 1
+	if holding and clamped > 0 then
+		button.BackgroundColor3 = Color3.fromRGB(28, 46, 22)
+	else
+		button.BackgroundColor3 = Color3.fromRGB(8, 8, 8)
+	end
+end
+
+function Hud.start()
+	local player = Players.LocalPlayer
+	local playerGui = player:WaitForChild("PlayerGui")
+	local ride = ReplicatedStorage:WaitForChild("Ride")
+
+	local gui = Instance.new("ScreenGui")
+	gui.Name = "LastLocalHud"
+	gui.ResetOnSpawn = false
+	gui.IgnoreGuiInset = false
+	gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+	gui.Parent = playerGui
+
+	local card = Instance.new("Frame")
+	card.Name = "Station"
+	card.AnchorPoint = Vector2.new(0, 0)
+	card.Position = UDim2.fromOffset(12, 10)
+	card.Size = UDim2.new(0.62, 0, 0, 58)
+	card.BackgroundColor3 = Color3.new(0, 0, 0)
+	card.BackgroundTransparency = 0.35
+	card.BorderSizePixel = 0
+	card.Parent = gui
+	corner(card, 10)
+
+	local badge = Instance.new("TextLabel")
+	badge.Name = "Line"
+	badge.BackgroundColor3 = Constants.COLOR.gLine
+	badge.TextColor3 = Color3.new(0, 0, 0)
+	badge.Font = Enum.Font.GothamBold
+	badge.Text = "G"
+	badge.TextSize = 16
+	badge.AnchorPoint = Vector2.new(0, 0)
+	badge.Position = UDim2.fromOffset(8, 8)
+	badge.Size = UDim2.fromOffset(26, 26)
+	badge.Parent = card
+	corner(badge, 13)
+
+	local nextLabel = label(card, Lines.NEXT_LABEL, 14, Color3.fromRGB(180, 176, 166))
+	nextLabel.Position = UDim2.fromOffset(42, 6)
+	nextLabel.Size = UDim2.fromOffset(48, 20)
+
+	local nextName = label(card, "", 16, Constants.COLOR.cream)
+	nextName.Name = "NextStop"
+	nextName.Font = Enum.Font.GothamBold
+	nextName.Position = UDim2.fromOffset(92, 6)
+	nextName.Size = UDim2.new(1, -100, 0, 20)
+
+	local chapter = label(card, "", 11, Color3.fromRGB(210, 206, 196))
+	chapter.Name = "Chapter"
+	chapter.Font = Enum.Font.Gotham
+	chapter.Position = UDim2.fromOffset(42, 30)
+	chapter.Size = UDim2.new(1, -50, 0, 20)
+
+	local pa = Instance.new("TextLabel")
+	pa.Name = "PA"
+	pa.AnchorPoint = Vector2.new(0.5, 0)
+	pa.Position = UDim2.new(0.5, 0, 0, 78)
+	pa.Size = UDim2.new(0.92, 0, 0, 28)
+	pa.AutomaticSize = Enum.AutomaticSize.Y
+	pa.BackgroundColor3 = Constants.COLOR.paBg
+	pa.BackgroundTransparency = 0.05
+	pa.BorderSizePixel = 0
+	pa.Font = Enum.Font.GothamBold
+	pa.TextColor3 = Constants.COLOR.warn
+	pa.TextSize = 18
+	pa.TextWrapped = true
+	pa.Text = ""
+	pa.Visible = false
+	pa.Parent = gui
+	corner(pa, 6)
+
+	local hint = Instance.new("TextLabel")
+	hint.Name = "Hint"
+	hint.AnchorPoint = Vector2.new(0.5, 0)
+	hint.Position = UDim2.new(0.5, 0, 0, 120)
+	hint.Size = UDim2.new(0.9, 0, 0, 28)
+	hint.AutomaticSize = Enum.AutomaticSize.Y
+	hint.BackgroundColor3 = Color3.new(0, 0, 0)
+	hint.BackgroundTransparency = 0.25
+	hint.BorderSizePixel = 0
+	hint.Font = Enum.Font.Gotham
+	hint.TextColor3 = Constants.COLOR.cream
+	hint.TextSize = 14
+	hint.TextWrapped = true
+	hint.Text = ""
+	hint.Visible = false
+	hint.Parent = gui
+	corner(hint, 6)
+
+	local subtitle = Instance.new("TextLabel")
+	subtitle.Name = "Subtitle"
+	subtitle.AnchorPoint = Vector2.new(0.5, 1)
+	subtitle.Position = UDim2.new(0.5, 0, 1, -118)
+	subtitle.Size = UDim2.new(0.9, 0, 0, 48)
+	subtitle.BackgroundColor3 = Color3.new(0, 0, 0)
+	subtitle.BackgroundTransparency = 0.25
+	subtitle.BorderSizePixel = 0
+	subtitle.Font = Enum.Font.Gotham
+	subtitle.TextColor3 = Constants.COLOR.cream
+	subtitle.TextSize = 16
+	subtitle.TextWrapped = true
+	subtitle.Text = ""
+	subtitle.Visible = false
+	subtitle.Parent = gui
+	corner(subtitle, 6)
+
+	local feedback = Instance.new("TextLabel")
+	feedback.Name = "Feedback"
+	feedback.AnchorPoint = Vector2.new(0.5, 1)
+	feedback.Position = UDim2.new(0.5, 0, 1, -172)
+	feedback.Size = UDim2.new(0.86, 0, 0, 32)
+	feedback.BackgroundTransparency = 1
+	feedback.Font = Enum.Font.GothamBold
+	feedback.TextColor3 = Constants.COLOR.cream
+	feedback.TextSize = 20
+	feedback.TextWrapped = true
+	feedback.Text = ""
+	feedback.Visible = false
+	feedback.Parent = gui
+
+	local strip = label(gui, "[F] FLAG   ·   [WASD] WALK", 13, Color3.fromRGB(220, 216, 206))
+	strip.AnchorPoint = Vector2.new(0, 1)
+	strip.Position = UDim2.new(0, 14, 1, -18)
+	strip.Size = UDim2.fromOffset(220, 22)
+	strip.Font = Enum.Font.Code
+
+	local barBack = Instance.new("Frame")
+	barBack.Name = "FlagBar"
+	barBack.AnchorPoint = Vector2.new(1, 1)
+	barBack.Position = UDim2.new(1, -16, 1, -112)
+	barBack.Size = UDim2.fromOffset(88, 6)
+	barBack.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+	barBack.BorderSizePixel = 0
+	barBack.Parent = gui
+	corner(barBack, 3)
+
+	local fill = Instance.new("Frame")
+	fill.Name = "Fill"
+	fill.Size = UDim2.fromScale(0, 1)
+	fill.BackgroundColor3 = Constants.COLOR.gLine
+	fill.BorderSizePixel = 0
+	fill.Parent = barBack
+	corner(fill, 3)
+	progressFill = fill
+
+	local button = Instance.new("TextButton")
+	button.Name = "Flag"
+	button.AnchorPoint = Vector2.new(1, 1)
+	button.Position = UDim2.new(1, -16, 1, -16)
+	button.Size = UDim2.fromOffset(88, 88)
+	button.BackgroundColor3 = Color3.fromRGB(8, 8, 8)
+	button.BackgroundTransparency = 0.15
+	button.BorderSizePixel = 0
+	button.AutoButtonColor = true
+	button.Font = Enum.Font.GothamBold
+	button.Text = "FLAG"
+	button.TextColor3 = Constants.COLOR.cream
+	button.TextSize = 16
+	button.TextYAlignment = Enum.TextYAlignment.Top
+	button.Parent = gui
+	corner(button, 44)
+	local pad = Instance.new("UIPadding")
+	pad.PaddingTop = UDim.new(0, 22)
+	pad.Parent = button
+	local hold = label(button, "hold to catch", 11, Color3.fromRGB(210, 206, 196))
+	hold.AnchorPoint = Vector2.new(0.5, 0)
+	hold.Position = UDim2.new(0.5, 0, 0, 28)
+	hold.Size = UDim2.new(1, -8, 0, 28)
+	hold.TextXAlignment = Enum.TextXAlignment.Center
+	hold.Font = Enum.Font.Gotham
+	local buttonScale = Instance.new("UIScale")
+	buttonScale.Parent = button
+	flagButton = button
+
+	local cross = Instance.new("Frame")
+	cross.Name = "Crosshair"
+	cross.AnchorPoint = Vector2.new(0.5, 0.5)
+	cross.Position = UDim2.fromScale(0.5, 0.5)
+	cross.Size = UDim2.fromOffset(5, 5)
+	cross.BackgroundColor3 = Constants.COLOR.cream
+	cross.BackgroundTransparency = 0.15
+	cross.BorderSizePixel = 0
+	cross.Active = false
+	cross.Parent = gui
+	corner(cross, 3)
+
+	local function textOf(name: string): string
+		local value = ride:GetAttribute(name)
+		if typeof(value) == "string" then
+			return value
+		end
+		return ""
+	end
+
+	local function refresh()
+		local stopName = textOf("NextStop")
+		nextName.Text = stopName
+		nextLabel.Visible = stopName ~= ""
+		chapter.Text = textOf("ChapterLine")
+
+		local paText = textOf("PaText")
+		pa.Text = paText
+		pa.Visible = paText ~= ""
+
+		local hintText = textOf("Hint")
+		hint.Text = hintText
+		hint.Visible = hintText ~= ""
+
+		local subText = textOf("Subtitle")
+		subtitle.Text = subText
+		subtitle.Visible = subText ~= ""
+
+		local feedbackText = textOf("Feedback")
+		feedback.Text = feedbackText
+		feedback.Visible = feedbackText ~= ""
+		local kind = textOf("FeedbackKind")
+		if kind == "caught" then
+			feedback.TextColor3 = Constants.COLOR.gLine
+		elseif kind == "false" or kind == "missed" then
+			feedback.TextColor3 = Constants.COLOR.warn
+		else
+			feedback.TextColor3 = Constants.COLOR.cream
+		end
+	end
+
+	ride.AttributeChanged:Connect(function(name: string)
+		if name == "Feedback" and textOf("Feedback") ~= "" then
+			buttonScale.Scale = 1.08
+			task.delay(0.18, function()
+				buttonScale.Scale = 1
+			end)
+		end
+		refresh()
+	end)
+	refresh()
+end
+
+return Hud
+]]></string>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="22">
+          <Properties>
+            <string name="Name">Sway</string>
+            <string name="Source"><![CDATA[--!strict
+-- Subtle view motion while the train is moving. The body stays where the
+-- walk code put it. Bob stays at or under BOB_Y_M (2.2 cm) and roll under
+-- one degree, both times speed/top speed, so a station is still.
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+
+local Constants = require(ReplicatedStorage.Shared.Constants)
+local Motion = require(ReplicatedStorage.Shared.Motion)
+
+local Sway = {}
+
+local function sample(): (number, number)
+	local ride = ReplicatedStorage:FindFirstChild("Ride")
+	if ride == nil then
+		return 0, 0
+	end
+	local start = ride:GetAttribute("StretchStart")
+	local accel = ride:GetAttribute("StretchAccel")
+	local cruise = ride:GetAttribute("StretchCruise")
+	local brake = ride:GetAttribute("StretchBrake")
+	if typeof(start) ~= "number" or typeof(accel) ~= "number" or typeof(cruise) ~= "number" or typeof(brake) ~= "number" then
+		return 0, 0
+	end
+	local top = Constants.TOP_SPEED_MPS
+	local t = workspace:GetServerTimeNow() - start
+	local velocity = Motion.speed(t, accel, cruise, brake, top)
+	local fraction = if top > 0 then math.clamp(velocity / top, 0, 1) else 0
+	local pitch = 0
+	if t >= 0 and t < accel and accel > 0 then
+		pitch = math.sin(math.clamp(t / accel, 0, 1) * math.pi)
+	elseif brake > 0 and t > accel + cruise and t < accel + cruise + brake then
+		local u = (t - accel - cruise) / brake
+		pitch = -math.sin(math.clamp(u, 0, 1) * math.pi)
+	end
+	return fraction, pitch
+end
+
+function Sway.start()
+	RunService:BindToRenderStep("LastLocalSway", Enum.RenderPriority.Camera.Value + 1, function()
+		local camera = workspace.CurrentCamera
+		if camera == nil then
+			return
+		end
+		local fraction, pitchBias = sample()
+		local now = os.clock()
+		local bobY = (math.sin(now * 1.5) * 0.72 + math.sin(now * 2.7) * 0.28) * Constants.BOB_Y_M * fraction
+		local bobZ = math.sin(now * 0.85) * Constants.BOB_X_M * fraction
+		local lurch = pitchBias * 0.012 * fraction
+		local roll = math.rad(math.sin(now * 0.7) * Constants.ROLL_DEG * fraction)
+		local pitch = math.rad(pitchBias * Constants.PITCH_DEG)
+		-- Assigning CFrame forces CameraType to Scriptable, which drops
+		-- LockFirstPerson and leaves the camera on the avatar. Capture the
+		-- type, nudge the view, then put the type back so the next frame's
+		-- camera script still sits in the head.
+		local cameraType = camera.CameraType
+		local offset = Vector3.new(Constants.meters(lurch), Constants.meters(bobY), Constants.meters(bobZ))
+		camera.CFrame = CFrame.new(offset) * (camera.CFrame * CFrame.Angles(pitch, 0, roll))
+		if cameraType ~= Enum.CameraType.Scriptable then
+			camera.CameraType = cameraType
+		end
+	end)
+end
+
+return Sway
+]]></string>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="23">
+          <Properties>
+            <string name="Name">Walk</string>
+            <string name="Source"><![CDATA[--!strict
+-- First person, and the standing-passenger keep-out.
+-- Roblox walks the character. This pushes the root back to the 0.75 m circle
+-- if physics lets it inside (the solid cylinder should already stop it).
+-- A shove smaller than a tenth of a stud is left alone so the two don't jitter.
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local StarterGui = game:GetService("StarterGui")
+
+local KeepOut = require(ReplicatedStorage.Shared.KeepOut)
+
+local Walk = {}
+
+local function circles(): { KeepOut.Circle }
+	local list: { KeepOut.Circle } = {}
+	local car = workspace:FindFirstChild("SubwayCar")
+	if car == nil then
+		return list
+	end
+	local folder = car:FindFirstChild("Passengers")
+	if folder == nil then
+		return list
+	end
+	local radius = KeepOut.radiusStuds()
+	for _, child in folder:GetChildren() do
+		if child:IsA("Model") and child:GetAttribute("Standing") == true and child:GetAttribute("Hidden") ~= true then
+			local pos = child:GetPivot().Position
+			table.insert(list, { x = pos.X, z = pos.Z, r = radius })
+		end
+	end
+	return list
+end
+
+local function conceal(character: Model)
+	local function hide(inst: Instance)
+		if inst:IsA("BasePart") then
+			inst.LocalTransparencyModifier = 1
+		elseif inst:IsA("Decal") then
+			inst.Transparency = 1
+		end
+	end
+	for _, descendant in character:GetDescendants() do
+		hide(descendant)
+	end
+	character.DescendantAdded:Connect(hide)
+end
+
+local function lockView(player: Player)
+	player.CameraMode = Enum.CameraMode.LockFirstPerson
+	player.CameraMinZoomDistance = 0.5
+	player.CameraMaxZoomDistance = 0.5
+end
+
+local function hideCore()
+	task.spawn(function()
+		for _ = 1, 20 do
+			local ok = pcall(function()
+				StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Backpack, false)
+				StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Health, false)
+			end)
+			if ok then
+				return
+			end
+			task.wait(0.25)
+		end
+	end)
+end
+
+function Walk.start()
+	local player = Players.LocalPlayer
+	lockView(player)
+	hideCore()
+	local function onCharacter(character: Model)
+		lockView(player)
+		conceal(character)
+	end
+	local existing = player.Character
+	if existing ~= nil then
+		onCharacter(existing)
+	end
+	player.CharacterAdded:Connect(onCharacter)
+
+	local lastX: number? = nil
+	local lastZ: number? = nil
+
+	RunService.Heartbeat:Connect(function()
+		local character = player.Character
+		local root = character and character:FindFirstChild("HumanoidRootPart")
+		if root == nil or not root:IsA("BasePart") then
+			lastX = nil
+			lastZ = nil
+			return
+		end
+		local x = root.Position.X
+		local z = root.Position.Z
+		local prevX = if lastX ~= nil then lastX else x
+		local prevZ = if lastZ ~= nil then lastZ else z
+		local nx, nz = KeepOut.pushOut(x, z, circles(), prevX, prevZ)
+		local dx = nx - x
+		local dz = nz - z
+		if dx * dx + dz * dz > 0.08 * 0.08 then
+			root.CFrame = CFrame.new(nx, root.Position.Y, nz) * root.CFrame.Rotation
+			root.AssemblyLinearVelocity = Vector3.new(0, root.AssemblyLinearVelocity.Y, 0)
+			lastX = nx
+			lastZ = nz
+		else
+			lastX = x
+			lastZ = z
+		end
+
+		if root.Position.Y < -15 then
+			local car = workspace:FindFirstChild("SubwayCar")
+			local board = car and car:FindFirstChild("Board")
+			if board ~= nil and board:IsA("BasePart") then
+				root.CFrame = board.CFrame + Vector3.new(0, 5, 0)
+				root.AssemblyLinearVelocity = Vector3.zero
+			end
+		end
+	end)
+end
+
+return Walk
+]]></string>
+          </Properties>
+        </Item>
+      </Item>
+    </Item>
+  </Item>
+  <Item class="Workspace" referent="24">
+    <Properties>
+      <string name="Name">Workspace</string>
+      <float name="Gravity">196.2</float>
+      <bool name="NeedsPivotMigration">false</bool>
+      <bool name="StreamingEnabled">false</bool>
+    </Properties>
+  </Item>
+</roblox>

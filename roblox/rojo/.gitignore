@@ -1,0 +1,5 @@
+.DS_Store
+sourcemap.json
+uploads/
+*.rbxl
+tools/globalTypes.d.luau

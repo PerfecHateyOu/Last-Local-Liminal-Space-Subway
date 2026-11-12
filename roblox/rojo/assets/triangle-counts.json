@@ -1,0 +1,2184 @@
+{
+  "limit": 20000,
+  "limitSource": "https://create.roblox.com/docs/art/modeling/specifications",
+  "note": "Triangle counts are Blender loop triangles after import, which is the triangulated mesh the FBX contains. Each mesh must stay at or under 20,000 triangles for a Roblox MeshPart. The hard render ceiling cited by the Studio importer is about 21,000; 20,000 is the published budget.",
+  "export": {
+    "format": "FBX",
+    "axisForward": "-Z",
+    "axisUp": "Y",
+    "applyScale": "FBX_SCALE_ALL",
+    "applyUnitScale": true,
+    "embedTextures": true,
+    "tool": "Blender 4.0.2"
+  },
+  "models": [
+    {
+      "file": "anomaly_extra.glb",
+      "fbx": "assets/fbx/anomaly_extra.fbx",
+      "modelName": "anomaly_extra",
+      "blenderBoundsMeters": {
+        "min": [
+          -0.2849999964237213,
+          -0.5699999928474426,
+          -0.12096000462770462
+        ],
+        "max": [
+          0.2849999964237213,
+          0.13481926918029785,
+          1.1299999952316284
+        ],
+        "size": [
+          0.5699999928474426,
+          0.7048192620277405,
+          1.250959999859333
+        ]
+      },
+      "meshes": [
+        {
+          "name": "Mesh_0",
+          "triangles": 368,
+          "trianglesBefore": 368,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_1",
+          "triangles": 12,
+          "trianglesBefore": 12,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_2",
+          "triangles": 12,
+          "trianglesBefore": 12,
+          "action": "none"
+        },
+        {
+          "name": "Pupil_L",
+          "triangles": 80,
+          "trianglesBefore": 80,
+          "action": "none"
+        },
+        {
+          "name": "Pupil_R",
+          "triangles": 80,
+          "trianglesBefore": 80,
+          "action": "none"
+        },
+        {
+          "name": "Head_Skin",
+          "triangles": 424,
+          "trianglesBefore": 424,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_6",
+          "triangles": 160,
+          "trianglesBefore": 160,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_7",
+          "triangles": 140,
+          "trianglesBefore": 140,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_8",
+          "triangles": 24,
+          "trianglesBefore": 24,
+          "action": "none"
+        },
+        {
+          "name": "Body_Skin",
+          "triangles": 80,
+          "trianglesBefore": 80,
+          "action": "none"
+        }
+      ],
+      "meshCount": 10,
+      "totalTriangles": 1380,
+      "maxMeshTriangles": 424,
+      "limit": 20000,
+      "overLimit": false,
+      "action": "none",
+      "bytes": 100236
+    },
+    {
+      "file": "anomaly_faceless.glb",
+      "fbx": "assets/fbx/anomaly_faceless.fbx",
+      "modelName": "anomaly_faceless",
+      "blenderBoundsMeters": {
+        "min": [
+          -0.0729999989271164,
+          -0.11300000548362732,
+          -0.06700000166893005
+        ],
+        "max": [
+          0.0729999989271164,
+          -0.0949999988079071,
+          0.04928697645664215
+        ],
+        "size": [
+          0.1459999978542328,
+          0.018000006675720215,
+          0.1162869781255722
+        ]
+      },
+      "meshes": [
+        {
+          "name": "Socket_L",
+          "triangles": 20,
+          "trianglesBefore": 20,
+          "action": "none"
+        },
+        {
+          "name": "Socket_R",
+          "triangles": 20,
+          "trianglesBefore": 20,
+          "action": "none"
+        },
+        {
+          "name": "Faceless_Seal",
+          "triangles": 12,
+          "trianglesBefore": 12,
+          "action": "none"
+        }
+      ],
+      "meshCount": 3,
+      "totalTriangles": 52,
+      "maxMeshTriangles": 20,
+      "limit": 20000,
+      "overLimit": false,
+      "action": "none",
+      "bytes": 22492
+    },
+    {
+      "file": "anomaly_stretched.glb",
+      "fbx": "assets/fbx/anomaly_stretched.fbx",
+      "modelName": "anomaly_stretched",
+      "blenderBoundsMeters": {
+        "min": [
+          -0.05836908891797066,
+          -0.057999998331069946,
+          -0.22898229956626892
+        ],
+        "max": [
+          0.061339735984802246,
+          0.07199999690055847,
+          -0.07501770555973053
+        ],
+        "size": [
+          0.1197088249027729,
+          0.12999999523162842,
+          0.1539645940065384
+        ]
+      },
+      "meshes": [
+        {
+          "name": "Neck_Vertebra_1",
+          "triangles": 32,
+          "trianglesBefore": 32,
+          "action": "none"
+        },
+        {
+          "name": "Neck_Vertebra_2",
+          "triangles": 32,
+          "trianglesBefore": 32,
+          "action": "none"
+        },
+        {
+          "name": "Neck_Vertebra_3",
+          "triangles": 32,
+          "trianglesBefore": 32,
+          "action": "none"
+        }
+      ],
+      "meshCount": 3,
+      "totalTriangles": 96,
+      "maxMeshTriangles": 32,
+      "limit": 20000,
+      "overLimit": false,
+      "action": "none",
+      "bytes": 23692
+    },
+    {
+      "file": "character_coat.glb",
+      "fbx": "assets/fbx/character_coat.fbx",
+      "modelName": "character_coat",
+      "blenderBoundsMeters": {
+        "min": [
+          -0.1899999976158142,
+          -0.4399999976158142,
+          -0.19999998807907104
+        ],
+        "max": [
+          0.1899999976158142,
+          0.12999999523162842,
+          1.059999942779541
+        ],
+        "size": [
+          0.3799999952316284,
+          0.5699999928474426,
+          1.259999930858612
+        ]
+      },
+      "meshes": [
+        {
+          "name": "Torso",
+          "triangles": 12,
+          "trianglesBefore": 12,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_1",
+          "triangles": 12,
+          "trianglesBefore": 12,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_2",
+          "triangles": 12,
+          "trianglesBefore": 12,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_3",
+          "triangles": 12,
+          "trianglesBefore": 12,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_4",
+          "triangles": 12,
+          "trianglesBefore": 12,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_5",
+          "triangles": 12,
+          "trianglesBefore": 12,
+          "action": "none"
+        },
+        {
+          "name": "Eye_L",
+          "triangles": 12,
+          "trianglesBefore": 12,
+          "action": "none"
+        },
+        {
+          "name": "Eye_R",
+          "triangles": 12,
+          "trianglesBefore": 12,
+          "action": "none"
+        }
+      ],
+      "meshCount": 8,
+      "totalTriangles": 96,
+      "maxMeshTriangles": 12,
+      "limit": 20000,
+      "overLimit": false,
+      "action": "none",
+      "bytes": 39052
+    },
+    {
+      "file": "character_dad.glb",
+      "fbx": "assets/fbx/character_dad.fbx",
+      "modelName": "character_dad",
+      "blenderBoundsMeters": {
+        "min": [
+          -0.20000000298023224,
+          -0.4449999928474426,
+          -0.125
+        ],
+        "max": [
+          0.20000000298023224,
+          0.11999999731779099,
+          1.0499999523162842
+        ],
+        "size": [
+          0.4000000059604645,
+          0.5649999901652336,
+          1.1749999523162842
+        ]
+      },
+      "meshes": [
+        {
+          "name": "Torso",
+          "triangles": 12,
+          "trianglesBefore": 12,
+          "action": "none"
+        },
+        {
+          "name": "Lap",
+          "triangles": 12,
+          "trianglesBefore": 12,
+          "action": "none"
+        },
+        {
+          "name": "Shin_0",
+          "triangles": 12,
+          "trianglesBefore": 12,
+          "action": "none"
+        },
+        {
+          "name": "Shin_1",
+          "triangles": 12,
+          "trianglesBefore": 12,
+          "action": "none"
+        },
+        {
+          "name": "Skull",
+          "triangles": 12,
+          "trianglesBefore": 12,
+          "action": "none"
+        },
+        {
+          "name": "Hair",
+          "triangles": 12,
+          "trianglesBefore": 12,
+          "action": "none"
+        },
+        {
+          "name": "Eye_L",
+          "triangles": 12,
+          "trianglesBefore": 12,
+          "action": "none"
+        },
+        {
+          "name": "GlassesRim_0",
+          "triangles": 12,
+          "trianglesBefore": 12,
+          "action": "none"
+        },
+        {
+          "name": "Eye_R",
+          "triangles": 12,
+          "trianglesBefore": 12,
+          "action": "none"
+        },
+        {
+          "name": "GlassesRim_1",
+          "triangles": 12,
+          "trianglesBefore": 12,
+          "action": "none"
+        }
+      ],
+      "meshCount": 10,
+      "totalTriangles": 120,
+      "maxMeshTriangles": 12,
+      "limit": 20000,
+      "overLimit": false,
+      "action": "none",
+      "bytes": 45580
+    },
+    {
+      "file": "character_mom.glb",
+      "fbx": "assets/fbx/character_mom.fbx",
+      "modelName": "character_mom",
+      "blenderBoundsMeters": {
+        "min": [
+          -0.18000000715255737,
+          -0.42000001668930054,
+          -0.11999999731779099
+        ],
+        "max": [
+          0.18000000715255737,
+          0.11999999731779099,
+          1.0099999904632568
+        ],
+        "size": [
+          0.36000001430511475,
+          0.5400000140070915,
+          1.1299999877810478
+        ]
+      },
+      "meshes": [
+        {
+          "name": "Torso",
+          "triangles": 12,
+          "trianglesBefore": 12,
+          "action": "none"
+        },
+        {
+          "name": "Lap",
+          "triangles": 12,
+          "trianglesBefore": 12,
+          "action": "none"
+        },
+        {
+          "name": "Shin_0",
+          "triangles": 12,
+          "trianglesBefore": 12,
+          "action": "none"
+        },
+        {
+          "name": "Shin_1",
+          "triangles": 12,
+          "trianglesBefore": 12,
+          "action": "none"
+        },
+        {
+          "name": "Skull",
+          "triangles": 12,
+          "trianglesBefore": 12,
+          "action": "none"
+        },
+        {
+          "name": "Hair",
+          "triangles": 12,
+          "trianglesBefore": 12,
+          "action": "none"
+        },
+        {
+          "name": "Eye_L",
+          "triangles": 12,
+          "trianglesBefore": 12,
+          "action": "none"
+        },
+        {
+          "name": "Eye_R",
+          "triangles": 12,
+          "trianglesBefore": 12,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_8",
+          "triangles": 12,
+          "trianglesBefore": 12,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_9",
+          "triangles": 2,
+          "trianglesBefore": 2,
+          "action": "none"
+        }
+      ],
+      "meshCount": 10,
+      "totalTriangles": 110,
+      "maxMeshTriangles": 12,
+      "limit": 20000,
+      "overLimit": false,
+      "action": "none",
+      "bytes": 46364
+    },
+    {
+      "file": "character_mta.glb",
+      "fbx": "assets/fbx/character_mta.fbx",
+      "modelName": "character_mta",
+      "blenderBoundsMeters": {
+        "min": [
+          -0.19499999284744263,
+          -0.4449999928474426,
+          -0.11999999731779099
+        ],
+        "max": [
+          0.19499999284744263,
+          0.125,
+          1.0399999618530273
+        ],
+        "size": [
+          0.38999998569488525,
+          0.5699999928474426,
+          1.1599999591708183
+        ]
+      },
+      "meshes": [
+        {
+          "name": "Torso",
+          "triangles": 12,
+          "trianglesBefore": 12,
+          "action": "none"
+        },
+        {
+          "name": "HiVisVest",
+          "triangles": 12,
+          "trianglesBefore": 12,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_2",
+          "triangles": 12,
+          "trianglesBefore": 12,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_3",
+          "triangles": 12,
+          "trianglesBefore": 12,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_4",
+          "triangles": 12,
+          "trianglesBefore": 12,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_5",
+          "triangles": 12,
+          "trianglesBefore": 12,
+          "action": "none"
+        },
+        {
+          "name": "HardHat",
+          "triangles": 12,
+          "trianglesBefore": 12,
+          "action": "none"
+        },
+        {
+          "name": "Eye_L",
+          "triangles": 12,
+          "trianglesBefore": 12,
+          "action": "none"
+        },
+        {
+          "name": "Eye_R",
+          "triangles": 12,
+          "trianglesBefore": 12,
+          "action": "none"
+        }
+      ],
+      "meshCount": 9,
+      "totalTriangles": 108,
+      "maxMeshTriangles": 12,
+      "limit": 20000,
+      "overLimit": false,
+      "action": "none",
+      "bytes": 41756
+    },
+    {
+      "file": "dad.glb",
+      "fbx": "assets/fbx/dad.fbx",
+      "modelName": "dad",
+      "blenderBoundsMeters": {
+        "min": [
+          -0.2849999964237213,
+          -0.5699999928474426,
+          -0.12096000462770462
+        ],
+        "max": [
+          0.2849999964237213,
+          0.13481926918029785,
+          1.1299999952316284
+        ],
+        "size": [
+          0.5699999928474426,
+          0.7048192620277405,
+          1.250959999859333
+        ]
+      },
+      "meshes": [
+        {
+          "name": "Mesh_0",
+          "triangles": 368,
+          "trianglesBefore": 368,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_1",
+          "triangles": 12,
+          "trianglesBefore": 12,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_2",
+          "triangles": 12,
+          "trianglesBefore": 12,
+          "action": "none"
+        },
+        {
+          "name": "Pupil_L",
+          "triangles": 80,
+          "trianglesBefore": 80,
+          "action": "none"
+        },
+        {
+          "name": "Pupil_R",
+          "triangles": 80,
+          "trianglesBefore": 80,
+          "action": "none"
+        },
+        {
+          "name": "Head_Skin",
+          "triangles": 424,
+          "trianglesBefore": 424,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_6",
+          "triangles": 160,
+          "trianglesBefore": 160,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_7",
+          "triangles": 84,
+          "trianglesBefore": 84,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_8",
+          "triangles": 12,
+          "trianglesBefore": 12,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_9",
+          "triangles": 2,
+          "trianglesBefore": 2,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_10",
+          "triangles": 2,
+          "trianglesBefore": 2,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_11",
+          "triangles": 104,
+          "trianglesBefore": 104,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_12",
+          "triangles": 36,
+          "trianglesBefore": 36,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_13",
+          "triangles": 24,
+          "trianglesBefore": 24,
+          "action": "none"
+        },
+        {
+          "name": "Body_Skin",
+          "triangles": 80,
+          "trianglesBefore": 80,
+          "action": "none"
+        }
+      ],
+      "meshCount": 15,
+      "totalTriangles": 1480,
+      "maxMeshTriangles": 424,
+      "limit": 20000,
+      "overLimit": false,
+      "action": "none",
+      "bytes": 120444
+    },
+    {
+      "file": "mom.glb",
+      "fbx": "assets/fbx/mom.fbx",
+      "modelName": "mom",
+      "blenderBoundsMeters": {
+        "min": [
+          -0.2849999964237213,
+          -0.5699999928474426,
+          -0.23999999463558197
+        ],
+        "max": [
+          0.2849999964237213,
+          0.14000000059604645,
+          1.1299999952316284
+        ],
+        "size": [
+          0.5699999928474426,
+          0.7099999934434891,
+          1.3699999898672104
+        ]
+      },
+      "meshes": [
+        {
+          "name": "Mesh_0",
+          "triangles": 12,
+          "trianglesBefore": 12,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_1",
+          "triangles": 12,
+          "trianglesBefore": 12,
+          "action": "none"
+        },
+        {
+          "name": "Pupil_L",
+          "triangles": 80,
+          "trianglesBefore": 80,
+          "action": "none"
+        },
+        {
+          "name": "Pupil_R",
+          "triangles": 80,
+          "trianglesBefore": 80,
+          "action": "none"
+        },
+        {
+          "name": "Head_Skin",
+          "triangles": 424,
+          "trianglesBefore": 424,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_5",
+          "triangles": 404,
+          "trianglesBefore": 404,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_6",
+          "triangles": 160,
+          "trianglesBefore": 160,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_7",
+          "triangles": 12,
+          "trianglesBefore": 12,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_8",
+          "triangles": 2,
+          "trianglesBefore": 2,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_9",
+          "triangles": 2,
+          "trianglesBefore": 2,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_10",
+          "triangles": 104,
+          "trianglesBefore": 104,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_11",
+          "triangles": 36,
+          "trianglesBefore": 36,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_12",
+          "triangles": 24,
+          "trianglesBefore": 24,
+          "action": "none"
+        },
+        {
+          "name": "Body_Skin",
+          "triangles": 80,
+          "trianglesBefore": 80,
+          "action": "none"
+        }
+      ],
+      "meshCount": 14,
+      "totalTriangles": 1432,
+      "maxMeshTriangles": 424,
+      "limit": 20000,
+      "overLimit": false,
+      "action": "none",
+      "bytes": 127196
+    },
+    {
+      "file": "passenger_coat.glb",
+      "fbx": "assets/fbx/passenger_coat.fbx",
+      "modelName": "passenger_coat",
+      "blenderBoundsMeters": {
+        "min": [
+          -0.29750001430511475,
+          -0.574999988079071,
+          -0.36000001430511475
+        ],
+        "max": [
+          0.31200000643730164,
+          0.15000000596046448,
+          1.1349999904632568
+        ],
+        "size": [
+          0.6095000207424164,
+          0.7249999940395355,
+          1.4950000047683716
+        ]
+      },
+      "meshes": [
+        {
+          "name": "Mesh_0",
+          "triangles": 12,
+          "trianglesBefore": 12,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_1",
+          "triangles": 12,
+          "trianglesBefore": 12,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_2",
+          "triangles": 12,
+          "trianglesBefore": 12,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_3",
+          "triangles": 12,
+          "trianglesBefore": 12,
+          "action": "none"
+        },
+        {
+          "name": "Pupil_L",
+          "triangles": 80,
+          "trianglesBefore": 80,
+          "action": "none"
+        },
+        {
+          "name": "Pupil_R",
+          "triangles": 80,
+          "trianglesBefore": 80,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_6",
+          "triangles": 12,
+          "trianglesBefore": 12,
+          "action": "none"
+        },
+        {
+          "name": "Head_Skin",
+          "triangles": 424,
+          "trianglesBefore": 424,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_8",
+          "triangles": 404,
+          "trianglesBefore": 404,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_9",
+          "triangles": 160,
+          "trianglesBefore": 160,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_10",
+          "triangles": 64,
+          "trianglesBefore": 64,
+          "action": "none"
+        },
+        {
+          "name": "Body_Skin",
+          "triangles": 60,
+          "trianglesBefore": 60,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_12",
+          "triangles": 144,
+          "trianglesBefore": 144,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_13",
+          "triangles": 36,
+          "trianglesBefore": 36,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_14",
+          "triangles": 48,
+          "trianglesBefore": 48,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_15",
+          "triangles": 72,
+          "trianglesBefore": 72,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_16",
+          "triangles": 60,
+          "trianglesBefore": 60,
+          "action": "none"
+        }
+      ],
+      "meshCount": 17,
+      "totalTriangles": 1692,
+      "maxMeshTriangles": 424,
+      "limit": 20000,
+      "overLimit": false,
+      "action": "none",
+      "bytes": 145292
+    },
+    {
+      "file": "passenger_hoodie_seated.glb",
+      "fbx": "assets/fbx/passenger_hoodie_seated.fbx",
+      "modelName": "passenger_hoodie_seated",
+      "blenderBoundsMeters": {
+        "min": [
+          -0.3181999921798706,
+          -0.5774999856948853,
+          -0.12096000462770462
+        ],
+        "max": [
+          0.4840242266654968,
+          0.15000000596046448,
+          1.1449999809265137
+        ],
+        "size": [
+          0.8022242188453674,
+          0.7274999916553497,
+          1.2659599855542183
+        ]
+      },
+      "meshes": [
+        {
+          "name": "Mesh_0",
+          "triangles": 12,
+          "trianglesBefore": 12,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_1",
+          "triangles": 368,
+          "trianglesBefore": 368,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_2",
+          "triangles": 12,
+          "trianglesBefore": 12,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_3",
+          "triangles": 12,
+          "trianglesBefore": 12,
+          "action": "none"
+        },
+        {
+          "name": "Pupil_L",
+          "triangles": 80,
+          "trianglesBefore": 80,
+          "action": "none"
+        },
+        {
+          "name": "Pupil_R",
+          "triangles": 80,
+          "trianglesBefore": 80,
+          "action": "none"
+        },
+        {
+          "name": "Head_Skin",
+          "triangles": 424,
+          "trianglesBefore": 424,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_7",
+          "triangles": 160,
+          "trianglesBefore": 160,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_8",
+          "triangles": 104,
+          "trianglesBefore": 104,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_9",
+          "triangles": 104,
+          "trianglesBefore": 104,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_10",
+          "triangles": 24,
+          "trianglesBefore": 24,
+          "action": "none"
+        },
+        {
+          "name": "Body_Skin",
+          "triangles": 60,
+          "trianglesBefore": 60,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_12",
+          "triangles": 120,
+          "trianglesBefore": 120,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_13",
+          "triangles": 48,
+          "trianglesBefore": 48,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_14",
+          "triangles": 48,
+          "trianglesBefore": 48,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_15",
+          "triangles": 36,
+          "trianglesBefore": 36,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_16",
+          "triangles": 24,
+          "trianglesBefore": 24,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_17",
+          "triangles": 24,
+          "trianglesBefore": 24,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_18",
+          "triangles": 24,
+          "trianglesBefore": 24,
+          "action": "none"
+        }
+      ],
+      "meshCount": 19,
+      "totalTriangles": 1764,
+      "maxMeshTriangles": 424,
+      "limit": 20000,
+      "overLimit": false,
+      "action": "none",
+      "bytes": 146380
+    },
+    {
+      "file": "passenger_hoodie_standing.glb",
+      "fbx": "assets/fbx/passenger_hoodie_standing.fbx",
+      "modelName": "passenger_hoodie_standing",
+      "blenderBoundsMeters": {
+        "min": [
+          -0.3494887948036194,
+          -0.1875,
+          -0.12096000462770462
+        ],
+        "max": [
+          0.3494887948036194,
+          0.3125,
+          1.625
+        ],
+        "size": [
+          0.6989775896072388,
+          0.5,
+          1.7459600046277046
+        ]
+      },
+      "meshes": [
+        {
+          "name": "Mesh_0",
+          "triangles": 368,
+          "trianglesBefore": 368,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_1",
+          "triangles": 12,
+          "trianglesBefore": 12,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_2",
+          "triangles": 12,
+          "trianglesBefore": 12,
+          "action": "none"
+        },
+        {
+          "name": "Pupil_L",
+          "triangles": 80,
+          "trianglesBefore": 80,
+          "action": "none"
+        },
+        {
+          "name": "Pupil_R",
+          "triangles": 80,
+          "trianglesBefore": 80,
+          "action": "none"
+        },
+        {
+          "name": "Head_Skin",
+          "triangles": 424,
+          "trianglesBefore": 424,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_6",
+          "triangles": 160,
+          "trianglesBefore": 160,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_7",
+          "triangles": 104,
+          "trianglesBefore": 104,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_8",
+          "triangles": 104,
+          "trianglesBefore": 104,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_9",
+          "triangles": 24,
+          "trianglesBefore": 24,
+          "action": "none"
+        },
+        {
+          "name": "Body_Skin",
+          "triangles": 60,
+          "trianglesBefore": 60,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_11",
+          "triangles": 120,
+          "trianglesBefore": 120,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_12",
+          "triangles": 48,
+          "trianglesBefore": 48,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_13",
+          "triangles": 48,
+          "trianglesBefore": 48,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_14",
+          "triangles": 60,
+          "trianglesBefore": 60,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_15",
+          "triangles": 24,
+          "trianglesBefore": 24,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_16",
+          "triangles": 24,
+          "trianglesBefore": 24,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_17",
+          "triangles": 60,
+          "trianglesBefore": 60,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_18",
+          "triangles": 24,
+          "trianglesBefore": 24,
+          "action": "none"
+        }
+      ],
+      "meshCount": 19,
+      "totalTriangles": 1836,
+      "maxMeshTriangles": 424,
+      "limit": 20000,
+      "overLimit": false,
+      "action": "none",
+      "bytes": 149452
+    },
+    {
+      "file": "passenger_mta.glb",
+      "fbx": "assets/fbx/passenger_mta.fbx",
+      "modelName": "passenger_mta",
+      "blenderBoundsMeters": {
+        "min": [
+          -0.29750001430511475,
+          -0.574999988079071,
+          -0.12096000462770462
+        ],
+        "max": [
+          0.29750001430511475,
+          0.15600000321865082,
+          1.1349999904632568
+        ],
+        "size": [
+          0.5950000286102295,
+          0.7309999912977219,
+          1.2559599950909615
+        ]
+      },
+      "meshes": [
+        {
+          "name": "Mesh_0",
+          "triangles": 368,
+          "trianglesBefore": 368,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_1",
+          "triangles": 12,
+          "trianglesBefore": 12,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_2",
+          "triangles": 12,
+          "trianglesBefore": 12,
+          "action": "none"
+        },
+        {
+          "name": "Pupil_L",
+          "triangles": 80,
+          "trianglesBefore": 80,
+          "action": "none"
+        },
+        {
+          "name": "Pupil_R",
+          "triangles": 80,
+          "trianglesBefore": 80,
+          "action": "none"
+        },
+        {
+          "name": "Head_Skin",
+          "triangles": 424,
+          "trianglesBefore": 424,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_6",
+          "triangles": 160,
+          "trianglesBefore": 160,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_7",
+          "triangles": 100,
+          "trianglesBefore": 100,
+          "action": "none"
+        },
+        {
+          "name": "Body_Skin",
+          "triangles": 60,
+          "trianglesBefore": 60,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_9",
+          "triangles": 120,
+          "trianglesBefore": 120,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_10",
+          "triangles": 36,
+          "trianglesBefore": 36,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_11",
+          "triangles": 24,
+          "trianglesBefore": 24,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_12",
+          "triangles": 24,
+          "trianglesBefore": 24,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_13",
+          "triangles": 72,
+          "trianglesBefore": 72,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_14",
+          "triangles": 24,
+          "trianglesBefore": 24,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_15",
+          "triangles": 24,
+          "trianglesBefore": 24,
+          "action": "none"
+        }
+      ],
+      "meshCount": 16,
+      "totalTriangles": 1620,
+      "maxMeshTriangles": 424,
+      "limit": 20000,
+      "overLimit": false,
+      "action": "none",
+      "bytes": 128204
+    },
+    {
+      "file": "passenger_office_seated.glb",
+      "fbx": "assets/fbx/passenger_office_seated.fbx",
+      "modelName": "passenger_office_seated",
+      "blenderBoundsMeters": {
+        "min": [
+          -0.4099999964237213,
+          -0.574999988079071,
+          -0.12096000462770462
+        ],
+        "max": [
+          0.2574999928474426,
+          0.13481926918029785,
+          1.1349999904632568
+        ],
+        "size": [
+          0.6674999892711639,
+          0.7098192572593689,
+          1.2559599950909615
+        ]
+      },
+      "meshes": [
+        {
+          "name": "Mesh_0",
+          "triangles": 12,
+          "trianglesBefore": 12,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_1",
+          "triangles": 12,
+          "trianglesBefore": 12,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_2",
+          "triangles": 12,
+          "trianglesBefore": 12,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_3",
+          "triangles": 12,
+          "trianglesBefore": 12,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_4",
+          "triangles": 12,
+          "trianglesBefore": 12,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_5",
+          "triangles": 12,
+          "trianglesBefore": 12,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_6",
+          "triangles": 12,
+          "trianglesBefore": 12,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_7",
+          "triangles": 12,
+          "trianglesBefore": 12,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_8",
+          "triangles": 368,
+          "trianglesBefore": 368,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_9",
+          "triangles": 12,
+          "trianglesBefore": 12,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_10",
+          "triangles": 12,
+          "trianglesBefore": 12,
+          "action": "none"
+        },
+        {
+          "name": "Pupil_L",
+          "triangles": 80,
+          "trianglesBefore": 80,
+          "action": "none"
+        },
+        {
+          "name": "Pupil_R",
+          "triangles": 80,
+          "trianglesBefore": 80,
+          "action": "none"
+        },
+        {
+          "name": "Head_Skin",
+          "triangles": 424,
+          "trianglesBefore": 424,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_14",
+          "triangles": 160,
+          "trianglesBefore": 160,
+          "action": "none"
+        },
+        {
+          "name": "Body_Skin",
+          "triangles": 60,
+          "trianglesBefore": 60,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_16",
+          "triangles": 108,
+          "trianglesBefore": 108,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_17",
+          "triangles": 48,
+          "trianglesBefore": 48,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_18",
+          "triangles": 24,
+          "trianglesBefore": 24,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_19",
+          "triangles": 48,
+          "trianglesBefore": 48,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_20",
+          "triangles": 36,
+          "trianglesBefore": 36,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_21",
+          "triangles": 36,
+          "trianglesBefore": 36,
+          "action": "none"
+        }
+      ],
+      "meshCount": 22,
+      "totalTriangles": 1592,
+      "maxMeshTriangles": 424,
+      "limit": 20000,
+      "overLimit": false,
+      "action": "none",
+      "bytes": 140492
+    },
+    {
+      "file": "passenger_office_standing.glb",
+      "fbx": "assets/fbx/passenger_office_standing.fbx",
+      "modelName": "passenger_office_standing",
+      "blenderBoundsMeters": {
+        "min": [
+          -0.31343188881874084,
+          -0.1850000023841858,
+          -0.12999999523162842
+        ],
+        "max": [
+          0.3529123365879059,
+          0.17249999940395355,
+          1.6150000095367432
+        ],
+        "size": [
+          0.6663442254066467,
+          0.35750000178813934,
+          1.7450000047683716
+        ]
+      },
+      "meshes": [
+        {
+          "name": "Mesh_0",
+          "triangles": 12,
+          "trianglesBefore": 12,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_1",
+          "triangles": 368,
+          "trianglesBefore": 368,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_2",
+          "triangles": 12,
+          "trianglesBefore": 12,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_3",
+          "triangles": 12,
+          "trianglesBefore": 12,
+          "action": "none"
+        },
+        {
+          "name": "Pupil_L",
+          "triangles": 80,
+          "trianglesBefore": 80,
+          "action": "none"
+        },
+        {
+          "name": "Pupil_R",
+          "triangles": 80,
+          "trianglesBefore": 80,
+          "action": "none"
+        },
+        {
+          "name": "Head_Skin",
+          "triangles": 424,
+          "trianglesBefore": 424,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_7",
+          "triangles": 160,
+          "trianglesBefore": 160,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_8",
+          "triangles": 12,
+          "trianglesBefore": 12,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_9",
+          "triangles": 12,
+          "trianglesBefore": 12,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_10",
+          "triangles": 12,
+          "trianglesBefore": 12,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_11",
+          "triangles": 12,
+          "trianglesBefore": 12,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_12",
+          "triangles": 12,
+          "trianglesBefore": 12,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_13",
+          "triangles": 12,
+          "trianglesBefore": 12,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_14",
+          "triangles": 12,
+          "trianglesBefore": 12,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_15",
+          "triangles": 12,
+          "trianglesBefore": 12,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_16",
+          "triangles": 12,
+          "trianglesBefore": 12,
+          "action": "none"
+        },
+        {
+          "name": "Body_Skin",
+          "triangles": 60,
+          "trianglesBefore": 60,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_18",
+          "triangles": 108,
+          "trianglesBefore": 108,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_19",
+          "triangles": 72,
+          "trianglesBefore": 72,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_20",
+          "triangles": 24,
+          "trianglesBefore": 24,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_21",
+          "triangles": 48,
+          "trianglesBefore": 48,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_22",
+          "triangles": 36,
+          "trianglesBefore": 36,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_23",
+          "triangles": 36,
+          "trianglesBefore": 36,
+          "action": "none"
+        }
+      ],
+      "meshCount": 24,
+      "totalTriangles": 1640,
+      "maxMeshTriangles": 424,
+      "limit": 20000,
+      "overLimit": false,
+      "action": "none",
+      "bytes": 149772
+    },
+    {
+      "file": "passenger_overcoat.glb",
+      "fbx": "assets/fbx/passenger_overcoat.fbx",
+      "modelName": "passenger_overcoat",
+      "blenderBoundsMeters": {
+        "min": [
+          -0.3148750066757202,
+          -0.574999988079071,
+          -0.12096000462770462
+        ],
+        "max": [
+          0.3148750066757202,
+          0.1550000011920929,
+          1.1349999904632568
+        ],
+        "size": [
+          0.6297500133514404,
+          0.7299999892711639,
+          1.2559599950909615
+        ]
+      },
+      "meshes": [
+        {
+          "name": "Mesh_0",
+          "triangles": 368,
+          "trianglesBefore": 368,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_1",
+          "triangles": 12,
+          "trianglesBefore": 12,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_2",
+          "triangles": 12,
+          "trianglesBefore": 12,
+          "action": "none"
+        },
+        {
+          "name": "Pupil_L",
+          "triangles": 80,
+          "trianglesBefore": 80,
+          "action": "none"
+        },
+        {
+          "name": "Pupil_R",
+          "triangles": 80,
+          "trianglesBefore": 80,
+          "action": "none"
+        },
+        {
+          "name": "Head_Skin",
+          "triangles": 424,
+          "trianglesBefore": 424,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_6",
+          "triangles": 160,
+          "trianglesBefore": 160,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_7",
+          "triangles": 122,
+          "trianglesBefore": 122,
+          "action": "none"
+        },
+        {
+          "name": "Body_Skin",
+          "triangles": 60,
+          "trianglesBefore": 60,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_9",
+          "triangles": 144,
+          "trianglesBefore": 144,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_10",
+          "triangles": 36,
+          "trianglesBefore": 36,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_11",
+          "triangles": 24,
+          "trianglesBefore": 24,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_12",
+          "triangles": 48,
+          "trianglesBefore": 48,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_13",
+          "triangles": 96,
+          "trianglesBefore": 96,
+          "action": "none"
+        }
+      ],
+      "meshCount": 14,
+      "totalTriangles": 1666,
+      "maxMeshTriangles": 424,
+      "limit": 20000,
+      "overLimit": false,
+      "action": "none",
+      "bytes": 124460
+    },
+    {
+      "file": "passenger_puffer.glb",
+      "fbx": "assets/fbx/passenger_puffer.fbx",
+      "modelName": "passenger_puffer",
+      "blenderBoundsMeters": {
+        "min": [
+          -0.41735154390335083,
+          -0.1875,
+          -0.12096000462770462
+        ],
+        "max": [
+          0.41735154390335083,
+          0.1599999964237213,
+          1.6150000095367432
+        ],
+        "size": [
+          0.8347030878067017,
+          0.3474999964237213,
+          1.7359600141644478
+        ]
+      },
+      "meshes": [
+        {
+          "name": "Mesh_0",
+          "triangles": 368,
+          "trianglesBefore": 368,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_1",
+          "triangles": 12,
+          "trianglesBefore": 12,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_2",
+          "triangles": 12,
+          "trianglesBefore": 12,
+          "action": "none"
+        },
+        {
+          "name": "Pupil_L",
+          "triangles": 80,
+          "trianglesBefore": 80,
+          "action": "none"
+        },
+        {
+          "name": "Pupil_R",
+          "triangles": 80,
+          "trianglesBefore": 80,
+          "action": "none"
+        },
+        {
+          "name": "Head_Skin",
+          "triangles": 424,
+          "trianglesBefore": 424,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_6",
+          "triangles": 160,
+          "trianglesBefore": 160,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_7",
+          "triangles": 104,
+          "trianglesBefore": 104,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_8",
+          "triangles": 24,
+          "trianglesBefore": 24,
+          "action": "none"
+        },
+        {
+          "name": "Body_Skin",
+          "triangles": 60,
+          "trianglesBefore": 60,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_10",
+          "triangles": 72,
+          "trianglesBefore": 72,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_11",
+          "triangles": 132,
+          "trianglesBefore": 132,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_12",
+          "triangles": 60,
+          "trianglesBefore": 60,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_13",
+          "triangles": 24,
+          "trianglesBefore": 24,
+          "action": "none"
+        }
+      ],
+      "meshCount": 14,
+      "totalTriangles": 1612,
+      "maxMeshTriangles": 424,
+      "limit": 20000,
+      "overLimit": false,
+      "action": "none",
+      "bytes": 122652
+    },
+    {
+      "file": "passenger_texter_seated.glb",
+      "fbx": "assets/fbx/passenger_texter_seated.fbx",
+      "modelName": "passenger_texter_seated",
+      "blenderBoundsMeters": {
+        "min": [
+          -0.37024539709091187,
+          -0.5774999856948853,
+          -0.12096000462770462
+        ],
+        "max": [
+          0.4840242266654968,
+          0.15000000596046448,
+          1.1349999904632568
+        ],
+        "size": [
+          0.8542696237564087,
+          0.7274999916553497,
+          1.2559599950909615
+        ]
+      },
+      "meshes": [
+        {
+          "name": "Mesh_0",
+          "triangles": 12,
+          "trianglesBefore": 12,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_1",
+          "triangles": 12,
+          "trianglesBefore": 12,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_2",
+          "triangles": 2,
+          "trianglesBefore": 2,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_3",
+          "triangles": 2,
+          "trianglesBefore": 2,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_4",
+          "triangles": 12,
+          "trianglesBefore": 12,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_5",
+          "triangles": 12,
+          "trianglesBefore": 12,
+          "action": "none"
+        },
+        {
+          "name": "Pupil_L",
+          "triangles": 80,
+          "trianglesBefore": 80,
+          "action": "none"
+        },
+        {
+          "name": "Pupil_R",
+          "triangles": 80,
+          "trianglesBefore": 80,
+          "action": "none"
+        },
+        {
+          "name": "Head_Skin",
+          "triangles": 424,
+          "trianglesBefore": 424,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_9",
+          "triangles": 436,
+          "trianglesBefore": 436,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_10",
+          "triangles": 160,
+          "trianglesBefore": 160,
+          "action": "none"
+        },
+        {
+          "name": "Body_Skin",
+          "triangles": 36,
+          "trianglesBefore": 36,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_12",
+          "triangles": 24,
+          "trianglesBefore": 24,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_13",
+          "triangles": 132,
+          "trianglesBefore": 132,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_14",
+          "triangles": 36,
+          "trianglesBefore": 36,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_15",
+          "triangles": 24,
+          "trianglesBefore": 24,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_16",
+          "triangles": 24,
+          "trianglesBefore": 24,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_17",
+          "triangles": 24,
+          "trianglesBefore": 24,
+          "action": "none"
+        }
+      ],
+      "meshCount": 18,
+      "totalTriangles": 1532,
+      "maxMeshTriangles": 436,
+      "limit": 20000,
+      "overLimit": false,
+      "action": "none",
+      "bytes": 144908
+    },
+    {
+      "file": "passenger_texter_standing.glb",
+      "fbx": "assets/fbx/passenger_texter_standing.fbx",
+      "modelName": "passenger_texter_standing",
+      "blenderBoundsMeters": {
+        "min": [
+          -0.37024539709091187,
+          -0.3100000023841858,
+          -0.12096000462770462
+        ],
+        "max": [
+          0.37024539709091187,
+          0.32750001549720764,
+          1.6150000095367432
+        ],
+        "size": [
+          0.7404907941818237,
+          0.6375000178813934,
+          1.7359600141644478
+        ]
+      },
+      "meshes": [
+        {
+          "name": "Mesh_0",
+          "triangles": 12,
+          "trianglesBefore": 12,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_1",
+          "triangles": 2,
+          "trianglesBefore": 2,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_2",
+          "triangles": 2,
+          "trianglesBefore": 2,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_3",
+          "triangles": 12,
+          "trianglesBefore": 12,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_4",
+          "triangles": 12,
+          "trianglesBefore": 12,
+          "action": "none"
+        },
+        {
+          "name": "Pupil_L",
+          "triangles": 80,
+          "trianglesBefore": 80,
+          "action": "none"
+        },
+        {
+          "name": "Pupil_R",
+          "triangles": 80,
+          "trianglesBefore": 80,
+          "action": "none"
+        },
+        {
+          "name": "Head_Skin",
+          "triangles": 424,
+          "trianglesBefore": 424,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_8",
+          "triangles": 436,
+          "trianglesBefore": 436,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_9",
+          "triangles": 160,
+          "trianglesBefore": 160,
+          "action": "none"
+        },
+        {
+          "name": "Body_Skin",
+          "triangles": 36,
+          "trianglesBefore": 36,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_11",
+          "triangles": 24,
+          "trianglesBefore": 24,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_12",
+          "triangles": 132,
+          "trianglesBefore": 132,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_13",
+          "triangles": 60,
+          "trianglesBefore": 60,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_14",
+          "triangles": 24,
+          "trianglesBefore": 24,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_15",
+          "triangles": 24,
+          "trianglesBefore": 24,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_16",
+          "triangles": 60,
+          "trianglesBefore": 60,
+          "action": "none"
+        },
+        {
+          "name": "Mesh_17",
+          "triangles": 24,
+          "trianglesBefore": 24,
+          "action": "none"
+        }
+      ],
+      "meshCount": 18,
+      "totalTriangles": 1604,
+      "maxMeshTriangles": 436,
+      "limit": 20000,
+      "overLimit": false,
+      "action": "none",
+      "bytes": 146412
+    }
+  ],
+  "issues": []
+}
