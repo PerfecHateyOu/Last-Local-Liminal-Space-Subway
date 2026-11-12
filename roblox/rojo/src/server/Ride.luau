@@ -21,6 +21,7 @@ local Constants = require(ReplicatedStorage.Shared.Constants)
 local Dwell = require(ReplicatedStorage.Shared.Dwell)
 local Hold = require(ReplicatedStorage.Shared.Hold)
 local Lines = require(ReplicatedStorage.Shared.Lines)
+local Score = require(ReplicatedStorage.Shared.Score)
 local Motion = require(ReplicatedStorage.Shared.Motion)
 local Route = require(ReplicatedStorage.Shared.Route)
 
@@ -240,6 +241,22 @@ function Ride.start(car: CarBuilder.BuiltCar)
 	local falseFlags = 0
 	local caught = false
 	local suspicion = 0
+	local stopHadAnomaly = false
+	local stopNoticed = false
+	local stopFalseAlarm = false
+	local posterLive = false
+
+	local function applySuspicion(delta: number)
+		suspicion = Score.apply(suspicion, delta, Constants.SUSPICION_MIN, Constants.SUSPICION_MAX)
+		ride:SetAttribute("Suspicion", suspicion)
+	end
+
+	-- Intentionally unused. Nothing here can see a player stand at the
+	-- doors, walk to them, or stare on a false stop. A detector would
+	-- return true and FALSE_STOP_REACT_SUSPICION would be added.
+	local function playerReactedAtFalseStop(): boolean
+		return false
+	end
 
 	-- Passenger, on purpose. The player is the kid riding with Mom and Dad.
 	-- They cannot close the doors or dispatch the train, so this stays
@@ -294,6 +311,32 @@ function Ride.start(car: CarBuilder.BuiltCar)
 		ride:SetAttribute("BoardMinutes", 0)
 	end
 
+	local function anomalyLive(): boolean
+		if posterLive then
+			return true
+		end
+		for _, id in { AnomalySystem.ANNOUNCE_ID, AnomalySystem.COUNTDOWN_ID } do
+			local model = car.passengers:FindFirstChild(id)
+			if model ~= nil and model:GetAttribute("Anomaly") == true and model:GetAttribute("Hidden") ~= true then
+				return true
+			end
+		end
+		return false
+	end
+
+	local function stopWord(kind: string): (string, string)
+		if kind == "noticed" then
+			return "caught", Lines.CAUGHT
+		end
+		if kind == "missed" then
+			return "missed", Lines.MISSED
+		end
+		if kind == "false" then
+			return "false", Lines.FALSE_FLAG
+		end
+		return "clean", Lines.CLEAN
+	end
+
 	flagRemote.OnServerEvent:Connect(function(player: Player, passengerId: any)
 		if typeof(passengerId) ~= "string" then
 			return
@@ -332,13 +375,19 @@ function Ride.start(car: CarBuilder.BuiltCar)
 		local isTell = typeof(tellKind) == "string"
 		local marked = model:GetAttribute("Anomaly") == true
 		local verdict = AnomalySystem.verdict(marked and not isTell, isTell, marked)
+		local live = anomalyLive()
 		if verdict == "noticed" then
 			caught = true
+			stopNoticed = true
 			showFeedback("caught", Lines.CAUGHT, false)
 		else
 			falseFlags += 1
 			showFeedback("false", Lines.falseFlag(label), false)
+			if not live then
+				stopFalseAlarm = true
+			end
 		end
+		applySuspicion(Score.flagDelta(verdict == "noticed", live, Constants.FALSE_ALARM_SUSPICION, Constants.CORRECT_FLAG_SUSPICION))
 	end)
 
 	local function finishScore()
@@ -405,6 +454,10 @@ function Ride.start(car: CarBuilder.BuiltCar)
 			announceStop = Constants.ANOMALY_ANNOUNCE_STOP,
 			countdownStop = Constants.ANOMALY_COUNTDOWN_STOP,
 		})
+		stopHadAnomaly = picked ~= nil
+		stopNoticed = false
+		stopFalseAlarm = false
+		posterLive = false
 		local wrongCountdown = picked == "wrong_countdown"
 		setTell(AnomalySystem.COUNTDOWN_ID, wrongCountdown)
 		setTell(AnomalySystem.ANNOUNCE_ID, false)
@@ -447,6 +500,7 @@ function Ride.start(car: CarBuilder.BuiltCar)
 					if desc:IsA("BasePart") and string.sub(desc.Name, 1, 3) == "Ad_" and desc.Transparency < 0.5 then
 						posterOriginal[desc] = desc.Color
 						desc.Color = Color3.fromRGB(120, 36, 32)
+						posterLive = true
 						break
 					end
 				end
@@ -495,6 +549,7 @@ function Ride.start(car: CarBuilder.BuiltCar)
 				local tell = if seg.stop == Constants.HOLD_TELL_STOP then Hold.tell(Constants.HOLD_TELL) else nil
 				if tell == "wrong_countdown" and picked ~= "wrong_countdown" then
 					setTell(AnomalySystem.COUNTDOWN_ID, true)
+					stopHadAnomaly = true
 					ride:SetAttribute("BoardMinutes", AnomalySystem.boardMinutes(Constants.COUNTDOWN_MINUTES, Constants.WRONG_COUNTDOWN_MINUTES, true))
 				end
 				task.delay(Constants.HOLD_SECONDS, function()
@@ -529,6 +584,14 @@ function Ride.start(car: CarBuilder.BuiltCar)
 	local function arrive(seg: Route.Segment)
 		segToken += 1
 		local token = segToken
+		ride:SetAttribute("Phase", "stop")
+		local kind = Score.result(stopHadAnomaly, stopNoticed, stopFalseAlarm)
+		applySuspicion(Score.endDelta(kind, Constants.CLEAN_STOP_SUSPICION, Constants.DECAY_SUSPICION))
+		if seg.kind == "false" then
+			applySuspicion(Score.falseStopDelta(playerReactedAtFalseStop(), Constants.FALSE_STOP_REACT_SUSPICION))
+		end
+		local feedbackKind, word = stopWord(kind)
+		showFeedback(feedbackKind, word, false)
 		clearTells()
 		ride:SetAttribute("Held", false)
 		ride:SetAttribute("StareIntervalScale", Hold.stareScale(false, Constants.HOLD_STARE_MULTIPLIER))
@@ -536,7 +599,6 @@ function Ride.start(car: CarBuilder.BuiltCar)
 			part.Color = color
 			posterOriginal[part] = nil
 		end
-		ride:SetAttribute("Phase", "stop")
 		local t0 = os.clock()
 
 		if seg.tick == "flicker" then

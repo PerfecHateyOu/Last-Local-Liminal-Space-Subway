@@ -95,7 +95,7 @@ Two arrivals are different, on purpose:
 - On the way to Court Sq the lamps dim in a straight line. Slow dimming is allowed. It is not a flicker.
 - At Court Sq the line is "Court Square. This is the last stop on this train." Mom says "Here we are. Court Square." The doors stay open. The screen keeps **Caught** or **Missed**, and a line like "1 missed, 0 false flags."
 
-Flag only counts while the doors are closed and you are between stations. Holding F at the platform does nothing. That matches the web game.
+Flag only counts while the doors are closed and you are between stations. Holding F at the platform does nothing. That matches the web game. At each stop the screen briefly shows Caught, Missed, False flag, or Clean.
 
 You stay on the train at every stop. Choosing to step off is not in this slice.
 

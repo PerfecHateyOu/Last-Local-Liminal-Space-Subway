@@ -105,6 +105,18 @@ Constants.EARLY_DEPARTURE_SUSPICION = 10
 Constants.SUSPICION_MIN = 0
 Constants.SUSPICION_MAX = 100
 
+-- Flagging while no tell and no poster change is up. A correct flag lowers
+-- suspicion. A clean stop and a stop with no flag each decay. A miss does
+-- not raise suspicion; the decay is the only change on a quiet miss.
+Constants.FALSE_ALARM_SUSPICION = 10
+Constants.CORRECT_FLAG_SUSPICION = 5
+Constants.CLEAN_STOP_SUSPICION = 5
+Constants.DECAY_SUSPICION = 2
+
+-- Reacting at a false stop. This slice cannot see standing, moving to the
+-- doors, or staring, so the ride never adds it.
+Constants.FALSE_STOP_REACT_SUSPICION = 10
+
 -- One tell per stop, by the arrival number on the segment. Other stops
 -- have none. 3 is the poster. 7 is the ride into Flushing Av. 10 is the
 -- ride into Nassau Av. The scripted arrival lie stays on stop 9 and is
@@ -447,13 +459,15 @@ Lines.HINT = "Move the mouse to look. Hold F while looking at anything that chan
 -- Report words. A correct flag and a miss use these alone.
 Lines.CAUGHT = "Caught"
 Lines.MISSED = "Missed"
+Lines.FALSE_FLAG = "False flag"
+Lines.CLEAN = "Clean"
 
 -- HUD station card.
 Lines.NEXT_LABEL = "Next:"
 
 -- ReportScreen: "False flag: {name}"
 function Lines.falseFlag(label: string): string
-	return "False flag: " .. label
+	return Lines.FALSE_FLAG .. ": " .. label
 end
 
 -- "This is Fulton St."
@@ -920,13 +934,81 @@ return Route
 ]]></string>
         </Properties>
       </Item>
+      <Item class="ModuleScript" referent="12">
+        <Properties>
+          <string name="Name">Score</string>
+          <string name="Source"><![CDATA[--!strict
+-- Per-stop suspicion. The server decides the result. The number stays in
+-- range. Reaching 100 does not end the ride.
+
+local Score = {}
+
+-- correct: the flag hit an anomaly. anomalyLive: a tell or the poster is
+-- up right now. A correct flag lowers suspicion. A flag while nothing is
+-- up is a false alarm. Flagging the wrong body while something is up
+-- changes nothing.
+function Score.flagDelta(correct: boolean, anomalyLive: boolean, falseAmount: number, correctAmount: number): number
+	if correct then
+		return -correctAmount
+	end
+	if not anomalyLive then
+		return falseAmount
+	end
+	return 0
+end
+
+-- One result. A catch wins. A false alarm wins over a miss. A miss does
+-- not outrank a clean stop that had no anomaly.
+function Score.result(hadAnomaly: boolean, noticed: boolean, falseAlarm: boolean): string
+	if noticed then
+		return "noticed"
+	end
+	if falseAlarm then
+		return "false"
+	end
+	if hadAnomaly then
+		return "missed"
+	end
+	return "clean"
+end
+
+-- Clean pays the clean bonus and the no-incident decay. A miss pays only
+-- the decay. It does not go up. Noticed and false alarm were already
+-- applied when the flag happened.
+function Score.endDelta(kind: string, cleanAmount: number, decayAmount: number): number
+	if kind == "clean" then
+		return -(cleanAmount + decayAmount)
+	end
+	if kind == "missed" then
+		return -decayAmount
+	end
+	return 0
+end
+
+-- Standing at the doors, moving to them, or staring on a false stop.
+-- Nothing in this slice can see that, so the ride passes false.
+function Score.falseStopDelta(reacted: boolean, amount: number): number
+	if reacted then
+		return amount
+	end
+	return 0
+end
+
+function Score.apply(current: number, delta: number, least: number, most: number): number
+	return math.clamp(current + delta, least, most)
+end
+
+return Score
+]]></string>
+        </Properties>
+      </Item>
     </Item>
   </Item>
-  <Item class="ServerScriptService" referent="12">
+  <Item class="ServerScriptService" referent="13">
     <Properties>
       <string name="Name">ServerScriptService</string>
     </Properties>
-    <Item class="Script" referent="13">
+    <Item class="Script" referent="14">
       <Properties>
         <string name="Name">Server</string>
         <token name="RunContext">0</token>
@@ -985,7 +1067,7 @@ for _, player in Players:GetPlayers() do
 end
 ]]></string>
       </Properties>
-      <Item class="ModuleScript" referent="14">
+      <Item class="ModuleScript" referent="15">
         <Properties>
           <string name="Name">AnomalySystem</string>
           <string name="Source"><![CDATA[--!strict
@@ -1058,7 +1140,7 @@ return AnomalySystem
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="15">
+      <Item class="ModuleScript" referent="16">
         <Properties>
           <string name="Name">CarBuilder</string>
           <string name="Source"><![CDATA[--!strict
@@ -2090,7 +2172,7 @@ return CarBuilder
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="16">
+      <Item class="ModuleScript" referent="17">
         <Properties>
           <string name="Name">Ride</string>
           <string name="Source"><![CDATA[--!strict
@@ -2116,6 +2198,7 @@ local Constants = require(ReplicatedStorage.Shared.Constants)
 local Dwell = require(ReplicatedStorage.Shared.Dwell)
 local Hold = require(ReplicatedStorage.Shared.Hold)
 local Lines = require(ReplicatedStorage.Shared.Lines)
+local Score = require(ReplicatedStorage.Shared.Score)
 local Motion = require(ReplicatedStorage.Shared.Motion)
 local Route = require(ReplicatedStorage.Shared.Route)
 
@@ -2335,6 +2418,22 @@ function Ride.start(car: CarBuilder.BuiltCar)
 	local falseFlags = 0
 	local caught = false
 	local suspicion = 0
+	local stopHadAnomaly = false
+	local stopNoticed = false
+	local stopFalseAlarm = false
+	local posterLive = false
+
+	local function applySuspicion(delta: number)
+		suspicion = Score.apply(suspicion, delta, Constants.SUSPICION_MIN, Constants.SUSPICION_MAX)
+		ride:SetAttribute("Suspicion", suspicion)
+	end
+
+	-- Intentionally unused. Nothing here can see a player stand at the
+	-- doors, walk to them, or stare on a false stop. A detector would
+	-- return true and FALSE_STOP_REACT_SUSPICION would be added.
+	local function playerReactedAtFalseStop(): boolean
+		return false
+	end
 
 	-- Passenger, on purpose. The player is the kid riding with Mom and Dad.
 	-- They cannot close the doors or dispatch the train, so this stays
@@ -2389,6 +2488,32 @@ function Ride.start(car: CarBuilder.BuiltCar)
 		ride:SetAttribute("BoardMinutes", 0)
 	end
 
+	local function anomalyLive(): boolean
+		if posterLive then
+			return true
+		end
+		for _, id in { AnomalySystem.ANNOUNCE_ID, AnomalySystem.COUNTDOWN_ID } do
+			local model = car.passengers:FindFirstChild(id)
+			if model ~= nil and model:GetAttribute("Anomaly") == true and model:GetAttribute("Hidden") ~= true then
+				return true
+			end
+		end
+		return false
+	end
+
+	local function stopWord(kind: string): (string, string)
+		if kind == "noticed" then
+			return "caught", Lines.CAUGHT
+		end
+		if kind == "missed" then
+			return "missed", Lines.MISSED
+		end
+		if kind == "false" then
+			return "false", Lines.FALSE_FLAG
+		end
+		return "clean", Lines.CLEAN
+	end
+
 	flagRemote.OnServerEvent:Connect(function(player: Player, passengerId: any)
 		if typeof(passengerId) ~= "string" then
 			return
@@ -2427,13 +2552,19 @@ function Ride.start(car: CarBuilder.BuiltCar)
 		local isTell = typeof(tellKind) == "string"
 		local marked = model:GetAttribute("Anomaly") == true
 		local verdict = AnomalySystem.verdict(marked and not isTell, isTell, marked)
+		local live = anomalyLive()
 		if verdict == "noticed" then
 			caught = true
+			stopNoticed = true
 			showFeedback("caught", Lines.CAUGHT, false)
 		else
 			falseFlags += 1
 			showFeedback("false", Lines.falseFlag(label), false)
+			if not live then
+				stopFalseAlarm = true
+			end
 		end
+		applySuspicion(Score.flagDelta(verdict == "noticed", live, Constants.FALSE_ALARM_SUSPICION, Constants.CORRECT_FLAG_SUSPICION))
 	end)
 
 	local function finishScore()
@@ -2500,6 +2631,10 @@ function Ride.start(car: CarBuilder.BuiltCar)
 			announceStop = Constants.ANOMALY_ANNOUNCE_STOP,
 			countdownStop = Constants.ANOMALY_COUNTDOWN_STOP,
 		})
+		stopHadAnomaly = picked ~= nil
+		stopNoticed = false
+		stopFalseAlarm = false
+		posterLive = false
 		local wrongCountdown = picked == "wrong_countdown"
 		setTell(AnomalySystem.COUNTDOWN_ID, wrongCountdown)
 		setTell(AnomalySystem.ANNOUNCE_ID, false)
@@ -2542,6 +2677,7 @@ function Ride.start(car: CarBuilder.BuiltCar)
 					if desc:IsA("BasePart") and string.sub(desc.Name, 1, 3) == "Ad_" and desc.Transparency < 0.5 then
 						posterOriginal[desc] = desc.Color
 						desc.Color = Color3.fromRGB(120, 36, 32)
+						posterLive = true
 						break
 					end
 				end
@@ -2590,6 +2726,7 @@ function Ride.start(car: CarBuilder.BuiltCar)
 				local tell = if seg.stop == Constants.HOLD_TELL_STOP then Hold.tell(Constants.HOLD_TELL) else nil
 				if tell == "wrong_countdown" and picked ~= "wrong_countdown" then
 					setTell(AnomalySystem.COUNTDOWN_ID, true)
+					stopHadAnomaly = true
 					ride:SetAttribute("BoardMinutes", AnomalySystem.boardMinutes(Constants.COUNTDOWN_MINUTES, Constants.WRONG_COUNTDOWN_MINUTES, true))
 				end
 				task.delay(Constants.HOLD_SECONDS, function()
@@ -2624,6 +2761,14 @@ function Ride.start(car: CarBuilder.BuiltCar)
 	local function arrive(seg: Route.Segment)
 		segToken += 1
 		local token = segToken
+		ride:SetAttribute("Phase", "stop")
+		local kind = Score.result(stopHadAnomaly, stopNoticed, stopFalseAlarm)
+		applySuspicion(Score.endDelta(kind, Constants.CLEAN_STOP_SUSPICION, Constants.DECAY_SUSPICION))
+		if seg.kind == "false" then
+			applySuspicion(Score.falseStopDelta(playerReactedAtFalseStop(), Constants.FALSE_STOP_REACT_SUSPICION))
+		end
+		local feedbackKind, word = stopWord(kind)
+		showFeedback(feedbackKind, word, false)
 		clearTells()
 		ride:SetAttribute("Held", false)
 		ride:SetAttribute("StareIntervalScale", Hold.stareScale(false, Constants.HOLD_STARE_MULTIPLIER))
@@ -2631,7 +2776,6 @@ function Ride.start(car: CarBuilder.BuiltCar)
 			part.Color = color
 			posterOriginal[part] = nil
 		end
-		ride:SetAttribute("Phase", "stop")
 		local t0 = os.clock()
 
 		if seg.tick == "flicker" then
@@ -2733,7 +2877,7 @@ return Ride
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="17">
+      <Item class="ModuleScript" referent="18">
         <Properties>
           <string name="Name">Scenery</string>
           <string name="Source"><![CDATA[--!strict
@@ -2999,7 +3143,7 @@ return Scenery
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="18">
+      <Item class="ModuleScript" referent="19">
         <Properties>
           <string name="Name">WorldLight</string>
           <string name="Source"><![CDATA[--!strict
@@ -3145,18 +3289,18 @@ return WorldLight
       </Item>
     </Item>
   </Item>
-  <Item class="StarterPlayer" referent="19">
+  <Item class="StarterPlayer" referent="20">
     <Properties>
       <string name="Name">StarterPlayer</string>
       <float name="CameraMaxZoomDistance">0.5</float>
       <float name="CameraMinZoomDistance">0.5</float>
       <token name="CameraMode">1</token>
     </Properties>
-    <Item class="StarterPlayerScripts" referent="20">
+    <Item class="StarterPlayerScripts" referent="21">
       <Properties>
         <string name="Name">StarterPlayerScripts</string>
       </Properties>
-      <Item class="LocalScript" referent="21">
+      <Item class="LocalScript" referent="22">
         <Properties>
           <string name="Name">Client</string>
           <string name="Source"><![CDATA[--!strict
@@ -3172,7 +3316,7 @@ Walk.start()
 Sway.start()
 ]]></string>
         </Properties>
-        <Item class="ModuleScript" referent="22">
+        <Item class="ModuleScript" referent="23">
           <Properties>
             <string name="Name">Flag</string>
             <string name="Source"><![CDATA[--!strict
@@ -3305,7 +3449,7 @@ return Flag
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="23">
+        <Item class="ModuleScript" referent="24">
           <Properties>
             <string name="Name">Hud</string>
             <string name="Source"><![CDATA[--!strict
@@ -3679,7 +3823,7 @@ return Hud
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="24">
+        <Item class="ModuleScript" referent="25">
           <Properties>
             <string name="Name">Sway</string>
             <string name="Source"><![CDATA[--!strict
@@ -3760,7 +3904,7 @@ return Sway
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="25">
+        <Item class="ModuleScript" referent="26">
           <Properties>
             <string name="Name">Walk</string>
             <string name="Source"><![CDATA[--!strict
@@ -3893,7 +4037,7 @@ return Walk
       </Item>
     </Item>
   </Item>
-  <Item class="Workspace" referent="26">
+  <Item class="Workspace" referent="27">
     <Properties>
       <string name="Name">Workspace</string>
       <float name="Gravity">196.2</float>

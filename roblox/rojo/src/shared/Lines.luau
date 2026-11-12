@@ -32,13 +32,15 @@ Lines.HINT = "Move the mouse to look. Hold F while looking at anything that chan
 -- Report words. A correct flag and a miss use these alone.
 Lines.CAUGHT = "Caught"
 Lines.MISSED = "Missed"
+Lines.FALSE_FLAG = "False flag"
+Lines.CLEAN = "Clean"
 
 -- HUD station card.
 Lines.NEXT_LABEL = "Next:"
 
 -- ReportScreen: "False flag: {name}"
 function Lines.falseFlag(label: string): string
-	return "False flag: " .. label
+	return Lines.FALSE_FLAG .. ": " .. label
 end
 
 -- "This is Fulton St."

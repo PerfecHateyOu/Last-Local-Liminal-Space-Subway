@@ -57,6 +57,18 @@ Constants.EARLY_DEPARTURE_SUSPICION = 10
 Constants.SUSPICION_MIN = 0
 Constants.SUSPICION_MAX = 100
 
+-- Flagging while no tell and no poster change is up. A correct flag lowers
+-- suspicion. A clean stop and a stop with no flag each decay. A miss does
+-- not raise suspicion; the decay is the only change on a quiet miss.
+Constants.FALSE_ALARM_SUSPICION = 10
+Constants.CORRECT_FLAG_SUSPICION = 5
+Constants.CLEAN_STOP_SUSPICION = 5
+Constants.DECAY_SUSPICION = 2
+
+-- Reacting at a false stop. This slice cannot see standing, moving to the
+-- doors, or staring, so the ride never adds it.
+Constants.FALSE_STOP_REACT_SUSPICION = 10
+
 -- One tell per stop, by the arrival number on the segment. Other stops
 -- have none. 3 is the poster. 7 is the ride into Flushing Av. 10 is the
 -- ride into Nassau Av. The scripted arrival lie stays on stop 9 and is
