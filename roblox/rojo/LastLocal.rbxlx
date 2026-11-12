@@ -123,6 +123,28 @@ Constants.WRONG_ANNOUNCE_FALLBACK_STOP = 2
 Constants.COUNTDOWN_MINUTES = 1
 Constants.WRONG_COUNTDOWN_MINUTES = 4
 
+-- Held At Signal. Wall seconds into a stretch, then how long the tunnel
+-- stays still. 6 is during cruise (accel is 3). The train is not at a
+-- platform. Stops 8 and 11 are Broadway and Greenpoint Av.
+Constants.HOLD_AT = 6
+Constants.HOLD_SECONDS = 4
+Constants.HOLD_STOP_A = 8
+Constants.HOLD_STOP_B = 11
+Constants.HOLD_EFFECT_A = "strip"
+Constants.HOLD_EFFECT_B = "dim"
+-- One tube. Not the whole car. The door tick still owns the blackout.
+Constants.HOLD_STRIP_NAME = "LightStrip_05"
+Constants.HOLD_BLINK = 0.35
+-- Slow dim. Above zero so the car does not go dark.
+Constants.HOLD_DIM = 0.55
+Constants.HOLD_RECOVER = 1.2
+-- Caught-staring is not built. While held, a future check would run this
+-- many times as often. The ride only publishes the number.
+Constants.HOLD_STARE_MULTIPLIER = 2
+-- Existing catalog id, shown only during the Broadway hold, then cleared.
+Constants.HOLD_TELL = "wrong_countdown"
+Constants.HOLD_TELL_STOP = 8
+
 -- Final stretch only. Linear, from full to this fraction. Not a flicker.
 Constants.FINAL_DIM = 0.62
 
@@ -230,6 +252,104 @@ return Dwell
       </Item>
       <Item class="ModuleScript" referent="6">
         <Properties>
+          <string name="Name">Hold</string>
+          <string name="Source"><![CDATA[--!strict
+-- Held At Signal. The server pauses the tunnel between stations.
+-- A hold may blink one strip or dim the car slowly. It never blacks
+-- the whole car out. That remains the flicker tick.
+
+local Hold = {}
+
+function Hold.applies(stop: number, b: boolean, final: boolean, first: number, second: number): boolean
+	if b or final then
+		return false
+	end
+	return stop == first or stop == second
+end
+
+-- The pause must start while the train is already in the tunnel: after
+-- accel, before braking. A pause at the platform or on the way into a
+-- station is not a hold.
+function Hold.placed(holdAt: number, holdFor: number, accel: number, cruise: number): boolean
+	if holdFor <= 0 or cruise <= 0 then
+		return false
+	end
+	return holdAt >= accel and holdAt < accel + cruise
+end
+
+-- Motion clock. Wall time keeps moving. Travel time does not, for holdFor
+-- seconds starting at holdAt.
+function Hold.motionTime(elapsed: number, holdAt: number, holdFor: number): number
+	local t = math.max(0, elapsed)
+	if holdFor <= 0 then
+		return t
+	end
+	if t <= holdAt then
+		return t
+	end
+	if t < holdAt + holdFor then
+		return holdAt
+	end
+	return t - holdFor
+end
+
+function Hold.moving(elapsed: number, holdAt: number, holdFor: number): boolean
+	if holdFor <= 0 then
+		return true
+	end
+	return elapsed < holdAt or elapsed >= holdAt + holdFor
+end
+
+function Hold.wallDuration(segmentLength: number, held: boolean, holdFor: number): number
+	if held and holdFor > 0 then
+		return segmentLength + holdFor
+	end
+	return segmentLength
+end
+
+-- "blackout" is the door tick. A hold cannot select it.
+function Hold.blacksOutCar(effect: string): boolean
+	return effect == "blackout" or effect == "whole_car"
+end
+
+function Hold.plan(effect: string): string
+	if effect == "dim" then
+		return "dim"
+	end
+	return "strip"
+end
+
+-- A hold dim stays above off. Zero would be a blackout.
+function Hold.dimTarget(fraction: number): number
+	if fraction <= 0 then
+		return 0.55
+	end
+	return math.clamp(fraction, 0.05, 1)
+end
+
+-- Caught-staring is not in this port. The number is what that check would
+-- multiply by while the train is held. Nothing here looks at the player.
+function Hold.stareScale(held: boolean, multiplier: number): number
+	if held then
+		return multiplier
+	end
+	return 1
+end
+
+-- Only an id the anomaly catalog already has. Anything else is dropped.
+function Hold.tell(kind: string): string?
+	if kind == "poster_changed" or kind == "wrong_announcement" or kind == "wrong_countdown" then
+		return kind
+	end
+	return nil
+end
+
+return Hold
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="7">
+        <Properties>
           <string name="Name">KeepOut</string>
           <string name="Source"><![CDATA[--!strict
 -- Port of src/game/personKeepOut.ts. Standing passengers occupy a circle on
@@ -290,7 +410,7 @@ return KeepOut
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="7">
+      <Item class="ModuleScript" referent="8">
         <Properties>
           <string name="Name">Lines</string>
           <string name="Source"><![CDATA[--!strict
@@ -378,7 +498,7 @@ return Lines
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="8">
+      <Item class="ModuleScript" referent="9">
         <Properties>
           <string name="Name">Motion</string>
           <string name="Source"><![CDATA[--!strict
@@ -440,7 +560,7 @@ return Motion
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="9">
+      <Item class="ModuleScript" referent="10">
         <Properties>
           <string name="Name">Passengers</string>
           <string name="Source"><![CDATA[--!strict
@@ -691,7 +811,7 @@ return Passengers
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="10">
+      <Item class="ModuleScript" referent="11">
         <Properties>
           <string name="Name">Route</string>
           <string name="Source"><![CDATA[--!strict
@@ -802,11 +922,11 @@ return Route
       </Item>
     </Item>
   </Item>
-  <Item class="ServerScriptService" referent="11">
+  <Item class="ServerScriptService" referent="12">
     <Properties>
       <string name="Name">ServerScriptService</string>
     </Properties>
-    <Item class="Script" referent="12">
+    <Item class="Script" referent="13">
       <Properties>
         <string name="Name">Server</string>
         <token name="RunContext">0</token>
@@ -865,7 +985,7 @@ for _, player in Players:GetPlayers() do
 end
 ]]></string>
       </Properties>
-      <Item class="ModuleScript" referent="13">
+      <Item class="ModuleScript" referent="14">
         <Properties>
           <string name="Name">AnomalySystem</string>
           <string name="Source"><![CDATA[--!strict
@@ -938,7 +1058,7 @@ return AnomalySystem
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="14">
+      <Item class="ModuleScript" referent="15">
         <Properties>
           <string name="Name">CarBuilder</string>
           <string name="Source"><![CDATA[--!strict
@@ -1970,7 +2090,7 @@ return CarBuilder
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="15">
+      <Item class="ModuleScript" referent="16">
         <Properties>
           <string name="Name">Ride</string>
           <string name="Source"><![CDATA[--!strict
@@ -1994,6 +2114,7 @@ local CarBuilder = require(script.Parent.CarBuilder)
 local Scenery = require(script.Parent.Scenery)
 local Constants = require(ReplicatedStorage.Shared.Constants)
 local Dwell = require(ReplicatedStorage.Shared.Dwell)
+local Hold = require(ReplicatedStorage.Shared.Hold)
 local Lines = require(ReplicatedStorage.Shared.Lines)
 local Motion = require(ReplicatedStorage.Shared.Motion)
 local Route = require(ReplicatedStorage.Shared.Route)
@@ -2024,6 +2145,10 @@ function Ride.start(car: CarBuilder.BuiltCar)
 	ride:SetAttribute("Suspicion", 0)
 	ride:SetAttribute("BoardStop", "")
 	ride:SetAttribute("BoardMinutes", 0)
+	ride:SetAttribute("HoldAt", 0)
+	ride:SetAttribute("HoldFor", 0)
+	ride:SetAttribute("Held", false)
+	ride:SetAttribute("StareIntervalScale", 1)
 
 	CarBuilder.addTells(
 		car.passengers,
@@ -2143,10 +2268,12 @@ function Ride.start(car: CarBuilder.BuiltCar)
 		accel: number,
 		cruise: number,
 		brake: number,
+		holdAt: number,
+		holdFor: number,
 	}
 	local stretch: Stretch? = nil
 
-	local function beginStretch(seg: Route.Segment)
+	local function beginStretch(seg: Route.Segment, holdAt: number, holdFor: number)
 		local accel = Constants.ACCEL
 		local brake = Constants.BRAKE
 		local cruise = seg.sliceCruise
@@ -2167,19 +2294,26 @@ function Ride.start(car: CarBuilder.BuiltCar)
 			accel = accel,
 			cruise = cruise,
 			brake = brake,
+			holdAt = holdAt,
+			holdFor = holdFor,
 		}
 		ride:SetAttribute("StretchStart", now)
 		ride:SetAttribute("StretchAccel", accel)
 		ride:SetAttribute("StretchCruise", cruise)
 		ride:SetAttribute("StretchBrake", brake)
+		ride:SetAttribute("HoldAt", holdAt)
+		ride:SetAttribute("HoldFor", holdFor)
+		ride:SetAttribute("Held", false)
+		ride:SetAttribute("StareIntervalScale", Hold.stareScale(false, Constants.HOLD_STARE_MULTIPLIER))
 	end
 
 	local slide = Constants.meters(Constants.DOOR_SLIDE_M)
 	RunService.Heartbeat:Connect(function(dt: number)
 		local current = stretch
 		if current ~= nil then
-			local t = workspace:GetServerTimeNow() - current.start
-			odo = current.origin + Motion.distance(t, current.accel, current.cruise, current.brake, Constants.TOP_SPEED_MPS)
+			local elapsed = workspace:GetServerTimeNow() - current.start
+			local motionT = Hold.motionTime(elapsed, current.holdAt, current.holdFor)
+			odo = current.origin + Motion.distance(motionT, current.accel, current.cruise, current.brake, Constants.TOP_SPEED_MPS)
 		end
 		Scenery.place(odo)
 		doorOpen += (doorTarget - doorOpen) * (1 - math.exp(-7 * dt))
@@ -2312,6 +2446,36 @@ function Ride.start(car: CarBuilder.BuiltCar)
 
 	local segToken = 0
 
+	-- One named tube, on and off. stripHold keeps applyLights from painting
+	-- that tube. No other lamp is touched, and forcedOff is not set.
+	local function blinkOneStrip(token: number, seconds: number)
+		local deadline = os.clock() + seconds
+		task.spawn(function()
+			local dark = false
+			while token == segToken and os.clock() < deadline do
+				dark = not dark
+				for _, lamp in car.lamps do
+					if lamp.part.Name == Constants.HOLD_STRIP_NAME then
+						if dark then
+							stripHold[lamp.part] = true
+							lamp.part.Color = Constants.COLOR.lightOff
+						else
+							stripHold[lamp.part] = nil
+						end
+						break
+					end
+				end
+				task.wait(Constants.HOLD_BLINK)
+			end
+			for _, lamp in car.lamps do
+				if lamp.part.Name == Constants.HOLD_STRIP_NAME then
+					stripHold[lamp.part] = nil
+					break
+				end
+			end
+		end)
+	end
+
 	local function runSegment(seg: Route.Segment)
 		segToken += 1
 		local token = segToken
@@ -2320,9 +2484,13 @@ function Ride.start(car: CarBuilder.BuiltCar)
 		ride:SetAttribute("ChapterLine", Route.chapterLine(seg.stop))
 		CarBuilder.setCrowd(car.passengers, seg.crowd)
 		doorTarget = 0
-		beginStretch(seg)
 
 		local length = Route.segmentLength(seg, Constants.ACCEL, Constants.BRAKE)
+		local held = Hold.applies(seg.stop, seg.b, seg.final, Constants.HOLD_STOP_A, Constants.HOLD_STOP_B)
+			and Hold.placed(Constants.HOLD_AT, Constants.HOLD_SECONDS, Constants.ACCEL, seg.sliceCruise)
+		local holdAt = if held then Constants.HOLD_AT else 0
+		local holdFor = if held then Constants.HOLD_SECONDS else 0
+		beginStretch(seg, holdAt, holdFor)
 		if seg.final then
 			beginDim(Constants.FINAL_DIM, length)
 		end
@@ -2405,7 +2573,45 @@ function Ride.start(car: CarBuilder.BuiltCar)
 				showPa(Lines.LAST_PA, 5)
 			end)
 		end
-		task.wait(length)
+		if held then
+			local rawEffect = if seg.stop == Constants.HOLD_STOP_B then Constants.HOLD_EFFECT_B else Constants.HOLD_EFFECT_A
+			local effect = Hold.plan(rawEffect)
+			task.delay(holdAt, function()
+				if token ~= segToken then
+					return
+				end
+				ride:SetAttribute("Held", true)
+				ride:SetAttribute("StareIntervalScale", Hold.stareScale(true, Constants.HOLD_STARE_MULTIPLIER))
+				if effect == "dim" then
+					beginDim(Hold.dimTarget(Constants.HOLD_DIM), Constants.HOLD_SECONDS)
+				else
+					blinkOneStrip(token, Constants.HOLD_SECONDS)
+				end
+				local tell = if seg.stop == Constants.HOLD_TELL_STOP then Hold.tell(Constants.HOLD_TELL) else nil
+				if tell == "wrong_countdown" and picked ~= "wrong_countdown" then
+					setTell(AnomalySystem.COUNTDOWN_ID, true)
+					ride:SetAttribute("BoardMinutes", AnomalySystem.boardMinutes(Constants.COUNTDOWN_MINUTES, Constants.WRONG_COUNTDOWN_MINUTES, true))
+				end
+				task.delay(Constants.HOLD_SECONDS, function()
+					if token ~= segToken then
+						return
+					end
+					ride:SetAttribute("Held", false)
+					ride:SetAttribute("StareIntervalScale", Hold.stareScale(false, Constants.HOLD_STARE_MULTIPLIER))
+					if effect == "dim" then
+						beginDim(1, Constants.HOLD_RECOVER)
+					end
+					if tell == "wrong_countdown" and picked ~= "wrong_countdown" then
+						setTell(AnomalySystem.COUNTDOWN_ID, false)
+						ride:SetAttribute(
+							"BoardMinutes",
+							AnomalySystem.boardMinutes(Constants.COUNTDOWN_MINUTES, Constants.WRONG_COUNTDOWN_MINUTES, false)
+						)
+					end
+				end)
+			end)
+		end
+		task.wait(Hold.wallDuration(length, held, holdFor))
 	end
 
 	local function at(t0: number, t: number)
@@ -2419,6 +2625,8 @@ function Ride.start(car: CarBuilder.BuiltCar)
 		segToken += 1
 		local token = segToken
 		clearTells()
+		ride:SetAttribute("Held", false)
+		ride:SetAttribute("StareIntervalScale", Hold.stareScale(false, Constants.HOLD_STARE_MULTIPLIER))
 		for part, color in posterOriginal do
 			part.Color = color
 			posterOriginal[part] = nil
@@ -2525,7 +2733,7 @@ return Ride
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="16">
+      <Item class="ModuleScript" referent="17">
         <Properties>
           <string name="Name">Scenery</string>
           <string name="Source"><![CDATA[--!strict
@@ -2791,7 +2999,7 @@ return Scenery
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="17">
+      <Item class="ModuleScript" referent="18">
         <Properties>
           <string name="Name">WorldLight</string>
           <string name="Source"><![CDATA[--!strict
@@ -2806,7 +3014,9 @@ return Scenery
 -- kept low so the ceiling pools stay local.
 --
 -- This only touches the Lighting service. It never writes the car lamps.
--- The flicker tick and the slow dim still own those.
+-- The flicker tick and the slow dim still own those. A Held At Signal
+-- pause does not come through here: one strip or a slow dim stays on the
+-- car lamps, and this service never blacks the car out.
 
 local Lighting = game:GetService("Lighting")
 
@@ -2935,18 +3145,18 @@ return WorldLight
       </Item>
     </Item>
   </Item>
-  <Item class="StarterPlayer" referent="18">
+  <Item class="StarterPlayer" referent="19">
     <Properties>
       <string name="Name">StarterPlayer</string>
       <float name="CameraMaxZoomDistance">0.5</float>
       <float name="CameraMinZoomDistance">0.5</float>
       <token name="CameraMode">1</token>
     </Properties>
-    <Item class="StarterPlayerScripts" referent="19">
+    <Item class="StarterPlayerScripts" referent="20">
       <Properties>
         <string name="Name">StarterPlayerScripts</string>
       </Properties>
-      <Item class="LocalScript" referent="20">
+      <Item class="LocalScript" referent="21">
         <Properties>
           <string name="Name">Client</string>
           <string name="Source"><![CDATA[--!strict
@@ -2962,7 +3172,7 @@ Walk.start()
 Sway.start()
 ]]></string>
         </Properties>
-        <Item class="ModuleScript" referent="21">
+        <Item class="ModuleScript" referent="22">
           <Properties>
             <string name="Name">Flag</string>
             <string name="Source"><![CDATA[--!strict
@@ -3095,7 +3305,7 @@ return Flag
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="22">
+        <Item class="ModuleScript" referent="23">
           <Properties>
             <string name="Name">Hud</string>
             <string name="Source"><![CDATA[--!strict
@@ -3469,7 +3679,7 @@ return Hud
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="23">
+        <Item class="ModuleScript" referent="24">
           <Properties>
             <string name="Name">Sway</string>
             <string name="Source"><![CDATA[--!strict
@@ -3481,6 +3691,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
 local Constants = require(ReplicatedStorage.Shared.Constants)
+local Hold = require(ReplicatedStorage.Shared.Hold)
 local Motion = require(ReplicatedStorage.Shared.Motion)
 
 local Sway = {}
@@ -3498,14 +3709,22 @@ local function sample(): (number, number)
 		return 0, 0
 	end
 	local top = Constants.TOP_SPEED_MPS
-	local t = workspace:GetServerTimeNow() - start
-	local velocity = Motion.speed(t, accel, cruise, brake, top)
+	local elapsed = workspace:GetServerTimeNow() - start
+	local holdAt = ride:GetAttribute("HoldAt")
+	local holdFor = ride:GetAttribute("HoldFor")
+	local at = if typeof(holdAt) == "number" then holdAt else 0
+	local span = if typeof(holdFor) == "number" then holdFor else 0
+	local motionT = Hold.motionTime(elapsed, at, span)
+	if not Hold.moving(elapsed, at, span) then
+		return 0, 0
+	end
+	local velocity = Motion.speed(motionT, accel, cruise, brake, top)
 	local fraction = if top > 0 then math.clamp(velocity / top, 0, 1) else 0
 	local pitch = 0
-	if t >= 0 and t < accel and accel > 0 then
-		pitch = math.sin(math.clamp(t / accel, 0, 1) * math.pi)
-	elseif brake > 0 and t > accel + cruise and t < accel + cruise + brake then
-		local u = (t - accel - cruise) / brake
+	if motionT >= 0 and motionT < accel and accel > 0 then
+		pitch = math.sin(math.clamp(motionT / accel, 0, 1) * math.pi)
+	elseif brake > 0 and motionT > accel + cruise and motionT < accel + cruise + brake then
+		local u = (motionT - accel - cruise) / brake
 		pitch = -math.sin(math.clamp(u, 0, 1) * math.pi)
 	end
 	return fraction, pitch
@@ -3541,7 +3760,7 @@ return Sway
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="24">
+        <Item class="ModuleScript" referent="25">
           <Properties>
             <string name="Name">Walk</string>
             <string name="Source"><![CDATA[--!strict
@@ -3674,7 +3893,7 @@ return Walk
       </Item>
     </Item>
   </Item>
-  <Item class="Workspace" referent="25">
+  <Item class="Workspace" referent="26">
     <Properties>
       <string name="Name">Workspace</string>
       <float name="Gravity">196.2</float>

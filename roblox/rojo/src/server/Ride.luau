@@ -19,6 +19,7 @@ local CarBuilder = require(script.Parent.CarBuilder)
 local Scenery = require(script.Parent.Scenery)
 local Constants = require(ReplicatedStorage.Shared.Constants)
 local Dwell = require(ReplicatedStorage.Shared.Dwell)
+local Hold = require(ReplicatedStorage.Shared.Hold)
 local Lines = require(ReplicatedStorage.Shared.Lines)
 local Motion = require(ReplicatedStorage.Shared.Motion)
 local Route = require(ReplicatedStorage.Shared.Route)
@@ -49,6 +50,10 @@ function Ride.start(car: CarBuilder.BuiltCar)
 	ride:SetAttribute("Suspicion", 0)
 	ride:SetAttribute("BoardStop", "")
 	ride:SetAttribute("BoardMinutes", 0)
+	ride:SetAttribute("HoldAt", 0)
+	ride:SetAttribute("HoldFor", 0)
+	ride:SetAttribute("Held", false)
+	ride:SetAttribute("StareIntervalScale", 1)
 
 	CarBuilder.addTells(
 		car.passengers,
@@ -168,10 +173,12 @@ function Ride.start(car: CarBuilder.BuiltCar)
 		accel: number,
 		cruise: number,
 		brake: number,
+		holdAt: number,
+		holdFor: number,
 	}
 	local stretch: Stretch? = nil
 
-	local function beginStretch(seg: Route.Segment)
+	local function beginStretch(seg: Route.Segment, holdAt: number, holdFor: number)
 		local accel = Constants.ACCEL
 		local brake = Constants.BRAKE
 		local cruise = seg.sliceCruise
@@ -192,19 +199,26 @@ function Ride.start(car: CarBuilder.BuiltCar)
 			accel = accel,
 			cruise = cruise,
 			brake = brake,
+			holdAt = holdAt,
+			holdFor = holdFor,
 		}
 		ride:SetAttribute("StretchStart", now)
 		ride:SetAttribute("StretchAccel", accel)
 		ride:SetAttribute("StretchCruise", cruise)
 		ride:SetAttribute("StretchBrake", brake)
+		ride:SetAttribute("HoldAt", holdAt)
+		ride:SetAttribute("HoldFor", holdFor)
+		ride:SetAttribute("Held", false)
+		ride:SetAttribute("StareIntervalScale", Hold.stareScale(false, Constants.HOLD_STARE_MULTIPLIER))
 	end
 
 	local slide = Constants.meters(Constants.DOOR_SLIDE_M)
 	RunService.Heartbeat:Connect(function(dt: number)
 		local current = stretch
 		if current ~= nil then
-			local t = workspace:GetServerTimeNow() - current.start
-			odo = current.origin + Motion.distance(t, current.accel, current.cruise, current.brake, Constants.TOP_SPEED_MPS)
+			local elapsed = workspace:GetServerTimeNow() - current.start
+			local motionT = Hold.motionTime(elapsed, current.holdAt, current.holdFor)
+			odo = current.origin + Motion.distance(motionT, current.accel, current.cruise, current.brake, Constants.TOP_SPEED_MPS)
 		end
 		Scenery.place(odo)
 		doorOpen += (doorTarget - doorOpen) * (1 - math.exp(-7 * dt))
@@ -337,6 +351,36 @@ function Ride.start(car: CarBuilder.BuiltCar)
 
 	local segToken = 0
 
+	-- One named tube, on and off. stripHold keeps applyLights from painting
+	-- that tube. No other lamp is touched, and forcedOff is not set.
+	local function blinkOneStrip(token: number, seconds: number)
+		local deadline = os.clock() + seconds
+		task.spawn(function()
+			local dark = false
+			while token == segToken and os.clock() < deadline do
+				dark = not dark
+				for _, lamp in car.lamps do
+					if lamp.part.Name == Constants.HOLD_STRIP_NAME then
+						if dark then
+							stripHold[lamp.part] = true
+							lamp.part.Color = Constants.COLOR.lightOff
+						else
+							stripHold[lamp.part] = nil
+						end
+						break
+					end
+				end
+				task.wait(Constants.HOLD_BLINK)
+			end
+			for _, lamp in car.lamps do
+				if lamp.part.Name == Constants.HOLD_STRIP_NAME then
+					stripHold[lamp.part] = nil
+					break
+				end
+			end
+		end)
+	end
+
 	local function runSegment(seg: Route.Segment)
 		segToken += 1
 		local token = segToken
@@ -345,9 +389,13 @@ function Ride.start(car: CarBuilder.BuiltCar)
 		ride:SetAttribute("ChapterLine", Route.chapterLine(seg.stop))
 		CarBuilder.setCrowd(car.passengers, seg.crowd)
 		doorTarget = 0
-		beginStretch(seg)
 
 		local length = Route.segmentLength(seg, Constants.ACCEL, Constants.BRAKE)
+		local held = Hold.applies(seg.stop, seg.b, seg.final, Constants.HOLD_STOP_A, Constants.HOLD_STOP_B)
+			and Hold.placed(Constants.HOLD_AT, Constants.HOLD_SECONDS, Constants.ACCEL, seg.sliceCruise)
+		local holdAt = if held then Constants.HOLD_AT else 0
+		local holdFor = if held then Constants.HOLD_SECONDS else 0
+		beginStretch(seg, holdAt, holdFor)
 		if seg.final then
 			beginDim(Constants.FINAL_DIM, length)
 		end
@@ -430,7 +478,45 @@ function Ride.start(car: CarBuilder.BuiltCar)
 				showPa(Lines.LAST_PA, 5)
 			end)
 		end
-		task.wait(length)
+		if held then
+			local rawEffect = if seg.stop == Constants.HOLD_STOP_B then Constants.HOLD_EFFECT_B else Constants.HOLD_EFFECT_A
+			local effect = Hold.plan(rawEffect)
+			task.delay(holdAt, function()
+				if token ~= segToken then
+					return
+				end
+				ride:SetAttribute("Held", true)
+				ride:SetAttribute("StareIntervalScale", Hold.stareScale(true, Constants.HOLD_STARE_MULTIPLIER))
+				if effect == "dim" then
+					beginDim(Hold.dimTarget(Constants.HOLD_DIM), Constants.HOLD_SECONDS)
+				else
+					blinkOneStrip(token, Constants.HOLD_SECONDS)
+				end
+				local tell = if seg.stop == Constants.HOLD_TELL_STOP then Hold.tell(Constants.HOLD_TELL) else nil
+				if tell == "wrong_countdown" and picked ~= "wrong_countdown" then
+					setTell(AnomalySystem.COUNTDOWN_ID, true)
+					ride:SetAttribute("BoardMinutes", AnomalySystem.boardMinutes(Constants.COUNTDOWN_MINUTES, Constants.WRONG_COUNTDOWN_MINUTES, true))
+				end
+				task.delay(Constants.HOLD_SECONDS, function()
+					if token ~= segToken then
+						return
+					end
+					ride:SetAttribute("Held", false)
+					ride:SetAttribute("StareIntervalScale", Hold.stareScale(false, Constants.HOLD_STARE_MULTIPLIER))
+					if effect == "dim" then
+						beginDim(1, Constants.HOLD_RECOVER)
+					end
+					if tell == "wrong_countdown" and picked ~= "wrong_countdown" then
+						setTell(AnomalySystem.COUNTDOWN_ID, false)
+						ride:SetAttribute(
+							"BoardMinutes",
+							AnomalySystem.boardMinutes(Constants.COUNTDOWN_MINUTES, Constants.WRONG_COUNTDOWN_MINUTES, false)
+						)
+					end
+				end)
+			end)
+		end
+		task.wait(Hold.wallDuration(length, held, holdFor))
 	end
 
 	local function at(t0: number, t: number)
@@ -444,6 +530,8 @@ function Ride.start(car: CarBuilder.BuiltCar)
 		segToken += 1
 		local token = segToken
 		clearTells()
+		ride:SetAttribute("Held", false)
+		ride:SetAttribute("StareIntervalScale", Hold.stareScale(false, Constants.HOLD_STARE_MULTIPLIER))
 		for part, color in posterOriginal do
 			part.Color = color
 			posterOriginal[part] = nil
