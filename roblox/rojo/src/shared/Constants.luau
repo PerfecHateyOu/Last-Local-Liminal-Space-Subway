@@ -50,11 +50,30 @@ Constants.PA_LIE_HOLD = 5.4
 -- between the doors opening and "Stand clear".
 Constants.MIN_DWELL_SECONDS = 2.6
 
--- Closing the doors or leaving before that dwell ends. Added on the
--- server and clamped. The ride does not end.
+-- Closing the doors or leaving before that dwell ends. The player is a
+-- passenger and cannot depart, so the ride never adds this. The hook
+-- stays. Clamped. The ride does not end.
 Constants.EARLY_DEPARTURE_SUSPICION = 10
 Constants.SUSPICION_MIN = 0
 Constants.SUSPICION_MAX = 100
+
+-- One tell per stop, by the arrival number on the segment. Other stops
+-- have none. 3 is the poster. 7 is the ride into Flushing Av. 10 is the
+-- ride into Nassau Av. The scripted arrival lie stays on stop 9 and is
+-- not one of these.
+Constants.ANOMALY_POSTER_STOP = 3
+Constants.ANOMALY_ANNOUNCE_STOP = 7
+Constants.ANOMALY_COUNTDOWN_STOP = 10
+
+-- Signed names the wrong announcement may say. 13 is Court Sq. 2 is
+-- Fulton St, used only when 13 is the stop the train is actually nearing.
+Constants.WRONG_ANNOUNCE_STOP = 13
+Constants.WRONG_ANNOUNCE_FALLBACK_STOP = 2
+
+-- The board's minute count. Every stretch in this slice is under a minute,
+-- so the honest board reads 1. The wrong board reads 4.
+Constants.COUNTDOWN_MINUTES = 1
+Constants.WRONG_COUNTDOWN_MINUTES = 4
 
 -- Final stretch only. Linear, from full to this fraction. Not a flicker.
 Constants.FINAL_DIM = 0.62
