@@ -45,6 +45,90 @@
       </Properties>
       <Item class="ModuleScript" referent="4">
         <Properties>
+          <string name="Name">Band</string>
+          <string name="Source"><![CDATA[--!strict
+-- Suspicion bands. The server picks the band from the suspicion number.
+-- A band may blink one tube, dim the car slowly, or leave the lamps alone.
+-- It never blacks the whole car out. That remains the flicker tick.
+
+local Band = {}
+
+function Band.fromSuspicion(value: number, calmMax: number, uneasyMax: number, watchedMax: number): string
+	if value <= calmMax then
+		return "calm"
+	end
+	if value <= uneasyMax then
+		return "uneasy"
+	end
+	if value <= watchedMax then
+		return "watched"
+	end
+	return "hunted"
+end
+
+-- Lamp action. "blackout" is not a band, and it is not returned.
+function Band.light(band: string): string
+	if band == "uneasy" then
+		return "strip"
+	end
+	if band == "hunted" then
+		return "dim"
+	end
+	return "none"
+end
+
+function Band.blacksOutCar(effect: string): boolean
+	return effect == "blackout" or effect == "whole_car"
+end
+
+-- A hunted dim stays above off. Zero would be a blackout.
+function Band.dimTarget(fraction: number): number
+	if fraction <= 0 then
+		return 0.5
+	end
+	return math.clamp(fraction, 0.05, 1)
+end
+
+-- Repeat the second word of an existing line. No new word is added.
+function Band.glitchLine(line: string): string
+	if line == "" then
+		return ""
+	end
+	local words = string.split(line, " ")
+	if #words == 0 then
+		return line
+	end
+	local index = if #words >= 2 then 2 else 1
+	table.insert(words, index + 1, words[index])
+	return table.concat(words, " ")
+end
+
+-- Added to a false-stop roll at WATCHED. This slice's stops are a fixed
+-- table, so the ride publishes the number and does not reroll them.
+function Band.falseStopBonus(band: string, bonus: number): number
+	if band == "watched" then
+		return bonus
+	end
+	return 0
+end
+
+-- What the client does with heads. The server does not pose them.
+function Band.look(band: string): string
+	if band == "uneasy" then
+		return "glance"
+	end
+	if band == "watched" then
+		return "turn"
+	end
+	return "none"
+end
+
+return Band
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="5">
+        <Properties>
           <string name="Name">Constants</string>
           <string name="Source"><![CDATA[--!strict
 -- Tuning copied from the web game (src/constants.ts, src/game/gameState.ts,
@@ -116,6 +200,31 @@ Constants.DECAY_SUSPICION = 2
 -- Reacting at a false stop. This slice cannot see standing, moving to the
 -- doors, or staring, so the ride never adds it.
 Constants.FALSE_STOP_REACT_SUSPICION = 10
+
+-- Bands from the suspicion number. 0–24 calm, 25–49 uneasy, 50–74 watched,
+-- 75–100 hunted.
+Constants.BAND_CALM_MAX = 24
+Constants.BAND_UNEASY_MAX = 49
+Constants.BAND_WATCHED_MAX = 74
+
+-- Uneasy: one tube, occasionally. Not the whole car.
+Constants.UNEASY_TUBE_EVERY = 7
+Constants.UNEASY_TUBE_BLINK = 0.15
+Constants.BAND_STRIP_NAME = "LightStrip_06"
+
+-- How far a head may turn, in degrees. Glance is the short look.
+Constants.GLANCE_YAW_DEG = 18
+Constants.TURN_YAW_DEG = 28
+Constants.GLANCE_SECONDS = 0.8
+Constants.GLANCE_COOLDOWN = 2.4
+
+-- Hunted: slow dim. Above zero so the car does not go dark.
+Constants.HUNTED_DIM = 0.5
+Constants.HUNTED_DIM_SECONDS = 2.5
+
+-- Watched would raise the chance of a false stop. The route is a fixed
+-- table, so this number is published and not rolled.
+Constants.WATCHED_FALSE_STOP_BONUS = 0.15
 
 -- One tell per stop, by the arrival number on the segment. Other stops
 -- have none. 3 is the poster. 7 is the ride into Flushing Av. 10 is the
@@ -221,7 +330,7 @@ return Constants
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="5">
+      <Item class="ModuleScript" referent="6">
         <Properties>
           <string name="Name">Dwell</string>
           <string name="Source"><![CDATA[--!strict
@@ -262,7 +371,7 @@ return Dwell
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="6">
+      <Item class="ModuleScript" referent="7">
         <Properties>
           <string name="Name">Hold</string>
           <string name="Source"><![CDATA[--!strict
@@ -360,7 +469,7 @@ return Hold
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="7">
+      <Item class="ModuleScript" referent="8">
         <Properties>
           <string name="Name">KeepOut</string>
           <string name="Source"><![CDATA[--!strict
@@ -422,7 +531,7 @@ return KeepOut
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="8">
+      <Item class="ModuleScript" referent="9">
         <Properties>
           <string name="Name">Lines</string>
           <string name="Source"><![CDATA[--!strict
@@ -512,7 +621,7 @@ return Lines
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="9">
+      <Item class="ModuleScript" referent="10">
         <Properties>
           <string name="Name">Motion</string>
           <string name="Source"><![CDATA[--!strict
@@ -574,7 +683,7 @@ return Motion
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="10">
+      <Item class="ModuleScript" referent="11">
         <Properties>
           <string name="Name">Passengers</string>
           <string name="Source"><![CDATA[--!strict
@@ -825,7 +934,7 @@ return Passengers
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="11">
+      <Item class="ModuleScript" referent="12">
         <Properties>
           <string name="Name">Route</string>
           <string name="Source"><![CDATA[--!strict
@@ -934,7 +1043,7 @@ return Route
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="12">
+      <Item class="ModuleScript" referent="13">
         <Properties>
           <string name="Name">Score</string>
           <string name="Source"><![CDATA[--!strict
@@ -1004,11 +1113,11 @@ return Score
       </Item>
     </Item>
   </Item>
-  <Item class="ServerScriptService" referent="13">
+  <Item class="ServerScriptService" referent="14">
     <Properties>
       <string name="Name">ServerScriptService</string>
     </Properties>
-    <Item class="Script" referent="14">
+    <Item class="Script" referent="15">
       <Properties>
         <string name="Name">Server</string>
         <token name="RunContext">0</token>
@@ -1067,7 +1176,7 @@ for _, player in Players:GetPlayers() do
 end
 ]]></string>
       </Properties>
-      <Item class="ModuleScript" referent="15">
+      <Item class="ModuleScript" referent="16">
         <Properties>
           <string name="Name">AnomalySystem</string>
           <string name="Source"><![CDATA[--!strict
@@ -1140,7 +1249,7 @@ return AnomalySystem
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="16">
+      <Item class="ModuleScript" referent="17">
         <Properties>
           <string name="Name">CarBuilder</string>
           <string name="Source"><![CDATA[--!strict
@@ -2172,7 +2281,7 @@ return CarBuilder
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="17">
+      <Item class="ModuleScript" referent="18">
         <Properties>
           <string name="Name">Ride</string>
           <string name="Source"><![CDATA[--!strict
@@ -2199,6 +2308,7 @@ local Dwell = require(ReplicatedStorage.Shared.Dwell)
 local Hold = require(ReplicatedStorage.Shared.Hold)
 local Lines = require(ReplicatedStorage.Shared.Lines)
 local Score = require(ReplicatedStorage.Shared.Score)
+local Band = require(ReplicatedStorage.Shared.Band)
 local Motion = require(ReplicatedStorage.Shared.Motion)
 local Route = require(ReplicatedStorage.Shared.Route)
 
@@ -2226,6 +2336,8 @@ function Ride.start(car: CarBuilder.BuiltCar)
 	ride:SetAttribute("ChapterLine", Route.chapterLine(1))
 	ride:SetAttribute("DwellUntil", 0)
 	ride:SetAttribute("Suspicion", 0)
+	ride:SetAttribute("Band", "calm")
+	ride:SetAttribute("FalseStopBonus", 0)
 	ride:SetAttribute("BoardStop", "")
 	ride:SetAttribute("BoardMinutes", 0)
 	ride:SetAttribute("HoldAt", 0)
@@ -2269,7 +2381,11 @@ function Ride.start(car: CarBuilder.BuiltCar)
 	end
 
 	local function showPa(text: string, seconds: number)
-		showTimed("PaText", text, seconds, "pa")
+		local line = text
+		if ride:GetAttribute("Band") == "watched" then
+			line = Band.glitchLine(text)
+		end
+		showTimed("PaText", line, seconds, "pa")
 	end
 
 	local function showSub(text: string, seconds: number)
@@ -2422,11 +2538,56 @@ function Ride.start(car: CarBuilder.BuiltCar)
 	local stopNoticed = false
 	local stopFalseAlarm = false
 	local posterLive = false
+	local inFinal = false
+	local huntedDim = false
+
+	local function blinkBandTube()
+		for _, lamp in car.lamps do
+			if lamp.part.Name == Constants.BAND_STRIP_NAME then
+				stripHold[lamp.part] = true
+				lamp.part.Color = Constants.COLOR.lightOff
+				local part = lamp.part
+				task.delay(Constants.UNEASY_TUBE_BLINK, function()
+					stripHold[part] = nil
+				end)
+				break
+			end
+		end
+	end
+
+	local function publishBand()
+		local band = Band.fromSuspicion(suspicion, Constants.BAND_CALM_MAX, Constants.BAND_UNEASY_MAX, Constants.BAND_WATCHED_MAX)
+		ride:SetAttribute("Band", band)
+		-- Fixed route. The bonus is not used to pick a false stop.
+		ride:SetAttribute("FalseStopBonus", Band.falseStopBonus(band, Constants.WATCHED_FALSE_STOP_BONUS))
+		local effect = Band.light(band)
+		if effect == "dim" and not inFinal then
+			if not huntedDim then
+				huntedDim = true
+				beginDim(Band.dimTarget(Constants.HUNTED_DIM), Constants.HUNTED_DIM_SECONDS)
+			end
+		elseif huntedDim then
+			huntedDim = false
+			beginDim(Band.dimTarget(1), Constants.HUNTED_DIM_SECONDS)
+		end
+	end
 
 	local function applySuspicion(delta: number)
 		suspicion = Score.apply(suspicion, delta, Constants.SUSPICION_MIN, Constants.SUSPICION_MAX)
 		ride:SetAttribute("Suspicion", suspicion)
+		publishBand()
 	end
+
+	publishBand()
+
+	task.spawn(function()
+		while ride.Parent ~= nil do
+			task.wait(Constants.UNEASY_TUBE_EVERY)
+			if ride:GetAttribute("Band") == "uneasy" and ride:GetAttribute("Phase") == "ride" then
+				blinkBandTube()
+			end
+		end
+	end)
 
 	-- Intentionally unused. Nothing here can see a player stand at the
 	-- doors, walk to them, or stare on a false stop. A detector would
@@ -2617,6 +2778,10 @@ function Ride.start(car: CarBuilder.BuiltCar)
 		doorTarget = 0
 
 		local length = Route.segmentLength(seg, Constants.ACCEL, Constants.BRAKE)
+		inFinal = seg.final
+		if seg.final and huntedDim then
+			huntedDim = false
+		end
 		local held = Hold.applies(seg.stop, seg.b, seg.final, Constants.HOLD_STOP_A, Constants.HOLD_STOP_B)
 			and Hold.placed(Constants.HOLD_AT, Constants.HOLD_SECONDS, Constants.ACCEL, seg.sliceCruise)
 		local holdAt = if held then Constants.HOLD_AT else 0
@@ -2877,7 +3042,7 @@ return Ride
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="18">
+      <Item class="ModuleScript" referent="19">
         <Properties>
           <string name="Name">Scenery</string>
           <string name="Source"><![CDATA[--!strict
@@ -3143,7 +3308,7 @@ return Scenery
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="19">
+      <Item class="ModuleScript" referent="20">
         <Properties>
           <string name="Name">WorldLight</string>
           <string name="Source"><![CDATA[--!strict
@@ -3289,18 +3454,18 @@ return WorldLight
       </Item>
     </Item>
   </Item>
-  <Item class="StarterPlayer" referent="20">
+  <Item class="StarterPlayer" referent="21">
     <Properties>
       <string name="Name">StarterPlayer</string>
       <float name="CameraMaxZoomDistance">0.5</float>
       <float name="CameraMinZoomDistance">0.5</float>
       <token name="CameraMode">1</token>
     </Properties>
-    <Item class="StarterPlayerScripts" referent="21">
+    <Item class="StarterPlayerScripts" referent="22">
       <Properties>
         <string name="Name">StarterPlayerScripts</string>
       </Properties>
-      <Item class="LocalScript" referent="22">
+      <Item class="LocalScript" referent="23">
         <Properties>
           <string name="Name">Client</string>
           <string name="Source"><![CDATA[--!strict
@@ -3309,14 +3474,16 @@ local Hud = require(script.Hud)
 local Flag = require(script.Flag)
 local Walk = require(script.Walk)
 local Sway = require(script.Sway)
+local Glance = require(script.Glance)
 
 Hud.start()
 Flag.start(Hud.flagButton())
 Walk.start()
 Sway.start()
+Glance.start()
 ]]></string>
         </Properties>
-        <Item class="ModuleScript" referent="23">
+        <Item class="ModuleScript" referent="24">
           <Properties>
             <string name="Name">Flag</string>
             <string name="Source"><![CDATA[--!strict
@@ -3449,7 +3616,174 @@ return Flag
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="24">
+        <Item class="ModuleScript" referent="25">
+          <Properties>
+            <string name="Name">Glance</string>
+            <string name="Source"><![CDATA[--!strict
+-- Heads, from the band the server already chose. Uneasy: one glance while
+-- you walk. Watched: heads stay turned toward you. No new parts.
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+
+local Band = require(ReplicatedStorage.Shared.Band)
+local Constants = require(ReplicatedStorage.Shared.Constants)
+
+local Glance = {}
+
+type Cluster = {
+	head: BasePart,
+	parts: { BasePart },
+	rest: { [BasePart]: CFrame },
+}
+
+local function clusterOf(model: Model): Cluster?
+	if model:GetAttribute("Tell") ~= nil then
+		return nil
+	end
+	if model:GetAttribute("Hidden") == true then
+		return nil
+	end
+	local head = model:FindFirstChild("Head", true)
+	if head == nil or not head:IsA("BasePart") then
+		return nil
+	end
+	local parts = {}
+	local rest = {}
+	for _, desc in model:GetDescendants() do
+		if desc:IsA("BasePart") and (desc.Name == "Head" or desc.Name == "Hair" or desc.Name == "Eye") then
+			table.insert(parts, desc)
+			rest[desc] = desc.CFrame
+		end
+	end
+	if #parts == 0 then
+		return nil
+	end
+	return { head = head, parts = parts, rest = rest }
+end
+
+local function yawTo(face: Vector3, toward: Vector3): number
+	local a = Vector3.new(face.X, 0, face.Z)
+	local b = Vector3.new(toward.X, 0, toward.Z)
+	if a.Magnitude < 0.05 or b.Magnitude < 0.05 then
+		return 0
+	end
+	a = a.Unit
+	b = b.Unit
+	return math.atan2(a:Cross(b).Y, a:Dot(b))
+end
+
+local function pose(group: Cluster, angle: number)
+	local headRest = group.rest[group.head]
+	local origin = headRest.Position
+	local spin = CFrame.Angles(0, angle, 0)
+	for _, part in group.parts do
+		local rest = group.rest[part]
+		local rel = rest.Position - origin
+		part.CFrame = CFrame.new(origin) * spin * CFrame.new(rel) * (rest - rest.Position)
+	end
+end
+
+local function restore(group: Cluster)
+	for _, part in group.parts do
+		local rest = group.rest[part]
+		part.CFrame = rest
+	end
+end
+
+function Glance.start()
+	local ride = ReplicatedStorage:WaitForChild("Ride")
+	local player = Players.LocalPlayer
+	local groups: { Cluster } = {}
+	local known: { [Model]: boolean } = {}
+	local glanceGroup: Cluster? = nil
+	local glanceStart = 0
+	local nextGlance = 0
+
+	local function collect()
+		local car = workspace:FindFirstChild("SubwayCar")
+		local folder = if car ~= nil then car:FindFirstChild("Passengers") else nil
+		if folder == nil then
+			return
+		end
+		for _, child in folder:GetChildren() do
+			if child:IsA("Model") and known[child] ~= true then
+				local group = clusterOf(child)
+				if group ~= nil then
+					known[child] = true
+					table.insert(groups, group)
+				end
+			end
+		end
+	end
+
+	local function angleToward(group: Cluster, maxRad: number): number
+		local character = player.Character
+		local root = if character ~= nil then character:FindFirstChild("HumanoidRootPart") else nil
+		if root == nil or not root:IsA("BasePart") then
+			return 0
+		end
+		local rest = group.rest[group.head]
+		local face = -rest.LookVector
+		local yaw = yawTo(face, root.Position - rest.Position)
+		return math.clamp(yaw, -maxRad, maxRad)
+	end
+
+	local function moving(): boolean
+		local character = player.Character
+		local humanoid = if character ~= nil then character:FindFirstChildOfClass("Humanoid") else nil
+		return humanoid ~= nil and humanoid.MoveDirection.Magnitude > 0.05
+	end
+
+	RunService.Heartbeat:Connect(function()
+		collect()
+		local band = ride:GetAttribute("Band")
+		local look = if typeof(band) == "string" then Band.look(band) else "none"
+		if look == "none" then
+			for _, group in groups do
+				restore(group)
+			end
+			glanceGroup = nil
+			return
+		end
+		if look == "turn" then
+			glanceGroup = nil
+			local maxRad = math.rad(Constants.TURN_YAW_DEG)
+			for _, group in groups do
+				pose(group, angleToward(group, maxRad))
+			end
+			return
+		end
+		local now = os.clock()
+		if glanceGroup == nil and moving() and now >= nextGlance and #groups > 0 then
+			glanceGroup = groups[math.random(1, #groups)]
+			glanceStart = now
+			nextGlance = now + Constants.GLANCE_COOLDOWN
+		end
+		local active = glanceGroup
+		for _, group in groups do
+			if active ~= nil and group == active then
+				local u = (now - glanceStart) / Constants.GLANCE_SECONDS
+				if u >= 1 then
+					restore(group)
+					glanceGroup = nil
+				else
+					local weight = math.sin(math.pi * math.clamp(u, 0, 1))
+					pose(group, angleToward(group, math.rad(Constants.GLANCE_YAW_DEG)) * weight)
+				end
+			else
+				restore(group)
+			end
+		end
+	end)
+end
+
+return Glance
+]]></string>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="26">
           <Properties>
             <string name="Name">Hud</string>
             <string name="Source"><![CDATA[--!strict
@@ -3823,7 +4157,7 @@ return Hud
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="25">
+        <Item class="ModuleScript" referent="27">
           <Properties>
             <string name="Name">Sway</string>
             <string name="Source"><![CDATA[--!strict
@@ -3904,7 +4238,7 @@ return Sway
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="26">
+        <Item class="ModuleScript" referent="28">
           <Properties>
             <string name="Name">Walk</string>
             <string name="Source"><![CDATA[--!strict
@@ -4037,7 +4371,7 @@ return Walk
       </Item>
     </Item>
   </Item>
-  <Item class="Workspace" referent="27">
+  <Item class="Workspace" referent="29">
     <Properties>
       <string name="Name">Workspace</string>
       <float name="Gravity">196.2</float>

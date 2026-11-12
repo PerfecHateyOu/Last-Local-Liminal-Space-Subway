@@ -22,6 +22,7 @@ local Dwell = require(ReplicatedStorage.Shared.Dwell)
 local Hold = require(ReplicatedStorage.Shared.Hold)
 local Lines = require(ReplicatedStorage.Shared.Lines)
 local Score = require(ReplicatedStorage.Shared.Score)
+local Band = require(ReplicatedStorage.Shared.Band)
 local Motion = require(ReplicatedStorage.Shared.Motion)
 local Route = require(ReplicatedStorage.Shared.Route)
 
@@ -49,6 +50,8 @@ function Ride.start(car: CarBuilder.BuiltCar)
 	ride:SetAttribute("ChapterLine", Route.chapterLine(1))
 	ride:SetAttribute("DwellUntil", 0)
 	ride:SetAttribute("Suspicion", 0)
+	ride:SetAttribute("Band", "calm")
+	ride:SetAttribute("FalseStopBonus", 0)
 	ride:SetAttribute("BoardStop", "")
 	ride:SetAttribute("BoardMinutes", 0)
 	ride:SetAttribute("HoldAt", 0)
@@ -92,7 +95,11 @@ function Ride.start(car: CarBuilder.BuiltCar)
 	end
 
 	local function showPa(text: string, seconds: number)
-		showTimed("PaText", text, seconds, "pa")
+		local line = text
+		if ride:GetAttribute("Band") == "watched" then
+			line = Band.glitchLine(text)
+		end
+		showTimed("PaText", line, seconds, "pa")
 	end
 
 	local function showSub(text: string, seconds: number)
@@ -245,11 +252,56 @@ function Ride.start(car: CarBuilder.BuiltCar)
 	local stopNoticed = false
 	local stopFalseAlarm = false
 	local posterLive = false
+	local inFinal = false
+	local huntedDim = false
+
+	local function blinkBandTube()
+		for _, lamp in car.lamps do
+			if lamp.part.Name == Constants.BAND_STRIP_NAME then
+				stripHold[lamp.part] = true
+				lamp.part.Color = Constants.COLOR.lightOff
+				local part = lamp.part
+				task.delay(Constants.UNEASY_TUBE_BLINK, function()
+					stripHold[part] = nil
+				end)
+				break
+			end
+		end
+	end
+
+	local function publishBand()
+		local band = Band.fromSuspicion(suspicion, Constants.BAND_CALM_MAX, Constants.BAND_UNEASY_MAX, Constants.BAND_WATCHED_MAX)
+		ride:SetAttribute("Band", band)
+		-- Fixed route. The bonus is not used to pick a false stop.
+		ride:SetAttribute("FalseStopBonus", Band.falseStopBonus(band, Constants.WATCHED_FALSE_STOP_BONUS))
+		local effect = Band.light(band)
+		if effect == "dim" and not inFinal then
+			if not huntedDim then
+				huntedDim = true
+				beginDim(Band.dimTarget(Constants.HUNTED_DIM), Constants.HUNTED_DIM_SECONDS)
+			end
+		elseif huntedDim then
+			huntedDim = false
+			beginDim(Band.dimTarget(1), Constants.HUNTED_DIM_SECONDS)
+		end
+	end
 
 	local function applySuspicion(delta: number)
 		suspicion = Score.apply(suspicion, delta, Constants.SUSPICION_MIN, Constants.SUSPICION_MAX)
 		ride:SetAttribute("Suspicion", suspicion)
+		publishBand()
 	end
+
+	publishBand()
+
+	task.spawn(function()
+		while ride.Parent ~= nil do
+			task.wait(Constants.UNEASY_TUBE_EVERY)
+			if ride:GetAttribute("Band") == "uneasy" and ride:GetAttribute("Phase") == "ride" then
+				blinkBandTube()
+			end
+		end
+	end)
 
 	-- Intentionally unused. Nothing here can see a player stand at the
 	-- doors, walk to them, or stare on a false stop. A detector would
@@ -440,6 +492,10 @@ function Ride.start(car: CarBuilder.BuiltCar)
 		doorTarget = 0
 
 		local length = Route.segmentLength(seg, Constants.ACCEL, Constants.BRAKE)
+		inFinal = seg.final
+		if seg.final and huntedDim then
+			huntedDim = false
+		end
 		local held = Hold.applies(seg.stop, seg.b, seg.final, Constants.HOLD_STOP_A, Constants.HOLD_STOP_B)
 			and Hold.placed(Constants.HOLD_AT, Constants.HOLD_SECONDS, Constants.ACCEL, seg.sliceCruise)
 		local holdAt = if held then Constants.HOLD_AT else 0

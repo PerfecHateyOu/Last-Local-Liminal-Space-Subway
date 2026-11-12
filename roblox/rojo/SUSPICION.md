@@ -172,6 +172,8 @@ Cheap, reusable tells that make a stop feel wrong without new models:
 | WATCHED | Heads turn toward you. Announcements glitch (a word repeats, a Ding comes twice). False-stop chance goes up. |
 | HUNTED | The car dims slowly. That dim is not a flicker and not a blackout. The blackout risk rises (see §10). Parents' lines change — TBD which lines and how. |
 
+This port: calm does nothing. Uneasy glances while you walk, and one tube blinks now and then. Watched turns heads toward you and repeats one word of the PA line that is already playing. There is no Ding in this slice, so the glitch is that repeated word, not a second chime. False stops are a fixed table, so the watched false-stop bonus is published and not rolled. Hunted dims the car slowly. Parent lines and a longer blackout stay TBD.
+
 ## 10. The blackout (after Myrtle–Willoughby)
 
 The blackout is already in the slice. Suspicion shapes it:
