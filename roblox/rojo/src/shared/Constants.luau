@@ -69,6 +69,31 @@ Constants.DECAY_SUSPICION = 2
 -- doors, or staring, so the ride never adds it.
 Constants.FALSE_STOP_REACT_SUSPICION = 10
 
+-- Bands from the suspicion number. 0–24 calm, 25–49 uneasy, 50–74 watched,
+-- 75–100 hunted.
+Constants.BAND_CALM_MAX = 24
+Constants.BAND_UNEASY_MAX = 49
+Constants.BAND_WATCHED_MAX = 74
+
+-- Uneasy: one tube, occasionally. Not the whole car.
+Constants.UNEASY_TUBE_EVERY = 7
+Constants.UNEASY_TUBE_BLINK = 0.15
+Constants.BAND_STRIP_NAME = "LightStrip_06"
+
+-- How far a head may turn, in degrees. Glance is the short look.
+Constants.GLANCE_YAW_DEG = 18
+Constants.TURN_YAW_DEG = 28
+Constants.GLANCE_SECONDS = 0.8
+Constants.GLANCE_COOLDOWN = 2.4
+
+-- Hunted: slow dim. Above zero so the car does not go dark.
+Constants.HUNTED_DIM = 0.5
+Constants.HUNTED_DIM_SECONDS = 2.5
+
+-- Watched would raise the chance of a false stop. The route is a fixed
+-- table, so this number is published and not rolled.
+Constants.WATCHED_FALSE_STOP_BONUS = 0.15
+
 -- One tell per stop, by the arrival number on the segment. Other stops
 -- have none. 3 is the poster. 7 is the ride into Flushing Av. 10 is the
 -- ride into Nassau Av. The scripted arrival lie stays on stop 9 and is
