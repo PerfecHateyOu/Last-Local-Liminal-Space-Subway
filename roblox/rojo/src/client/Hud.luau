@@ -4,6 +4,7 @@
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
 
 local Constants = require(ReplicatedStorage.Shared.Constants)
 local Lines = require(ReplicatedStorage.Shared.Lines)
@@ -227,6 +228,30 @@ function Hud.start()
 	buttonScale.Parent = button
 	flagButton = button
 
+	local dwellCard = Instance.new("Frame")
+	dwellCard.Name = "Dwell"
+	dwellCard.AnchorPoint = Vector2.new(0.5, 1)
+	dwellCard.Position = UDim2.new(0.5, 0, 1, -214)
+	dwellCard.Size = UDim2.fromOffset(280, 54)
+	dwellCard.BackgroundColor3 = Color3.new(0, 0, 0)
+	dwellCard.BackgroundTransparency = 0.35
+	dwellCard.BorderSizePixel = 0
+	dwellCard.Visible = false
+	dwellCard.Parent = gui
+	corner(dwellCard, 10)
+
+	local dwellTitle = label(dwellCard, Lines.MIN_DWELL, 13, Constants.COLOR.warn)
+	dwellTitle.Name = "Title"
+	dwellTitle.Font = Enum.Font.GothamBold
+	dwellTitle.Position = UDim2.fromOffset(12, 4)
+	dwellTitle.Size = UDim2.new(1, -24, 0, 18)
+
+	local dwellCount = label(dwellCard, "", 22, Constants.COLOR.cream)
+	dwellCount.Name = "Countdown"
+	dwellCount.Font = Enum.Font.GothamBold
+	dwellCount.Position = UDim2.fromOffset(12, 22)
+	dwellCount.Size = UDim2.new(1, -24, 0, 28)
+
 	local cross = Instance.new("Frame")
 	cross.Name = "Crosshair"
 	cross.AnchorPoint = Vector2.new(0.5, 0.5)
@@ -277,6 +302,21 @@ function Hud.start()
 			feedback.TextColor3 = Constants.COLOR.cream
 		end
 	end
+
+	RunService.Heartbeat:Connect(function()
+		local deadline = ride:GetAttribute("DwellUntil")
+		if typeof(deadline) ~= "number" or deadline <= 0 then
+			dwellCard.Visible = false
+			return
+		end
+		local remain = deadline - workspace:GetServerTimeNow()
+		if remain <= 0 then
+			dwellCard.Visible = false
+			return
+		end
+		dwellCard.Visible = true
+		dwellCount.Text = Lines.dwellCountdown(remain)
+	end)
 
 	ride.AttributeChanged:Connect(function(name: string)
 		if name == "Feedback" and textOf("Feedback") ~= "" then

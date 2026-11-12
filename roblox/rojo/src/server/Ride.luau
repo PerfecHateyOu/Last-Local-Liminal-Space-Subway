@@ -18,6 +18,7 @@ local AnomalySystem = require(script.Parent.AnomalySystem)
 local CarBuilder = require(script.Parent.CarBuilder)
 local Scenery = require(script.Parent.Scenery)
 local Constants = require(ReplicatedStorage.Shared.Constants)
+local Dwell = require(ReplicatedStorage.Shared.Dwell)
 local Lines = require(ReplicatedStorage.Shared.Lines)
 local Motion = require(ReplicatedStorage.Shared.Motion)
 local Route = require(ReplicatedStorage.Shared.Route)
@@ -44,6 +45,8 @@ function Ride.start(car: CarBuilder.BuiltCar)
 	ride:SetAttribute("FeedbackKind", "")
 	ride:SetAttribute("NextStop", Route.stopName(2))
 	ride:SetAttribute("ChapterLine", Route.chapterLine(1))
+	ride:SetAttribute("DwellUntil", 0)
+	ride:SetAttribute("Suspicion", 0)
 
 	local paToken = 0
 	local subToken = 0
@@ -212,6 +215,36 @@ function Ride.start(car: CarBuilder.BuiltCar)
 	local flagged: { [string]: boolean } = {}
 	local falseFlags = 0
 	local caught = false
+	local suspicion = 0
+
+	-- Passenger slice. Nothing here closes the doors or asks the train to
+	-- leave. A conductor control (not in this port) would return true when
+	-- that control is used before the dwell ends, and the penalty below
+	-- would add EARLY_DEPARTURE_SUSPICION. There is no fail state.
+	local function playerAskedToDepartEarly(): boolean
+		return false
+	end
+
+	local function beginDwell(seconds: number)
+		ride:SetAttribute("DwellUntil", workspace:GetServerTimeNow() + seconds)
+	end
+
+	local function endDwell()
+		ride:SetAttribute("DwellUntil", 0)
+	end
+
+	local function resolveDeparture(elapsedOpen: number)
+		suspicion = Dwell.departureSuspicion(
+			suspicion,
+			elapsedOpen,
+			Constants.MIN_DWELL_SECONDS,
+			playerAskedToDepartEarly(),
+			Constants.EARLY_DEPARTURE_SUSPICION,
+			Constants.SUSPICION_MIN,
+			Constants.SUSPICION_MAX
+		)
+		ride:SetAttribute("Suspicion", suspicion)
+	end
 
 	flagRemote.OnServerEvent:Connect(function(player: Player, passengerId: any)
 		if typeof(passengerId) ~= "string" then
@@ -349,6 +382,7 @@ function Ride.start(car: CarBuilder.BuiltCar)
 
 	local function arrive(seg: Route.Segment)
 		segToken += 1
+		local token = segToken
 		for part, color in posterOriginal do
 			part.Color = color
 			posterOriginal[part] = nil
@@ -363,6 +397,14 @@ function Ride.start(car: CarBuilder.BuiltCar)
 		if seg.final then
 			at(t0, 2.3)
 			doorTarget = 1
+			-- Doors stay open. There is no departure, so the penalty is not applied.
+			beginDwell(Constants.MIN_DWELL_SECONDS)
+			task.delay(Constants.MIN_DWELL_SECONDS, function()
+				if token ~= segToken then
+					return
+				end
+				endDwell()
+			end)
 			at(t0, 3.4)
 			showSub(Lines.MOM_ARRIVE, 4)
 			at(t0, 6.6)
@@ -386,15 +428,26 @@ function Ride.start(car: CarBuilder.BuiltCar)
 		local openAt = 0.35 + (if seg.tick == "doors" then 1.15 else 1.95)
 		at(t0, openAt)
 		doorTarget = 1
+		local openedAt = os.clock()
 
-		local departAt = openAt + 2.6
-		if seg.paLie ~= nil then
-			departAt = math.max(departAt, 5.4)
-		end
+		-- The banner counts the minimum only. A PA lie keeps its own hold,
+		-- measured from arrival. That hold is not a second dwell.
+		local lieHold = if seg.paLie ~= nil then Constants.PA_LIE_HOLD else nil
+		local departAt = Dwell.departTime(openAt, Constants.MIN_DWELL_SECONDS, lieHold)
+		beginDwell(Constants.MIN_DWELL_SECONDS)
+		task.delay(Constants.MIN_DWELL_SECONDS, function()
+			if token ~= segToken then
+				return
+			end
+			endDwell()
+		end)
 		at(t0, departAt)
+		endDwell()
+		resolveDeparture(os.clock() - openedAt)
 		showPa(Lines.STAND_CLEAR, 3)
 		at(t0, departAt + 1.4)
 		doorTarget = 0
+		-- 2.6s after stand-clear is the next stretch, not the dwell.
 		at(t0, departAt + 2.6)
 	end
 
@@ -402,6 +455,13 @@ function Ride.start(car: CarBuilder.BuiltCar)
 		ride:SetAttribute("Phase", "intro")
 		doorOpen = 1
 		doorTarget = 1
+		local openedAt = os.clock()
+		beginDwell(Constants.MIN_DWELL_SECONDS)
+		task.delay(Constants.MIN_DWELL_SECONDS, function()
+			if ride:GetAttribute("Phase") == "intro" then
+				endDwell()
+			end
+		end)
 		task.wait(1.2)
 		showPa(Lines.INTRO_PA, 4)
 		task.wait(1.3)
@@ -411,6 +471,7 @@ function Ride.start(car: CarBuilder.BuiltCar)
 		task.wait(3)
 		showPa(Lines.STAND_CLEAR, 3)
 		task.wait(1.4)
+		resolveDeparture(os.clock() - openedAt)
 		doorTarget = 0
 		task.wait(1.2)
 
