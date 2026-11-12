@@ -1,0 +1,62 @@
+{
+  "name": "LastLocal",
+  "tree": {
+    "$className": "DataModel",
+    "ReplicatedStorage": {
+      "$className": "ReplicatedStorage",
+      "Shared": {
+        "$path": "src/shared"
+      },
+      "Models": {
+        "$className": "Folder",
+        "$ignoreUnknownInstances": true
+      }
+    },
+    "ServerScriptService": {
+      "$className": "ServerScriptService",
+      "Server": {
+        "$path": "src/server"
+      }
+    },
+    "StarterPlayer": {
+      "$className": "StarterPlayer",
+      "$properties": {
+        "CameraMode": "LockFirstPerson",
+        "CameraMinZoomDistance": 0.5,
+        "CameraMaxZoomDistance": 0.5
+      },
+      "StarterPlayerScripts": {
+        "$className": "StarterPlayerScripts",
+        "Client": {
+          "$path": "src/client"
+        }
+      }
+    },
+    "Workspace": {
+      "$className": "Workspace",
+      "$properties": {
+        "Gravity": 196.2,
+        "StreamingEnabled": false
+      }
+    },
+    "Lighting": {
+      "$className": "Lighting",
+      "$properties": {
+        "Technology": "Future",
+        "Brightness": 0,
+        "ClockTime": 0,
+        "GeographicLatitude": 0,
+        "ExposureCompensation": -0.85,
+        "EnvironmentDiffuseScale": 0,
+        "EnvironmentSpecularScale": 0,
+        "GlobalShadows": true,
+        "ShadowSoftness": 0.3,
+        "Ambient": [0.047, 0.043, 0.039],
+        "OutdoorAmbient": [0, 0, 0],
+        "FogColor": [0.016, 0.02, 0.016],
+        "FogStart": 27,
+        "FogEnd": 90
+      }
+    }
+  }
+}

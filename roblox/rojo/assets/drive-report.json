@@ -1,0 +1,260 @@
+{
+  "limit": 20000,
+  "blend": "/tmp/untitled-raw.blend",
+  "blender": "5.0.1",
+  "note": "No mesh exceeded 20,000 triangles, so nothing was split or decimated. Named parts stay separate.",
+  "carAndNpcs": [
+    {
+      "meshCount": 56,
+      "totalTriangles": 1738,
+      "maxMeshTriangles": 480,
+      "overLimit": false,
+      "meshesOver": [],
+      "file": "Car_B.fbx",
+      "root": "Car_B",
+      "bytes": 695468
+    },
+    {
+      "meshCount": 13,
+      "totalTriangles": 1418,
+      "maxMeshTriangles": 424,
+      "overLimit": false,
+      "meshesOver": [],
+      "file": "NPC_mom.fbx",
+      "root": "NPC_mom",
+      "bytes": 136124
+    },
+    {
+      "meshCount": 13,
+      "totalTriangles": 1430,
+      "maxMeshTriangles": 424,
+      "overLimit": false,
+      "meshesOver": [],
+      "file": "NPC_mom_seated.fbx",
+      "root": "NPC_mom_seated",
+      "bytes": 136364
+    },
+    {
+      "meshCount": 14,
+      "totalTriangles": 1466,
+      "maxMeshTriangles": 424,
+      "overLimit": false,
+      "meshesOver": [],
+      "file": "NPC_dad.fbx",
+      "root": "NPC_dad",
+      "bytes": 140652
+    },
+    {
+      "meshCount": 14,
+      "totalTriangles": 1478,
+      "maxMeshTriangles": 424,
+      "overLimit": false,
+      "meshesOver": [],
+      "file": "NPC_dad_seated.fbx",
+      "root": "NPC_dad_seated",
+      "bytes": 140924
+    },
+    {
+      "meshCount": 20,
+      "totalTriangles": 1644,
+      "maxMeshTriangles": 424,
+      "overLimit": false,
+      "meshesOver": [],
+      "file": "NPC_mta.fbx",
+      "root": "NPC_mta",
+      "bytes": 164156
+    },
+    {
+      "meshCount": 16,
+      "totalTriangles": 1620,
+      "maxMeshTriangles": 424,
+      "overLimit": false,
+      "meshesOver": [],
+      "file": "NPC_mta_seated.fbx",
+      "root": "NPC_mta_seated",
+      "bytes": 150876
+    },
+    {
+      "meshCount": 23,
+      "totalTriangles": 1696,
+      "maxMeshTriangles": 424,
+      "overLimit": false,
+      "meshesOver": [],
+      "file": "NPC_coat.fbx",
+      "root": "NPC_coat",
+      "bytes": 174060
+    },
+    {
+      "meshCount": 20,
+      "totalTriangles": 1692,
+      "maxMeshTriangles": 424,
+      "overLimit": false,
+      "meshesOver": [],
+      "file": "NPC_coat_seated.fbx",
+      "root": "NPC_coat_seated",
+      "bytes": 164828
+    },
+    {
+      "meshCount": 20,
+      "totalTriangles": 1612,
+      "maxMeshTriangles": 424,
+      "overLimit": false,
+      "meshesOver": [],
+      "file": "NPC_puffer.fbx",
+      "root": "NPC_puffer",
+      "bytes": 161068
+    },
+    {
+      "meshCount": 14,
+      "totalTriangles": 1588,
+      "maxMeshTriangles": 424,
+      "overLimit": false,
+      "meshesOver": [],
+      "file": "NPC_puffer_seated.fbx",
+      "root": "NPC_puffer_seated",
+      "bytes": 142924
+    },
+    {
+      "meshCount": 25,
+      "totalTriangles": 1836,
+      "maxMeshTriangles": 424,
+      "overLimit": false,
+      "meshesOver": [],
+      "file": "NPC_hoodie.fbx",
+      "root": "NPC_hoodie",
+      "bytes": 189084
+    },
+    {
+      "meshCount": 19,
+      "totalTriangles": 1764,
+      "maxMeshTriangles": 424,
+      "overLimit": false,
+      "meshesOver": [],
+      "file": "NPC_hoodie_seated.fbx",
+      "root": "NPC_hoodie_seated",
+      "bytes": 170172
+    },
+    {
+      "meshCount": 17,
+      "totalTriangles": 1602,
+      "maxMeshTriangles": 436,
+      "overLimit": false,
+      "meshesOver": [],
+      "file": "NPC_texter.fbx",
+      "root": "NPC_texter",
+      "bytes": 155388
+    },
+    {
+      "meshCount": 17,
+      "totalTriangles": 1530,
+      "maxMeshTriangles": 436,
+      "overLimit": false,
+      "meshesOver": [],
+      "file": "NPC_texter_seated.fbx",
+      "root": "NPC_texter_seated",
+      "bytes": 154812
+    },
+    {
+      "meshCount": 19,
+      "totalTriangles": 1670,
+      "maxMeshTriangles": 490,
+      "overLimit": false,
+      "meshesOver": [],
+      "file": "NPC_overcoat.fbx",
+      "root": "NPC_overcoat",
+      "bytes": 163116
+    },
+    {
+      "meshCount": 13,
+      "totalTriangles": 1666,
+      "maxMeshTriangles": 490,
+      "overLimit": false,
+      "meshesOver": [],
+      "file": "NPC_overcoat_seated.fbx",
+      "root": "NPC_overcoat_seated",
+      "bytes": 144524
+    },
+    {
+      "meshCount": 23,
+      "totalTriangles": 1640,
+      "maxMeshTriangles": 424,
+      "overLimit": false,
+      "meshesOver": [],
+      "file": "NPC_office.fbx",
+      "root": "NPC_office",
+      "bytes": 172044
+    },
+    {
+      "meshCount": 16,
+      "totalTriangles": 1592,
+      "maxMeshTriangles": 424,
+      "overLimit": false,
+      "meshesOver": [],
+      "file": "NPC_office_seated.fbx",
+      "root": "NPC_office_seated",
+      "bytes": 148668
+    }
+  ],
+  "props": [
+    {
+      "meshCount": 2,
+      "totalTriangles": 14,
+      "maxMeshTriangles": 12,
+      "overLimit": false,
+      "meshesOver": [],
+      "file": "prop_phone.fbx",
+      "root": "Prop_Phone",
+      "bytes": 19948
+    },
+    {
+      "meshCount": 2,
+      "totalTriangles": 14,
+      "maxMeshTriangles": 12,
+      "overLimit": false,
+      "meshesOver": [],
+      "file": "prop_phone_texter.fbx",
+      "root": "Prop_PhoneTexter",
+      "bytes": 20076
+    },
+    {
+      "meshCount": 2,
+      "totalTriangles": 72,
+      "maxMeshTriangles": 60,
+      "overLimit": false,
+      "meshesOver": [],
+      "file": "prop_tote_bag.fbx",
+      "root": "Prop_ToteBag",
+      "bytes": 21740
+    },
+    {
+      "meshCount": 2,
+      "totalTriangles": 36,
+      "maxMeshTriangles": 24,
+      "overLimit": false,
+      "meshesOver": [],
+      "file": "prop_backpack.fbx",
+      "root": "Prop_Backpack",
+      "bytes": 20700
+    },
+    {
+      "meshCount": 2,
+      "totalTriangles": 108,
+      "maxMeshTriangles": 96,
+      "overLimit": false,
+      "meshesOver": [],
+      "file": "prop_newspaper_folded.fbx",
+      "root": "Prop_Newspaper",
+      "bytes": 22348
+    },
+    {
+      "meshCount": 2,
+      "totalTriangles": 96,
+      "maxMeshTriangles": 84,
+      "overLimit": false,
+      "meshesOver": [],
+      "file": "prop_newspaper_open.fbx",
+      "root": "Prop_NewspaperOpen",
+      "bytes": 22028
+    }
+  ]
+}
