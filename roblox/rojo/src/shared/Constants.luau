@@ -40,6 +40,22 @@ Constants.FLICKER_TICK_SECONDS = 0.16
 -- Far door leaves slide this many metres when doorOpen goes from 0 to 1.
 Constants.DOOR_SLIDE_M = 0.62
 
+-- Existing arrival hold when the PA tells a lie, measured from arrival.
+-- The minimum dwell is a floor under this. It does not replace it.
+Constants.PA_LIE_HOLD = 5.4
+
+-- How long the doors stay open before the train may leave, in seconds.
+-- The server waits at least this long after the doors open. The client
+-- only shows the countdown. 2.6 is the gap this slice already waited
+-- between the doors opening and "Stand clear".
+Constants.MIN_DWELL_SECONDS = 2.6
+
+-- Closing the doors or leaving before that dwell ends. Added on the
+-- server and clamped. The ride does not end.
+Constants.EARLY_DEPARTURE_SUSPICION = 10
+Constants.SUSPICION_MIN = 0
+Constants.SUSPICION_MAX = 100
+
 -- Final stretch only. Linear, from full to this fraction. Not a flicker.
 Constants.FINAL_DIM = 0.62
 

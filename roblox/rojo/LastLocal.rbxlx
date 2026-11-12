@@ -88,6 +88,22 @@ Constants.FLICKER_TICK_SECONDS = 0.16
 -- Far door leaves slide this many metres when doorOpen goes from 0 to 1.
 Constants.DOOR_SLIDE_M = 0.62
 
+-- Existing arrival hold when the PA tells a lie, measured from arrival.
+-- The minimum dwell is a floor under this. It does not replace it.
+Constants.PA_LIE_HOLD = 5.4
+
+-- How long the doors stay open before the train may leave, in seconds.
+-- The server waits at least this long after the doors open. The client
+-- only shows the countdown. 2.6 is the gap this slice already waited
+-- between the doors opening and "Stand clear".
+Constants.MIN_DWELL_SECONDS = 2.6
+
+-- Closing the doors or leaving before that dwell ends. Added on the
+-- server and clamped. The ride does not end.
+Constants.EARLY_DEPARTURE_SUSPICION = 10
+Constants.SUSPICION_MIN = 0
+Constants.SUSPICION_MAX = 100
+
 -- Final stretch only. Linear, from full to this fraction. Not a flicker.
 Constants.FINAL_DIM = 0.62
 
@@ -154,6 +170,47 @@ return Constants
       </Item>
       <Item class="ModuleScript" referent="5">
         <Properties>
+          <string name="Name">Dwell</string>
+          <string name="Source"><![CDATA[--!strict
+-- Minimum-dwell math. The server owns the clock and whether anyone asked
+-- to leave early. This module only updates the suspicion number.
+-- The result stays in range. It does not end the ride.
+
+local Dwell = {}
+
+-- When the train may leave. lieHold is the existing PA-lie wait from
+-- arrival, or nil when that stop has no lie. The result is never earlier
+-- than openAt + minimum.
+function Dwell.departTime(openAt: number, minimum: number, lieHold: number?): number
+	local departAt = openAt + minimum
+	if lieHold ~= nil then
+		return math.max(departAt, lieHold)
+	end
+	return departAt
+end
+
+function Dwell.departureSuspicion(
+	current: number,
+	elapsed: number,
+	minimum: number,
+	requestedEarly: boolean,
+	penalty: number,
+	least: number,
+	most: number
+): number
+	local nextValue = current
+	if requestedEarly and elapsed < minimum then
+		nextValue += penalty
+	end
+	return math.clamp(nextValue, least, most)
+end
+
+return Dwell
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="6">
+        <Properties>
           <string name="Name">KeepOut</string>
           <string name="Source"><![CDATA[--!strict
 -- Port of src/game/personKeepOut.ts. Standing passengers occupy a circle on
@@ -214,11 +271,12 @@ return KeepOut
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="6">
+      <Item class="ModuleScript" referent="7">
         <Properties>
           <string name="Name">Lines</string>
           <string name="Source"><![CDATA[--!strict
--- On-screen strings copied from the web game. Do not add new lines here.
+-- On-screen strings copied from the web game, plus the dwell banner.
+-- Do not add new dialogue here. The dwell banner is a label and a number.
 -- Sources: src/constants.ts (STOPS, the Stop 9 paLie), src/game/gameState.ts
 -- (PA, boarding, the Court Sq line), src/components/HUD.tsx ("Next:"),
 -- src/components/ReportScreen.tsx (Caught / Missed / false flag).
@@ -274,11 +332,22 @@ function Lines.scoreLine(miss: number, fp: number): string
 	return string.format("%d missed, %d false flag%s.", miss, fp, suffix)
 end
 
+-- Dwell banner. Not a spoken line.
+Lines.MIN_DWELL = "MINIMUM DWELL TIME"
+
+function Lines.dwellCountdown(secondsLeft: number): string
+	local whole = math.ceil(secondsLeft)
+	if whole < 1 then
+		whole = 1
+	end
+	return tostring(whole)
+end
+
 return Lines
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="7">
+      <Item class="ModuleScript" referent="8">
         <Properties>
           <string name="Name">Motion</string>
           <string name="Source"><![CDATA[--!strict
@@ -340,7 +409,7 @@ return Motion
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="8">
+      <Item class="ModuleScript" referent="9">
         <Properties>
           <string name="Name">Passengers</string>
           <string name="Source"><![CDATA[--!strict
@@ -591,7 +660,7 @@ return Passengers
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="9">
+      <Item class="ModuleScript" referent="10">
         <Properties>
           <string name="Name">Route</string>
           <string name="Source"><![CDATA[--!strict
@@ -702,11 +771,11 @@ return Route
       </Item>
     </Item>
   </Item>
-  <Item class="ServerScriptService" referent="10">
+  <Item class="ServerScriptService" referent="11">
     <Properties>
       <string name="Name">ServerScriptService</string>
     </Properties>
-    <Item class="Script" referent="11">
+    <Item class="Script" referent="12">
       <Properties>
         <string name="Name">Server</string>
         <token name="RunContext">0</token>
@@ -765,7 +834,7 @@ for _, player in Players:GetPlayers() do
 end
 ]]></string>
       </Properties>
-      <Item class="ModuleScript" referent="12">
+      <Item class="ModuleScript" referent="13">
         <Properties>
           <string name="Name">AnomalySystem</string>
           <string name="Source"><![CDATA[--!strict
@@ -783,7 +852,7 @@ return AnomalySystem
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="13">
+      <Item class="ModuleScript" referent="14">
         <Properties>
           <string name="Name">CarBuilder</string>
           <string name="Source"><![CDATA[--!strict
@@ -1779,7 +1848,7 @@ return CarBuilder
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="14">
+      <Item class="ModuleScript" referent="15">
         <Properties>
           <string name="Name">Ride</string>
           <string name="Source"><![CDATA[--!strict
@@ -1802,6 +1871,7 @@ local AnomalySystem = require(script.Parent.AnomalySystem)
 local CarBuilder = require(script.Parent.CarBuilder)
 local Scenery = require(script.Parent.Scenery)
 local Constants = require(ReplicatedStorage.Shared.Constants)
+local Dwell = require(ReplicatedStorage.Shared.Dwell)
 local Lines = require(ReplicatedStorage.Shared.Lines)
 local Motion = require(ReplicatedStorage.Shared.Motion)
 local Route = require(ReplicatedStorage.Shared.Route)
@@ -1828,6 +1898,8 @@ function Ride.start(car: CarBuilder.BuiltCar)
 	ride:SetAttribute("FeedbackKind", "")
 	ride:SetAttribute("NextStop", Route.stopName(2))
 	ride:SetAttribute("ChapterLine", Route.chapterLine(1))
+	ride:SetAttribute("DwellUntil", 0)
+	ride:SetAttribute("Suspicion", 0)
 
 	local paToken = 0
 	local subToken = 0
@@ -1996,6 +2068,36 @@ function Ride.start(car: CarBuilder.BuiltCar)
 	local flagged: { [string]: boolean } = {}
 	local falseFlags = 0
 	local caught = false
+	local suspicion = 0
+
+	-- Passenger slice. Nothing here closes the doors or asks the train to
+	-- leave. A conductor control (not in this port) would return true when
+	-- that control is used before the dwell ends, and the penalty below
+	-- would add EARLY_DEPARTURE_SUSPICION. There is no fail state.
+	local function playerAskedToDepartEarly(): boolean
+		return false
+	end
+
+	local function beginDwell(seconds: number)
+		ride:SetAttribute("DwellUntil", workspace:GetServerTimeNow() + seconds)
+	end
+
+	local function endDwell()
+		ride:SetAttribute("DwellUntil", 0)
+	end
+
+	local function resolveDeparture(elapsedOpen: number)
+		suspicion = Dwell.departureSuspicion(
+			suspicion,
+			elapsedOpen,
+			Constants.MIN_DWELL_SECONDS,
+			playerAskedToDepartEarly(),
+			Constants.EARLY_DEPARTURE_SUSPICION,
+			Constants.SUSPICION_MIN,
+			Constants.SUSPICION_MAX
+		)
+		ride:SetAttribute("Suspicion", suspicion)
+	end
 
 	flagRemote.OnServerEvent:Connect(function(player: Player, passengerId: any)
 		if typeof(passengerId) ~= "string" then
@@ -2133,6 +2235,7 @@ function Ride.start(car: CarBuilder.BuiltCar)
 
 	local function arrive(seg: Route.Segment)
 		segToken += 1
+		local token = segToken
 		for part, color in posterOriginal do
 			part.Color = color
 			posterOriginal[part] = nil
@@ -2147,6 +2250,14 @@ function Ride.start(car: CarBuilder.BuiltCar)
 		if seg.final then
 			at(t0, 2.3)
 			doorTarget = 1
+			-- Doors stay open. There is no departure, so the penalty is not applied.
+			beginDwell(Constants.MIN_DWELL_SECONDS)
+			task.delay(Constants.MIN_DWELL_SECONDS, function()
+				if token ~= segToken then
+					return
+				end
+				endDwell()
+			end)
 			at(t0, 3.4)
 			showSub(Lines.MOM_ARRIVE, 4)
 			at(t0, 6.6)
@@ -2170,15 +2281,26 @@ function Ride.start(car: CarBuilder.BuiltCar)
 		local openAt = 0.35 + (if seg.tick == "doors" then 1.15 else 1.95)
 		at(t0, openAt)
 		doorTarget = 1
+		local openedAt = os.clock()
 
-		local departAt = openAt + 2.6
-		if seg.paLie ~= nil then
-			departAt = math.max(departAt, 5.4)
-		end
+		-- The banner counts the minimum only. A PA lie keeps its own hold,
+		-- measured from arrival. That hold is not a second dwell.
+		local lieHold = if seg.paLie ~= nil then Constants.PA_LIE_HOLD else nil
+		local departAt = Dwell.departTime(openAt, Constants.MIN_DWELL_SECONDS, lieHold)
+		beginDwell(Constants.MIN_DWELL_SECONDS)
+		task.delay(Constants.MIN_DWELL_SECONDS, function()
+			if token ~= segToken then
+				return
+			end
+			endDwell()
+		end)
 		at(t0, departAt)
+		endDwell()
+		resolveDeparture(os.clock() - openedAt)
 		showPa(Lines.STAND_CLEAR, 3)
 		at(t0, departAt + 1.4)
 		doorTarget = 0
+		-- 2.6s after stand-clear is the next stretch, not the dwell.
 		at(t0, departAt + 2.6)
 	end
 
@@ -2186,6 +2308,13 @@ function Ride.start(car: CarBuilder.BuiltCar)
 		ride:SetAttribute("Phase", "intro")
 		doorOpen = 1
 		doorTarget = 1
+		local openedAt = os.clock()
+		beginDwell(Constants.MIN_DWELL_SECONDS)
+		task.delay(Constants.MIN_DWELL_SECONDS, function()
+			if ride:GetAttribute("Phase") == "intro" then
+				endDwell()
+			end
+		end)
 		task.wait(1.2)
 		showPa(Lines.INTRO_PA, 4)
 		task.wait(1.3)
@@ -2195,6 +2324,7 @@ function Ride.start(car: CarBuilder.BuiltCar)
 		task.wait(3)
 		showPa(Lines.STAND_CLEAR, 3)
 		task.wait(1.4)
+		resolveDeparture(os.clock() - openedAt)
 		doorTarget = 0
 		task.wait(1.2)
 
@@ -2212,7 +2342,7 @@ return Ride
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="15">
+      <Item class="ModuleScript" referent="16">
         <Properties>
           <string name="Name">Scenery</string>
           <string name="Source"><![CDATA[--!strict
@@ -2478,7 +2608,7 @@ return Scenery
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="16">
+      <Item class="ModuleScript" referent="17">
         <Properties>
           <string name="Name">WorldLight</string>
           <string name="Source"><![CDATA[--!strict
@@ -2622,18 +2752,18 @@ return WorldLight
       </Item>
     </Item>
   </Item>
-  <Item class="StarterPlayer" referent="17">
+  <Item class="StarterPlayer" referent="18">
     <Properties>
       <string name="Name">StarterPlayer</string>
       <float name="CameraMaxZoomDistance">0.5</float>
       <float name="CameraMinZoomDistance">0.5</float>
       <token name="CameraMode">1</token>
     </Properties>
-    <Item class="StarterPlayerScripts" referent="18">
+    <Item class="StarterPlayerScripts" referent="19">
       <Properties>
         <string name="Name">StarterPlayerScripts</string>
       </Properties>
-      <Item class="LocalScript" referent="19">
+      <Item class="LocalScript" referent="20">
         <Properties>
           <string name="Name">Client</string>
           <string name="Source"><![CDATA[--!strict
@@ -2649,7 +2779,7 @@ Walk.start()
 Sway.start()
 ]]></string>
         </Properties>
-        <Item class="ModuleScript" referent="20">
+        <Item class="ModuleScript" referent="21">
           <Properties>
             <string name="Name">Flag</string>
             <string name="Source"><![CDATA[--!strict
@@ -2782,7 +2912,7 @@ return Flag
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="21">
+        <Item class="ModuleScript" referent="22">
           <Properties>
             <string name="Name">Hud</string>
             <string name="Source"><![CDATA[--!strict
@@ -2791,6 +2921,7 @@ return Flag
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
 
 local Constants = require(ReplicatedStorage.Shared.Constants)
 local Lines = require(ReplicatedStorage.Shared.Lines)
@@ -3014,6 +3145,30 @@ function Hud.start()
 	buttonScale.Parent = button
 	flagButton = button
 
+	local dwellCard = Instance.new("Frame")
+	dwellCard.Name = "Dwell"
+	dwellCard.AnchorPoint = Vector2.new(0.5, 1)
+	dwellCard.Position = UDim2.new(0.5, 0, 1, -214)
+	dwellCard.Size = UDim2.fromOffset(280, 54)
+	dwellCard.BackgroundColor3 = Color3.new(0, 0, 0)
+	dwellCard.BackgroundTransparency = 0.35
+	dwellCard.BorderSizePixel = 0
+	dwellCard.Visible = false
+	dwellCard.Parent = gui
+	corner(dwellCard, 10)
+
+	local dwellTitle = label(dwellCard, Lines.MIN_DWELL, 13, Constants.COLOR.warn)
+	dwellTitle.Name = "Title"
+	dwellTitle.Font = Enum.Font.GothamBold
+	dwellTitle.Position = UDim2.fromOffset(12, 4)
+	dwellTitle.Size = UDim2.new(1, -24, 0, 18)
+
+	local dwellCount = label(dwellCard, "", 22, Constants.COLOR.cream)
+	dwellCount.Name = "Countdown"
+	dwellCount.Font = Enum.Font.GothamBold
+	dwellCount.Position = UDim2.fromOffset(12, 22)
+	dwellCount.Size = UDim2.new(1, -24, 0, 28)
+
 	local cross = Instance.new("Frame")
 	cross.Name = "Crosshair"
 	cross.AnchorPoint = Vector2.new(0.5, 0.5)
@@ -3065,6 +3220,21 @@ function Hud.start()
 		end
 	end
 
+	RunService.Heartbeat:Connect(function()
+		local deadline = ride:GetAttribute("DwellUntil")
+		if typeof(deadline) ~= "number" or deadline <= 0 then
+			dwellCard.Visible = false
+			return
+		end
+		local remain = deadline - workspace:GetServerTimeNow()
+		if remain <= 0 then
+			dwellCard.Visible = false
+			return
+		end
+		dwellCard.Visible = true
+		dwellCount.Text = Lines.dwellCountdown(remain)
+	end)
+
 	ride.AttributeChanged:Connect(function(name: string)
 		if name == "Feedback" and textOf("Feedback") ~= "" then
 			buttonScale.Scale = 1.08
@@ -3081,7 +3251,7 @@ return Hud
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="22">
+        <Item class="ModuleScript" referent="23">
           <Properties>
             <string name="Name">Sway</string>
             <string name="Source"><![CDATA[--!strict
@@ -3153,7 +3323,7 @@ return Sway
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="23">
+        <Item class="ModuleScript" referent="24">
           <Properties>
             <string name="Name">Walk</string>
             <string name="Source"><![CDATA[--!strict
@@ -3286,7 +3456,7 @@ return Walk
       </Item>
     </Item>
   </Item>
-  <Item class="Workspace" referent="24">
+  <Item class="Workspace" referent="25">
     <Properties>
       <string name="Name">Workspace</string>
       <float name="Gravity">196.2</float>

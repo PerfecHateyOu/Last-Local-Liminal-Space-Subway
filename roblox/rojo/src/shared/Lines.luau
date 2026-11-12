@@ -1,5 +1,6 @@
 --!strict
--- On-screen strings copied from the web game. Do not add new lines here.
+-- On-screen strings copied from the web game, plus the dwell banner.
+-- Do not add new dialogue here. The dwell banner is a label and a number.
 -- Sources: src/constants.ts (STOPS, the Stop 9 paLie), src/game/gameState.ts
 -- (PA, boarding, the Court Sq line), src/components/HUD.tsx ("Next:"),
 -- src/components/ReportScreen.tsx (Caught / Missed / false flag).
@@ -53,6 +54,17 @@ end
 function Lines.scoreLine(miss: number, fp: number): string
 	local suffix = if fp == 1 then "" else "s"
 	return string.format("%d missed, %d false flag%s.", miss, fp, suffix)
+end
+
+-- Dwell banner. Not a spoken line.
+Lines.MIN_DWELL = "MINIMUM DWELL TIME"
+
+function Lines.dwellCountdown(secondsLeft: number): string
+	local whole = math.ceil(secondsLeft)
+	if whole < 1 then
+		whole = 1
+	end
+	return tostring(whole)
 end
 
 return Lines
