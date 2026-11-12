@@ -10,7 +10,9 @@
 -- kept low so the ceiling pools stay local.
 --
 -- This only touches the Lighting service. It never writes the car lamps.
--- The flicker tick and the slow dim still own those.
+-- The flicker tick and the slow dim still own those. A Held At Signal
+-- pause does not come through here: one strip or a slow dim stays on the
+-- car lamps, and this service never blacks the car out.
 
 local Lighting = game:GetService("Lighting")
 

@@ -7,6 +7,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
 local Constants = require(ReplicatedStorage.Shared.Constants)
+local Hold = require(ReplicatedStorage.Shared.Hold)
 local Motion = require(ReplicatedStorage.Shared.Motion)
 
 local Sway = {}
@@ -24,14 +25,22 @@ local function sample(): (number, number)
 		return 0, 0
 	end
 	local top = Constants.TOP_SPEED_MPS
-	local t = workspace:GetServerTimeNow() - start
-	local velocity = Motion.speed(t, accel, cruise, brake, top)
+	local elapsed = workspace:GetServerTimeNow() - start
+	local holdAt = ride:GetAttribute("HoldAt")
+	local holdFor = ride:GetAttribute("HoldFor")
+	local at = if typeof(holdAt) == "number" then holdAt else 0
+	local span = if typeof(holdFor) == "number" then holdFor else 0
+	local motionT = Hold.motionTime(elapsed, at, span)
+	if not Hold.moving(elapsed, at, span) then
+		return 0, 0
+	end
+	local velocity = Motion.speed(motionT, accel, cruise, brake, top)
 	local fraction = if top > 0 then math.clamp(velocity / top, 0, 1) else 0
 	local pitch = 0
-	if t >= 0 and t < accel and accel > 0 then
-		pitch = math.sin(math.clamp(t / accel, 0, 1) * math.pi)
-	elseif brake > 0 and t > accel + cruise and t < accel + cruise + brake then
-		local u = (t - accel - cruise) / brake
+	if motionT >= 0 and motionT < accel and accel > 0 then
+		pitch = math.sin(math.clamp(motionT / accel, 0, 1) * math.pi)
+	elseif brake > 0 and motionT > accel + cruise and motionT < accel + cruise + brake then
+		local u = (motionT - accel - cruise) / brake
 		pitch = -math.sin(math.clamp(u, 0, 1) * math.pi)
 	end
 	return fraction, pitch

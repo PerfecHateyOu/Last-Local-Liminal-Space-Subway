@@ -75,6 +75,28 @@ Constants.WRONG_ANNOUNCE_FALLBACK_STOP = 2
 Constants.COUNTDOWN_MINUTES = 1
 Constants.WRONG_COUNTDOWN_MINUTES = 4
 
+-- Held At Signal. Wall seconds into a stretch, then how long the tunnel
+-- stays still. 6 is during cruise (accel is 3). The train is not at a
+-- platform. Stops 8 and 11 are Broadway and Greenpoint Av.
+Constants.HOLD_AT = 6
+Constants.HOLD_SECONDS = 4
+Constants.HOLD_STOP_A = 8
+Constants.HOLD_STOP_B = 11
+Constants.HOLD_EFFECT_A = "strip"
+Constants.HOLD_EFFECT_B = "dim"
+-- One tube. Not the whole car. The door tick still owns the blackout.
+Constants.HOLD_STRIP_NAME = "LightStrip_05"
+Constants.HOLD_BLINK = 0.35
+-- Slow dim. Above zero so the car does not go dark.
+Constants.HOLD_DIM = 0.55
+Constants.HOLD_RECOVER = 1.2
+-- Caught-staring is not built. While held, a future check would run this
+-- many times as often. The ride only publishes the number.
+Constants.HOLD_STARE_MULTIPLIER = 2
+-- Existing catalog id, shown only during the Broadway hold, then cleared.
+Constants.HOLD_TELL = "wrong_countdown"
+Constants.HOLD_TELL_STOP = 8
+
 -- Final stretch only. Linear, from full to this fraction. Not a flicker.
 Constants.FINAL_DIM = 0.62
 

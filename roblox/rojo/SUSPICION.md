@@ -114,11 +114,14 @@ for a few seconds with no station in sight.
   The whole car does not flicker or go black. Only the existing flicker
   tick may do that (the lighting rule calls it the door tick: after
   Myrtle–Willoughby and at 21 St). A hold is not that tick. An anomaly
-  may appear during a hold and clear when the train moves again.
+  from the existing catalog may appear during a hold and clear when the
+  train moves again.
 - Staring during a hold is riskier: the caught-staring check runs more
-  often while held (starting value: twice as often).
+  often while held (starting value: twice as often). This port has no
+  caught-staring check. The hold publishes that multiplier for when the
+  check exists. It does not watch the player.
 - The hold itself is not an anomaly — it is a pressure moment. The player
-  has to decide whether to look.
+  has to decide whether to look. The player cannot start or end a hold.
 
 ## 7. Announcements and countdown boards (borrowed from the video)
 
@@ -145,8 +148,9 @@ on hanging LED countdown boards ("1.0 Rose St 1min").
 Cheap, reusable tells that make a stop feel wrong without new models:
 
 - **Flickering fluorescents** — one flickering strip or tube is an anomaly
-  tell at a stop. The whole car does not flicker. The car is brightest
-  where it is safest.
+  tell at a stop. The whole car does not flicker. A hold may blink one
+  tube or dim the car slowly. That is not a whole-car flicker and not a
+  new anomaly type. The car is brightest where it is safest.
 - **Dim platform** — at a false stop, one platform is dimmer than the
   others. Noticing it is not an action; staring at it is.
 - **Rats** — the video's game brags "this game has rats." A rat on the
