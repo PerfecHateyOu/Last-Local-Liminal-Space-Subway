@@ -58,8 +58,8 @@ Everything below follows that rule: the server decides, the client displays.
 | Cause | Amount (starting value) | Notes |
 |---|---|---|
 | Caught staring at an active anomaly | +15 | Not in this port (TBD). The slice can flag a passenger. It does not score a stare. |
-| False alarm — flagging when no anomaly is active | +10 | New. Flagging is a visible act; crying wolf makes the car watch you. |
-| Reacting at a false stop | +10 | New. Standing, moving to the doors, or staring during a false stop at Classon Av or Metropolitan Av. |
+| False alarm — flagging when no anomaly is active | +10 | Applied when a flag lands while no tell is up and the poster has not changed. Flagging the wrong person while a tell or the poster is up does not add this. |
+| Reacting at a false stop | +10 | The amount is in Constants. This port cannot see standing, moving to the doors, or staring, so the hook stays off. |
 | Leaving before the dwell ends | +10 | Stays off. The player is a passenger and cannot depart. The amount stays in Constants for the unused hook. See §5. |
 | Staring at the conductor or a parent for too long | +5 | New. The people in the car notice being watched, anomaly or not. |
 
@@ -67,24 +67,26 @@ Everything below follows that rule: the server decides, the client displays.
 
 | Cause | Amount (starting value) | Notes |
 |---|---|---|
-| Decay over time | −2 per stop with no incident | Not in this port. There is no guide next-step list (TBD). Tune so a clean ride trends back to CALM. |
-| Correct flag — flagging while an anomaly is active | −5 | The slice shows Caught for a correct flag. It does not change a suspicion value. |
-| Completing a stop cleanly | −5 | New. Arrive, dwell, depart, nothing flagged, nothing caught. |
+| Decay over time | −2 per stop with no incident | Applied on a miss and on a clean stop. A miss does not also raise suspicion. |
+| Correct flag — flagging while an anomaly is active | −5 | Applied when the flag is noticed. The screen still says Caught. |
+| Completing a stop cleanly | −5 | Applied with the decay, so a clean stop is −7. Arrive, dwell, depart, nothing flagged, no anomaly on that stop. |
 | Sitting still and looking away | −2 per stop | New. Acting normal is the safest play. |
 
 ## 4. Per-stop result
 
-At the end of each stop the game reports one result. This is not built.
-The ride only reports caught, missed, and false flags at the end. There
-is no guide next-step list (TBD):
+At the end of each stop the server reports one result. The screen shows it
+briefly, using the existing words where they exist. There is no suspicion
+meter. The Psych Log is still not in this port (TBD):
 
-- **Noticed** — you flagged while an anomaly was active.
-- **Missed** — an anomaly was active and you never flagged.
-- **False alarm** — you flagged with no anomaly active.
-- **Clean** — no anomaly, no flag.
+- **Noticed** — you flagged an active anomaly. The screen says Caught.
+- **Missed** — an anomaly was active and you never flagged it. Suspicion
+  does not go up. Decay still applies when you also did not flag.
+- **False alarm** — you flagged while no tell was up and the poster had
+  not changed, and you did not catch an anomaly. The screen says False flag.
+- **Clean** — no anomaly on that stop, no flag. The screen says Clean.
 
-Missed does not raise suspicion by itself — the car only reacts to what it
-sees you do. A missed anomaly stays in the Psych Log.
+A catch is reported over a false alarm, and a false alarm over a miss.
+A missed anomaly stays in the Psych Log once that log exists.
 
 ## 5. Dwell time (passenger)
 
@@ -100,8 +102,8 @@ leaves the player powerless: the train drives itself.
   keeps the doors open for the full dwell.
 - The early-departure penalty stays off. The player cannot leave early.
   The hook remains in the server, intentionally unused.
-- Reacting at a false stop still applies (§2): standing, moving to the
-  doors, or staring during a false stop at Classon Av or Metropolitan Av.
+- Reacting at a false stop is still +10 in §2. This port cannot see that
+  reaction, so the hook stays off.
 - An **Early / Late** timer runs against the schedule. Being late does not
   raise suspicion directly; it raises tension (see §8, TBD).
 
