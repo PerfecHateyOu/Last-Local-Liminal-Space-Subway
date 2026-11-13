@@ -119,11 +119,12 @@
 @utility text-fluid-2xl { font-size: clamp(1.5rem, 1.1rem + 1.8vw, 2.25rem); line-height: 1.05; }
 
 /* The shared overlay (src/ui/Overlay.tsx). A centered card that rises in; on touch phones held
-   upright, a bottom sheet that slides up and keeps clear of the home indicator. Unlayered, so it
-   wins over the card's own utilities in the sheet case. */
+   upright, a bottom sheet that eases up a short way and keeps clear of the home indicator.
+   The rise stays inside the screen: a full-height slide parks the buttons below a phone.
+   Unlayered, so it wins over the card's own utilities in the sheet case. */
 @keyframes overlay-fade { from { opacity: 0; } }
 @keyframes overlay-rise { from { opacity: 0; transform: translateY(6px) scale(0.985); } }
-@keyframes overlay-slide { from { transform: translateY(100%); } }
+@keyframes overlay-slide { from { transform: translateY(0.75rem); } }
 .overlay-backdrop { animation: overlay-fade 150ms ease-out; }
 .overlay-panel { animation: overlay-rise 180ms cubic-bezier(0.2, 0.8, 0.2, 1); }
 @media (pointer: coarse) and (max-width: 639.98px) and (orientation: portrait) {
@@ -134,6 +135,7 @@
   .overlay-sheet > .overlay-panel {
     max-width: none;
     max-height: 92dvh;
+    min-height: 0;
     border-bottom-left-radius: 0;
     border-bottom-right-radius: 0;
     border-bottom-width: 0;
