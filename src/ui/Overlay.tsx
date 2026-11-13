@@ -89,7 +89,7 @@ export const Overlay: React.FC<OverlayProps> = ({
         aria-modal="true"
         aria-labelledby={labelledBy}
         data-testid={testId}
-        className={`overlay-panel relative w-full ${WIDTH[width]} max-h-full flex flex-col overflow-hidden rounded-lg shadow-2xl ${panelClassName}`}
+        className={`overlay-panel relative w-full ${WIDTH[width]} max-h-full min-h-0 flex flex-col overflow-hidden rounded-lg shadow-2xl ${panelClassName}`}
       >
         {header && <div className="shrink-0 relative z-10">{header}</div>}
         <div className={`overlay-body relative flex-1 min-h-0 overflow-y-auto overscroll-contain ${bodyClassName}`}>{children}</div>
