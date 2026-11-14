@@ -188,6 +188,11 @@ function Audio.start(button: TextButton)
 			onDoor(ride:GetAttribute("DoorTarget"))
 		elseif name == "PaText" then
 			onPa(ride:GetAttribute("PaText"))
+		elseif name == "TrialChime" then
+			local stamp = ride:GetAttribute("TrialChime")
+			if typeof(stamp) == "number" and stamp > 0 then
+				playChime()
+			end
 		end
 	end)
 

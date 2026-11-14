@@ -61,8 +61,12 @@ Lines.RECORDER_HINT = "Dad gave you a tape recorder. (Recording comes later.)"
 Lines.HAVEN_BOARD = "You get back on with them."
 -- Kept for Doors.resolve signature / older call sites; unused once haven runs.
 Lines.HAVEN_STUB = ""
--- Stub until False Stop Trial (PR7).
-Lines.TRIAL_STUB = "The platform feels wrong. Mom pulls you back. (The False Stop Trial comes later.)"
+Lines.TRIAL_STUB = ""
+-- False Stop Trial (engineTrial.ts).
+Lines.TRIAL_HINT = "Find the way back. The signs lie. Watch the lights when the chime plays."
+Lines.MOM_TRIAL_CLEAN = "Mom: Where did you go?! You can’t just walk off like that!"
+Lines.MOM_TRIAL_ROUGH = "You don’t remember getting back on. Mom: Oh my god. Where were you?"
+Lines.DAD_TRIAL_SIT = "Dad: Sit. Stay where we can see you."
 
 -- ReportScreen: "False flag: {name}"
 function Lines.falseFlag(label: string): string

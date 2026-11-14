@@ -17,12 +17,14 @@ local RunService = game:GetService("RunService")
 local AnomalySystem = require(script.Parent.AnomalySystem)
 local CarBuilder = require(script.Parent.CarBuilder)
 local Scenery = require(script.Parent.Scenery)
+local TrialSpace = require(script.Parent.TrialSpace)
 local Constants = require(ReplicatedStorage.Shared.Constants)
 local Doors = require(ReplicatedStorage.Shared.Doors)
 local Dwell = require(ReplicatedStorage.Shared.Dwell)
 local Hold = require(ReplicatedStorage.Shared.Hold)
 local Dialogue = require(ReplicatedStorage.Shared.Dialogue)
 local Haven = require(ReplicatedStorage.Shared.Haven)
+local Trial = require(ReplicatedStorage.Shared.Trial)
 local Lines = require(ReplicatedStorage.Shared.Lines)
 local Score = require(ReplicatedStorage.Shared.Score)
 local Band = require(ReplicatedStorage.Shared.Band)
@@ -48,6 +50,9 @@ function Ride.start(car: CarBuilder.BuiltCar)
 	local maskRemote = Instance.new("RemoteEvent")
 	maskRemote.Name = "Mask"
 	maskRemote.Parent = remotes
+	local trialRemote = Instance.new("RemoteEvent")
+	trialRemote.Name = "Trial"
+	trialRemote.Parent = remotes
 
 	ride:SetAttribute("Phase", "intro")
 	ride:SetAttribute("PaText", "")
@@ -78,6 +83,16 @@ function Ride.start(car: CarBuilder.BuiltCar)
 	ride:SetAttribute("MaskA", "")
 	ride:SetAttribute("MaskB", "")
 	ride:SetAttribute("MaskC", "")
+	ride:SetAttribute("TrialActive", false)
+	ride:SetAttribute("TrialUntil", 0)
+	ride:SetAttribute("TrialA", "")
+	ride:SetAttribute("TrialB", "")
+	ride:SetAttribute("TrialC", "")
+	ride:SetAttribute("TrialSlots", 0)
+	ride:SetAttribute("TrialChime", 0)
+
+	local trialSpace = TrialSpace.build()
+	local carReturn = car.board.CFrame * CFrame.new(0, 3, 0)
 
 	CarBuilder.addTells(
 		car.passengers,
@@ -449,6 +464,8 @@ function Ride.start(car: CarBuilder.BuiltCar)
 	local choiceEpoch = 0
 	local pendingMaskChoice: string? = nil
 	local maskEpoch = 0
+	local pendingTrialChoice: number? = nil
+	local trialEpoch = 0
 
 	doorsRemote.OnServerEvent:Connect(function(_player: Player, choice: any)
 		if ride:GetAttribute("ChoiceActive") ~= true then
@@ -474,6 +491,19 @@ function Ride.start(car: CarBuilder.BuiltCar)
 			return
 		end
 		pendingMaskChoice = choice
+	end)
+
+	trialRemote.OnServerEvent:Connect(function(_player: Player, choice: any)
+		if ride:GetAttribute("TrialActive") ~= true then
+			return
+		end
+		if typeof(choice) ~= "number" then
+			return
+		end
+		if choice ~= 0 and choice ~= 1 and choice ~= 2 then
+			return
+		end
+		pendingTrialChoice = choice
 	end)
 
 	local function waitForDoorChoice(seconds: number): string
@@ -524,7 +554,137 @@ function Ride.start(car: CarBuilder.BuiltCar)
 		return answers[index].val
 	end
 
+	local function clearTrialUi()
+		ride:SetAttribute("TrialActive", false)
+		ride:SetAttribute("TrialUntil", 0)
+		ride:SetAttribute("TrialA", "")
+		ride:SetAttribute("TrialB", "")
+		ride:SetAttribute("TrialC", "")
+		ride:SetAttribute("TrialSlots", 0)
+	end
+
+	local function waitForTrialChoice(seconds: number, items: { Trial.ChoiceItem }): number?
+		trialEpoch += 1
+		local epoch = trialEpoch
+		pendingTrialChoice = nil
+		ride:SetAttribute("TrialA", items[1].text)
+		ride:SetAttribute("TrialB", if items[2] then items[2].text else "")
+		ride:SetAttribute("TrialC", if items[3] then items[3].text else "")
+		ride:SetAttribute("TrialSlots", #items)
+		ride:SetAttribute("TrialActive", true)
+		if seconds > 0 then
+			ride:SetAttribute("TrialUntil", workspace:GetServerTimeNow() + seconds)
+		else
+			ride:SetAttribute("TrialUntil", 0)
+		end
+		local deadline = if seconds > 0 then os.clock() + seconds else math.huge
+		while os.clock() < deadline and pendingTrialChoice == nil and epoch == trialEpoch do
+			if ride:GetAttribute("Phase") ~= "trial" then
+				break
+			end
+			task.wait(0.05)
+		end
+		local picked = pendingTrialChoice
+		clearTrialUi()
+		return picked
+	end
+
 	local segToken = 0
+
+	local function runTrial(token: number, stopName: string): boolean
+		ride:SetAttribute("Phase", "trial")
+		clearMaskUi()
+		TrialSpace.setVisible(trialSpace.model, true)
+		TrialSpace.teleportPlayers(trialSpace.spawn)
+		showHint(Lines.TRIAL_HINT, Constants.TRIAL_HINT_SECONDS)
+
+		local state = Trial.start(stopName)
+		local rng = function()
+			return math.random()
+		end
+		local clean = false
+
+		while token == segToken do
+			local roundState, view = Trial.round(state, rng)
+			state = roundState
+			TrialSpace.applyRound(trialSpace, view.signs, view.boardDoors)
+
+			local cycleAt = os.clock()
+			local events = Trial.cycleEvents(state, rng)
+			local eventDone: { [number]: boolean } = {}
+			ride:SetAttribute("TrialChime", workspace:GetServerTimeNow())
+
+			local conn = RunService.Heartbeat:Connect(function(dt: number)
+				if ride:GetAttribute("Phase") ~= "trial" then
+					return
+				end
+				local elapsed = os.clock() - cycleAt
+				if elapsed >= Constants.TRIAL_CYCLE then
+					cycleAt = os.clock()
+					events = Trial.cycleEvents(state, rng)
+					eventDone = {}
+					ride:SetAttribute("TrialChime", workspace:GetServerTimeNow())
+					elapsed = 0
+				end
+				for i, event in events do
+					if eventDone[i] ~= true and elapsed >= event.at then
+						eventDone[i] = true
+						local opening = trialSpace.openings[event.index + 1]
+						if opening ~= nil then
+							if event.kind == "flick" then
+								TrialSpace.flick(opening, os.clock() + Constants.TRIAL_FLICK_SECONDS)
+							elseif event.kind == "open" then
+								TrialSpace.setDoorTarget(opening, 1)
+							else
+								TrialSpace.setDoorTarget(opening, 0)
+							end
+						end
+					end
+				end
+				TrialSpace.step(trialSpace, dt, os.clock())
+			end)
+
+			local picked = waitForTrialChoice(view.windowSeconds, view.items)
+			conn:Disconnect()
+			if token ~= segToken then
+				break
+			end
+
+			task.wait(0.7)
+			if token ~= segToken then
+				break
+			end
+			local result = Trial.applyPick(state, picked)
+			state = result.state
+			if result.subtitle ~= "" then
+				showSub(result.subtitle, 3.0)
+				task.wait(1.2)
+			end
+			if result.kind == "exit" then
+				clean = result.clean == true
+				break
+			end
+		end
+
+		clearTrialUi()
+		TrialSpace.setVisible(trialSpace.model, false)
+		TrialSpace.teleportPlayers(carReturn)
+		applySuspicion(Constants.TRIAL_EXIT_SUSPICION)
+		applySanity(-Constants.TRIAL_SANITY)
+		ride:SetAttribute("Phase", "stop")
+		if clean then
+			showSub(Lines.MOM_TRIAL_CLEAN, 3.4)
+		else
+			showSub(Lines.MOM_TRIAL_ROUGH, 3.4)
+		end
+		task.wait(3.6)
+		if token ~= segToken then
+			return false
+		end
+		showSub(Lines.DAD_TRIAL_SIT, 2.6)
+		task.wait(2.8)
+		return token == segToken
+	end
 
 	local function runMaskCheck(token: number)
 		if maskBusy or token ~= segToken then
@@ -1007,6 +1167,11 @@ function Ride.start(car: CarBuilder.BuiltCar)
 				return
 			end
 			ride:SetAttribute("Phase", "stop")
+		elseif outcome.mode == "trial" then
+			local ok = runTrial(token, Route.stopName(seg.stop))
+			if not ok or token ~= segToken then
+				return
+			end
 		else
 			if outcome.line ~= "" then
 				showSub(outcome.line, math.max(2.5, outcome.holdSeconds))
