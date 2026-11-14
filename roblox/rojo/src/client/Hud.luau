@@ -1,6 +1,8 @@
 --!strict
 -- On-screen text. The words come from the server (Shared.Lines). This file
--- only places them: the amber PA line, the station card, the flag button.
+-- only places them: the amber PA line, the station card, the suspicion
+-- meter, the flag button. Suspicion number and band are Ride attributes;
+-- Score and Band stay on the server.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -107,10 +109,50 @@ function Hud.start()
 	chapter.Position = UDim2.fromOffset(42, 30)
 	chapter.Size = UDim2.new(1, -50, 0, 20)
 
+	local susCard = Instance.new("Frame")
+	susCard.Name = "Suspicion"
+	susCard.AnchorPoint = Vector2.new(0, 0)
+	susCard.Position = UDim2.fromOffset(12, 76)
+	susCard.Size = UDim2.fromOffset(168, 48)
+	susCard.BackgroundColor3 = Color3.new(0, 0, 0)
+	susCard.BackgroundTransparency = 0.35
+	susCard.BorderSizePixel = 0
+	susCard.Parent = gui
+	corner(susCard, 10)
+
+	local susTitle = label(susCard, "SUSPICION", 11, Color3.fromRGB(180, 176, 166))
+	susTitle.Name = "Title"
+	susTitle.Font = Enum.Font.Code
+	susTitle.Position = UDim2.fromOffset(10, 4)
+	susTitle.Size = UDim2.new(1, -20, 0, 14)
+
+	local susValue = label(susCard, Lines.suspicionMeter(0, "calm"), 16, Constants.COLOR.warn)
+	susValue.Name = "Value"
+	susValue.Font = Enum.Font.GothamBold
+	susValue.Position = UDim2.fromOffset(10, 18)
+	susValue.Size = UDim2.new(1, -20, 0, 18)
+
+	local susBarBack = Instance.new("Frame")
+	susBarBack.Name = "Bar"
+	susBarBack.Position = UDim2.fromOffset(10, 38)
+	susBarBack.Size = UDim2.new(1, -20, 0, 4)
+	susBarBack.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+	susBarBack.BorderSizePixel = 0
+	susBarBack.Parent = susCard
+	corner(susBarBack, 2)
+
+	local susBarFill = Instance.new("Frame")
+	susBarFill.Name = "Fill"
+	susBarFill.Size = UDim2.fromScale(0, 1)
+	susBarFill.BackgroundColor3 = Constants.COLOR.gLine
+	susBarFill.BorderSizePixel = 0
+	susBarFill.Parent = susBarBack
+	corner(susBarFill, 2)
+
 	local pa = Instance.new("TextLabel")
 	pa.Name = "PA"
 	pa.AnchorPoint = Vector2.new(0.5, 0)
-	pa.Position = UDim2.new(0.5, 0, 0, 78)
+	pa.Position = UDim2.new(0.5, 0, 0, 132)
 	pa.Size = UDim2.new(0.92, 0, 0, 28)
 	pa.AutomaticSize = Enum.AutomaticSize.Y
 	pa.BackgroundColor3 = Constants.COLOR.paBg
@@ -128,7 +170,7 @@ function Hud.start()
 	local hint = Instance.new("TextLabel")
 	hint.Name = "Hint"
 	hint.AnchorPoint = Vector2.new(0.5, 0)
-	hint.Position = UDim2.new(0.5, 0, 0, 120)
+	hint.Position = UDim2.new(0.5, 0, 0, 174)
 	hint.Size = UDim2.new(0.9, 0, 0, 28)
 	hint.AutomaticSize = Enum.AutomaticSize.Y
 	hint.BackgroundColor3 = Color3.new(0, 0, 0)
@@ -305,6 +347,26 @@ function Hud.start()
 		nextName.Text = stopName
 		nextLabel.Visible = stopName ~= ""
 		chapter.Text = textOf("ChapterLine")
+
+		local susAttr = ride:GetAttribute("Suspicion")
+		local sus = if typeof(susAttr) == "number" then susAttr else 0
+		local band = textOf("Band")
+		if band == "" then
+			band = "calm"
+		end
+		susValue.Text = Lines.suspicionMeter(sus, band)
+		local ratio = math.clamp(sus / 100, 0, 1)
+		susBarFill.Size = UDim2.fromScale(ratio, 1)
+		if band == "hunted" then
+			susValue.TextColor3 = Color3.fromRGB(220, 96, 72)
+			susBarFill.BackgroundColor3 = Color3.fromRGB(220, 96, 72)
+		elseif band == "watched" or band == "uneasy" then
+			susValue.TextColor3 = Constants.COLOR.warn
+			susBarFill.BackgroundColor3 = Constants.COLOR.warn
+		else
+			susValue.TextColor3 = Constants.COLOR.cream
+			susBarFill.BackgroundColor3 = Constants.COLOR.gLine
+		end
 
 		local boardStop = textOf("BoardStop")
 		local minutesValue = ride:GetAttribute("BoardMinutes")

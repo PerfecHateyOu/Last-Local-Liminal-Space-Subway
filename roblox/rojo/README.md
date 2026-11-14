@@ -15,6 +15,7 @@ The car is built from Parts. People are your Blender models if you import them, 
 5. You start in the aisle.
    - **WASD** walks. The **mouse** looks. You cannot jump.
    - The amber line at the top is the conductor. The words are the ones from the web game.
+   - Under the station card, the suspicion meter reads like **0 CALM** (then **25 UNEASY**, **50 WATCHED**, **75 HUNTED** as the number rises). The bar under it is the same 0–100 value. The server owns the number; the HUD only shows it.
    - After the doors close, put the dot in the middle of the screen on a person and **hold F** (or hold the **FLAG** button). The bar fills in about a second.
    - **Caught** means that person was the wrong one. **False flag:** plus their name means they were ordinary.
    - You cannot walk through a standing passenger. Seated people are on the benches, out of the aisle.
@@ -95,7 +96,7 @@ Two arrivals are different, on purpose:
 - On the way to Court Sq the lamps dim in a straight line. Slow dimming is allowed. It is not a flicker.
 - At Court Sq the line is "Court Square. This is the last stop on this train." Mom says "Here we are. Court Square." The doors stay open. The screen keeps **Caught** or **Missed**, and a line like "1 missed, 0 false flags."
 
-Flag only counts while the doors are closed and you are between stations. Holding F at the platform does nothing. That matches the web game. At each stop the screen briefly shows Caught, Missed, False flag, or Clean. As suspicion rises, a passenger may glance when you walk, then heads turn toward you and one word of the conductor's line repeats. One ceiling tube may blink. Higher still, the lamps dim slowly. The whole car does not flicker.
+Flag only counts while the doors are closed and you are between stations. Holding F at the platform does nothing. That matches the web game. At each stop the screen briefly shows Caught, Missed, False flag, or Clean. Suspicion starts at 0. A correct flag lowers it; a false alarm (flagging while nothing is wrong) raises it; a clean stop and a quiet miss each decay it a little. Reaching 100 does not end the ride. As the band rises, a passenger may glance when you walk, then heads turn toward you and one word of the conductor's line repeats. One ceiling tube may blink. Higher still, the lamps dim slowly. The whole car does not flicker. Design notes for what is still TBD (staring check, Psych Log, parent lines, ending variants) live in `SUSPICION.md`.
 
 You stay on the train at every stop. Choosing to step off is not in this slice.
 
@@ -173,4 +174,4 @@ The full per-mesh list is `assets/triangle-counts.json`. Export was Blender 4.0.
 
 ## Not in this version
 
-Sound, cars A and C, stepping off, suspicion, the parents' other lines, the Safe Haven, the trial, the camera, and the tape recorder. The extra passenger is seated from the start, instead of appearing mid-ride. The open-air stretch over Newtown Creek is not in this version: every stop is still in the tunnel. Those are later slices.
+Sound, cars A and C, stepping off, the parents' other lines, the Safe Haven, the trial, the camera, and the tape recorder. Suspicion scoring, bands, and the on-screen meter are in; staring detection, the Psych Log, parent-line changes by band, and band-based Court Square endings are not. The extra passenger is seated from the start, instead of appearing mid-ride. The open-air stretch over Newtown Creek is not in this version: every stop is still in the tunnel. Those are later slices.
