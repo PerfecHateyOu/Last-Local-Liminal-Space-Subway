@@ -95,12 +95,17 @@ Constants.HUNTED_DIM_SECONDS = 2.5
 Constants.WATCHED_FALSE_STOP_BONUS = 0.15
 
 -- One tell per stop, by the arrival number on the segment. Other stops
--- have none. 3 is the poster. 7 is the ride into Flushing Av. 10 is the
--- ride into Nassau Av. The scripted arrival lie stays on stop 9 and is
--- not one of these.
+-- have none. 3 is the poster. 5 is the mid-ride extra passenger. 7 is the
+-- ride into Flushing Av. 10 is the ride into Nassau Av. The scripted
+-- arrival lie stays on stop 9 and is not one of these.
 Constants.ANOMALY_POSTER_STOP = 3
+Constants.ANOMALY_EXTRA_STOP = 5
 Constants.ANOMALY_ANNOUNCE_STOP = 7
 Constants.ANOMALY_COUNTDOWN_STOP = 10
+
+-- Seconds into the stretch when seat6 appears (after accel, during cruise).
+-- Web waits until you look away; this slice reveals on a fixed timer.
+Constants.EXTRA_APPEAR_AT = 7
 
 -- Signed names the wrong announcement may say. 13 is Court Sq. 2 is
 -- Fulton St, used only when 13 is the stop the train is actually nearing.

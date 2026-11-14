@@ -367,13 +367,17 @@ function Ride.start(car: CarBuilder.BuiltCar)
 		if posterLive then
 			return true
 		end
-		for _, id in { AnomalySystem.ANNOUNCE_ID, AnomalySystem.COUNTDOWN_ID } do
+		for _, id in { AnomalySystem.ANNOUNCE_ID, AnomalySystem.COUNTDOWN_ID, AnomalySystem.EXTRA_ID } do
 			local model = car.passengers:FindFirstChild(id)
 			if model ~= nil and model:GetAttribute("Anomaly") == true and model:GetAttribute("Hidden") ~= true then
 				return true
 			end
 		end
 		return false
+	end
+
+	local function clearExtra()
+		CarBuilder.setPassengerShown(car.passengers, AnomalySystem.EXTRA_ID, false)
 	end
 
 	local function stopWord(kind: string): (string, string)
@@ -489,6 +493,7 @@ function Ride.start(car: CarBuilder.BuiltCar)
 		ride:SetAttribute("NextStop", Route.stopName(seg.stop))
 		ride:SetAttribute("ChapterLine", Route.chapterLine(seg.stop))
 		CarBuilder.setCrowd(car.passengers, seg.crowd)
+		clearExtra()
 		doorTarget = 0
 
 		local length = Route.segmentLength(seg, Constants.ACCEL, Constants.BRAKE)
@@ -507,6 +512,7 @@ function Ride.start(car: CarBuilder.BuiltCar)
 
 		local picked = AnomalySystem.pick(seg.stop, seg.b, {
 			posterStop = Constants.ANOMALY_POSTER_STOP,
+			extraStop = Constants.ANOMALY_EXTRA_STOP,
 			announceStop = Constants.ANOMALY_ANNOUNCE_STOP,
 			countdownStop = Constants.ANOMALY_COUNTDOWN_STOP,
 		})
@@ -560,6 +566,14 @@ function Ride.start(car: CarBuilder.BuiltCar)
 						break
 					end
 				end
+			end)
+		end
+		if picked == "extra" then
+			task.delay(Constants.EXTRA_APPEAR_AT, function()
+				if token ~= segToken then
+					return
+				end
+				CarBuilder.setPassengerShown(car.passengers, AnomalySystem.EXTRA_ID, true)
 			end)
 		end
 		if not seg.b and seg.stop == 5 then
@@ -649,6 +663,7 @@ function Ride.start(car: CarBuilder.BuiltCar)
 		local feedbackKind, word = stopWord(kind)
 		showFeedback(feedbackKind, word, false)
 		clearTells()
+		clearExtra()
 		ride:SetAttribute("Held", false)
 		ride:SetAttribute("StareIntervalScale", Hold.stareScale(false, Constants.HOLD_STARE_MULTIPLIER))
 		for part, color in posterOriginal do

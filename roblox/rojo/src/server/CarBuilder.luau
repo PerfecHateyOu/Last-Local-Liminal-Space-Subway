@@ -109,6 +109,16 @@ function CarBuilder.setCrowd(folder: Folder, shown: boolean)
 	end
 end
 
+-- Far-seat extra (and any other named rider). Server owns show/hide;
+-- Flag already ignores Hidden models.
+function CarBuilder.setPassengerShown(folder: Folder, id: string, shown: boolean)
+	local model = folder:FindFirstChild(id)
+	if model == nil or not model:IsA("Model") then
+		return
+	end
+	applyShown(model, shown)
+end
+
 local function rememberTransparency(model: Model)
 	for _, desc in model:GetDescendants() do
 		if desc:IsA("BasePart") and desc.Name ~= "KeepOut" and desc.Name ~= "Root" then
@@ -367,7 +377,9 @@ local function buildPassenger(def: Passengers.PassengerDef, folder: Folder): str
 	if def.standing then
 		addKeepOut(built, feet, def.id)
 	end
-	if def.crowd then
+	-- Crowd waits for crowded stretches. The far-seat anomaly waits for the
+	-- mid-ride "extra" tell (Ride shows them, then clears on arrival).
+	if def.crowd or def.anomaly then
 		applyShown(built, false)
 	end
 	attachProps(built, def)
@@ -973,8 +985,8 @@ function CarBuilder.build(): BuiltCar
 			print(string.format("[Last Local] passenger %s at %.1f, %.1f, %.1f", child.Name, at.X, at.Y, at.Z))
 		end
 	end
-	-- mom, dad, the three strangers, and the far-seat extra. Crowd stays hidden.
-	if riding < 6 then
+	-- mom, dad, and the three strangers. Crowd and the far-seat extra stay hidden.
+	if riding < 5 then
 		warn(string.format("[Last Local] Only %d passengers are in the car; the fallback figures did not all spawn.", riding))
 	end
 

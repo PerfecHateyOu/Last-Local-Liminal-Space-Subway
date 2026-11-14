@@ -7,6 +7,7 @@ local AnomalySystem = require("../src/server/AnomalySystem")
 local Lines = require("../src/shared/Lines")
 
 local POSTER_STOP = 3
+local EXTRA_STOP = 5
 local ANNOUNCE_STOP = 7
 local COUNTDOWN_STOP = 10
 local HONEST_MINUTES = 1
@@ -14,6 +15,7 @@ local WRONG_MINUTES = 4
 
 local schedule = {
 	posterStop = POSTER_STOP,
+	extraStop = EXTRA_STOP,
 	announceStop = ANNOUNCE_STOP,
 	countdownStop = COUNTDOWN_STOP,
 }
@@ -37,10 +39,12 @@ local function listed(kind: string): boolean
 end
 
 check("catalog keeps the poster", listed("poster_changed"))
+check("catalog includes the mid-ride extra", listed("extra"))
 check("catalog includes the wrong announcement", listed("wrong_announcement"))
 check("catalog includes the wrong countdown", listed("wrong_countdown"))
 
 check("stop 3 is the poster", AnomalySystem.pick(3, false, schedule) == "poster_changed")
+check("Bedford approach is the mid-ride extra", AnomalySystem.pick(5, false, schedule) == "extra")
 check("Flushing approach is the wrong announcement", AnomalySystem.pick(7, false, schedule) == "wrong_announcement")
 check("Nassau approach is the wrong countdown", AnomalySystem.pick(10, false, schedule) == "wrong_countdown")
 check("a quiet stop has no tell", AnomalySystem.pick(2, false, schedule) == nil)
@@ -49,7 +53,8 @@ check("the 6b stretch is not a tell", AnomalySystem.pick(6, true, schedule) == n
 
 check(
 	"one stop keeps a single tell",
-	AnomalySystem.pick(3, false, { posterStop = 3, announceStop = 3, countdownStop = 3 }) == "poster_changed"
+	AnomalySystem.pick(3, false, { posterStop = 3, extraStop = 3, announceStop = 3, countdownStop = 3 })
+		== "poster_changed"
 )
 
 check(
@@ -75,6 +80,7 @@ check("an ordinary passenger is a false flag", AnomalySystem.verdict(false, fals
 
 check("announcement flag id", AnomalySystem.ANNOUNCE_ID == "announcement")
 check("countdown flag id", AnomalySystem.COUNTDOWN_ID == "countdown")
+check("extra passenger id", AnomalySystem.EXTRA_ID == "seat6")
 
 check("next-stop phrasing is unchanged", Lines.nextStop("Court Sq") == "The next stop is Court Sq.")
 check("minute label", Lines.MIN_LABEL == "MIN")

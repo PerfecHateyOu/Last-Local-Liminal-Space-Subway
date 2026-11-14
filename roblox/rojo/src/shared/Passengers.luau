@@ -103,8 +103,9 @@ local LIST: { PassengerDef } = {
 		hair = Color3.fromRGB(25, 21, 18),
 	},
 	-- The far-seat stranger. Web id "seat6", manifest file anomaly_extra.glb.
-	-- Label is the web target label. anomaly_faceless / anomaly_stretched are
-	-- tiny meshes (about 12 cm), not bodies, so this seat does not use them.
+	-- Hidden at boarding; Ride shows them mid-stretch on the "extra" tell, then
+	-- clears on arrival. anomaly_faceless / anomaly_stretched are tiny meshes
+	-- (about 12 cm), not bodies, so this seat does not use them.
 	{
 		id = "seat6",
 		label = "the seat at the far end",
