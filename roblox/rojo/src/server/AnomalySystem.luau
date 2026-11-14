@@ -2,20 +2,24 @@
 -- Anomaly catalog for this slice. The ride asks pick() which one tell a
 -- stop gets, applies it, and validates flags with verdict(). The arrival
 -- PA lie in Route is a separate scripted line. It is not this catalog.
+-- "extra" is the far-seat passenger (seat6): hidden at boarding, shown
+-- mid-stretch, cleared on arrival. It is not a wall plate.
 
 local AnomalySystem = {}
 
 AnomalySystem.ANNOUNCE_ID = "announcement"
 AnomalySystem.COUNTDOWN_ID = "countdown"
+AnomalySystem.EXTRA_ID = "seat6"
 
 export type Schedule = {
 	posterStop: number,
+	extraStop: number,
 	announceStop: number,
 	countdownStop: number,
 }
 
 function AnomalySystem.types(): { string }
-	return { "poster_changed", "wrong_announcement", "wrong_countdown" }
+	return { "poster_changed", "extra", "wrong_announcement", "wrong_countdown" }
 end
 
 -- At most one tell. A repeated stop number keeps the earlier entry.
@@ -26,6 +30,9 @@ function AnomalySystem.pick(stop: number, b: boolean, schedule: Schedule): strin
 	end
 	if stop == schedule.posterStop then
 		return "poster_changed"
+	end
+	if stop == schedule.extraStop then
+		return "extra"
 	end
 	if stop == schedule.announceStop then
 		return "wrong_announcement"

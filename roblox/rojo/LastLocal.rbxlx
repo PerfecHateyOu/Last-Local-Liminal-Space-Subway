@@ -227,12 +227,17 @@ Constants.HUNTED_DIM_SECONDS = 2.5
 Constants.WATCHED_FALSE_STOP_BONUS = 0.15
 
 -- One tell per stop, by the arrival number on the segment. Other stops
--- have none. 3 is the poster. 7 is the ride into Flushing Av. 10 is the
--- ride into Nassau Av. The scripted arrival lie stays on stop 9 and is
--- not one of these.
+-- have none. 3 is the poster. 5 is the mid-ride extra passenger. 7 is the
+-- ride into Flushing Av. 10 is the ride into Nassau Av. The scripted
+-- arrival lie stays on stop 9 and is not one of these.
 Constants.ANOMALY_POSTER_STOP = 3
+Constants.ANOMALY_EXTRA_STOP = 5
 Constants.ANOMALY_ANNOUNCE_STOP = 7
 Constants.ANOMALY_COUNTDOWN_STOP = 10
+
+-- Seconds into the stretch when seat6 appears (after accel, during cruise).
+-- Web waits until you look away; this slice reveals on a fixed timer.
+Constants.EXTRA_APPEAR_AT = 7
 
 -- Signed names the wrong announcement may say. 13 is Court Sq. 2 is
 -- Fulton St, used only when 13 is the stop the train is actually nearing.
@@ -822,8 +827,9 @@ local LIST: { PassengerDef } = {
 		hair = Color3.fromRGB(25, 21, 18),
 	},
 	-- The far-seat stranger. Web id "seat6", manifest file anomaly_extra.glb.
-	-- Label is the web target label. anomaly_faceless / anomaly_stretched are
-	-- tiny meshes (about 12 cm), not bodies, so this seat does not use them.
+	-- Hidden at boarding; Ride shows them mid-stretch on the "extra" tell, then
+	-- clears on arrival. anomaly_faceless / anomaly_stretched are tiny meshes
+	-- (about 12 cm), not bodies, so this seat does not use them.
 	{
 		id = "seat6",
 		label = "the seat at the far end",
@@ -1214,20 +1220,24 @@ end
 -- Anomaly catalog for this slice. The ride asks pick() which one tell a
 -- stop gets, applies it, and validates flags with verdict(). The arrival
 -- PA lie in Route is a separate scripted line. It is not this catalog.
+-- "extra" is the far-seat passenger (seat6): hidden at boarding, shown
+-- mid-stretch, cleared on arrival. It is not a wall plate.
 
 local AnomalySystem = {}
 
 AnomalySystem.ANNOUNCE_ID = "announcement"
 AnomalySystem.COUNTDOWN_ID = "countdown"
+AnomalySystem.EXTRA_ID = "seat6"
 
 export type Schedule = {
 	posterStop: number,
+	extraStop: number,
 	announceStop: number,
 	countdownStop: number,
 }
 
 function AnomalySystem.types(): { string }
-	return { "poster_changed", "wrong_announcement", "wrong_countdown" }
+	return { "poster_changed", "extra", "wrong_announcement", "wrong_countdown" }
 end
 
 -- At most one tell. A repeated stop number keeps the earlier entry.
@@ -1238,6 +1248,9 @@ function AnomalySystem.pick(stop: number, b: boolean, schedule: Schedule): strin
 	end
 	if stop == schedule.posterStop then
 		return "poster_changed"
+	end
+	if stop == schedule.extraStop then
+		return "extra"
 	end
 	if stop == schedule.announceStop then
 		return "wrong_announcement"
@@ -1392,6 +1405,16 @@ function CarBuilder.setCrowd(folder: Folder, shown: boolean)
 			applyShown(child, shown)
 		end
 	end
+end
+
+-- Far-seat extra (and any other named rider). Server owns show/hide;
+-- Flag already ignores Hidden models.
+function CarBuilder.setPassengerShown(folder: Folder, id: string, shown: boolean)
+	local model = folder:FindFirstChild(id)
+	if model == nil or not model:IsA("Model") then
+		return
+	end
+	applyShown(model, shown)
 end
 
 local function rememberTransparency(model: Model)
@@ -1652,7 +1675,9 @@ local function buildPassenger(def: Passengers.PassengerDef, folder: Folder): str
 	if def.standing then
 		addKeepOut(built, feet, def.id)
 	end
-	if def.crowd then
+	-- Crowd waits for crowded stretches. The far-seat anomaly waits for the
+	-- mid-ride "extra" tell (Ride shows them, then clears on arrival).
+	if def.crowd or def.anomaly then
 		applyShown(built, false)
 	end
 	attachProps(built, def)
@@ -2258,8 +2283,8 @@ function CarBuilder.build(): BuiltCar
 			print(string.format("[Last Local] passenger %s at %.1f, %.1f, %.1f", child.Name, at.X, at.Y, at.Z))
 		end
 	end
-	-- mom, dad, the three strangers, and the far-seat extra. Crowd stays hidden.
-	if riding < 6 then
+	-- mom, dad, and the three strangers. Crowd and the far-seat extra stay hidden.
+	if riding < 5 then
 		warn(string.format("[Last Local] Only %d passengers are in the car; the fallback figures did not all spawn.", riding))
 	end
 
@@ -2684,13 +2709,17 @@ function Ride.start(car: CarBuilder.BuiltCar)
 		if posterLive then
 			return true
 		end
-		for _, id in { AnomalySystem.ANNOUNCE_ID, AnomalySystem.COUNTDOWN_ID } do
+		for _, id in { AnomalySystem.ANNOUNCE_ID, AnomalySystem.COUNTDOWN_ID, AnomalySystem.EXTRA_ID } do
 			local model = car.passengers:FindFirstChild(id)
 			if model ~= nil and model:GetAttribute("Anomaly") == true and model:GetAttribute("Hidden") ~= true then
 				return true
 			end
 		end
 		return false
+	end
+
+	local function clearExtra()
+		CarBuilder.setPassengerShown(car.passengers, AnomalySystem.EXTRA_ID, false)
 	end
 
 	local function stopWord(kind: string): (string, string)
@@ -2806,6 +2835,7 @@ function Ride.start(car: CarBuilder.BuiltCar)
 		ride:SetAttribute("NextStop", Route.stopName(seg.stop))
 		ride:SetAttribute("ChapterLine", Route.chapterLine(seg.stop))
 		CarBuilder.setCrowd(car.passengers, seg.crowd)
+		clearExtra()
 		doorTarget = 0
 
 		local length = Route.segmentLength(seg, Constants.ACCEL, Constants.BRAKE)
@@ -2824,6 +2854,7 @@ function Ride.start(car: CarBuilder.BuiltCar)
 
 		local picked = AnomalySystem.pick(seg.stop, seg.b, {
 			posterStop = Constants.ANOMALY_POSTER_STOP,
+			extraStop = Constants.ANOMALY_EXTRA_STOP,
 			announceStop = Constants.ANOMALY_ANNOUNCE_STOP,
 			countdownStop = Constants.ANOMALY_COUNTDOWN_STOP,
 		})
@@ -2877,6 +2908,14 @@ function Ride.start(car: CarBuilder.BuiltCar)
 						break
 					end
 				end
+			end)
+		end
+		if picked == "extra" then
+			task.delay(Constants.EXTRA_APPEAR_AT, function()
+				if token ~= segToken then
+					return
+				end
+				CarBuilder.setPassengerShown(car.passengers, AnomalySystem.EXTRA_ID, true)
 			end)
 		end
 		if not seg.b and seg.stop == 5 then
@@ -2966,6 +3005,7 @@ function Ride.start(car: CarBuilder.BuiltCar)
 		local feedbackKind, word = stopWord(kind)
 		showFeedback(feedbackKind, word, false)
 		clearTells()
+		clearExtra()
 		ride:SetAttribute("Held", false)
 		ride:SetAttribute("StareIntervalScale", Hold.stareScale(false, Constants.HOLD_STARE_MULTIPLIER))
 		for part, color in posterOriginal do

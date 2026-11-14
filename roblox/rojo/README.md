@@ -67,7 +67,7 @@ Put the modeled car in as **`Car_B`**. If that model is missing, the Part-built 
 | `passenger_mta` | the man across the aisle |
 | `passenger_coat` | the woman on your bench |
 | `passenger_puffer` | the standing passenger |
-| `anomaly_extra` | the extra person at the far end of the bench. This is the one Flag should catch. |
+| `anomaly_extra` | the extra person at the far end of the bench. Hidden at boarding; appears mid-ride on the way to Bedford–Nostrand Avs. Flag them while they are there. |
 | `passenger_hoodie_standing` | standing, only on the rides into Flushing Av and Broadway |
 | `passenger_texter_seated` | seated, those same two rides |
 | `passenger_overcoat` | seated, those same two rides |
@@ -95,6 +95,8 @@ Two arrivals are different, on purpose:
 - After Myrtle–Willoughby Avs, and again pulling into **21 St**, the whole car goes black for a fraction of a second and then the lights are back. That is the only blackout. Nothing else flickers.
 - On the way to Court Sq the lamps dim in a straight line. Slow dimming is allowed. It is not a flicker.
 - At Court Sq the line is "Court Square. This is the last stop on this train." Mom says "Here we are. Court Square." The doors stay open. The screen keeps **Caught** or **Missed**, and a line like "1 missed, 0 false flags."
+
+On the stretch into **Bedford–Nostrand Avs**, an unrecognized passenger appears in the far seat about seven seconds after the doors close. They were not there when you boarded. Flag them while they are seated; they clear when the train arrives (same lifecycle as the web `extra` anomaly, without the look-away spawn gate).
 
 Flag only counts while the doors are closed and you are between stations. Holding F at the platform does nothing. That matches the web game. At each stop the screen briefly shows Caught, Missed, False flag, or Clean. Suspicion starts at 0. A correct flag lowers it; a false alarm (flagging while nothing is wrong) raises it; a clean stop and a quiet miss each decay it a little. Reaching 100 does not end the ride. As the band rises, a passenger may glance when you walk, then heads turn toward you and one word of the conductor's line repeats. One ceiling tube may blink. Higher still, the lamps dim slowly. The whole car does not flicker. Design notes for what is still TBD (staring check, Psych Log, parent lines, ending variants) live in `SUSPICION.md`.
 
@@ -174,4 +176,4 @@ The full per-mesh list is `assets/triangle-counts.json`. Export was Blender 4.0.
 
 ## Not in this version
 
-Sound, cars A and C, stepping off, the parents' other lines, the Safe Haven, the trial, the camera, and the tape recorder. Suspicion scoring, bands, and the on-screen meter are in; staring detection, the Psych Log, parent-line changes by band, and band-based Court Square endings are not. The extra passenger is seated from the start, instead of appearing mid-ride. The open-air stretch over Newtown Creek is not in this version: every stop is still in the tunnel. Those are later slices.
+Sound, cars A and C, stepping off, the parents' other lines, the Safe Haven, the trial, the camera, and the tape recorder. Suspicion scoring, bands, and the on-screen meter are in; staring detection, the Psych Log, parent-line changes by band, and band-based Court Square endings are not. The mid-ride extra passenger is in (far seat on the Bedford–Nostrand stretch); the rest of the web anomaly catalog is not. The open-air stretch over Newtown Creek is not in this version: every stop is still in the tunnel. Those are later slices.
