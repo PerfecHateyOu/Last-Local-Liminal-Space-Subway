@@ -186,6 +186,16 @@ Constants.MESH_TRIANGLE_LIMIT = 20000
 -- three-car consist (A / B / C) from inside that car.
 Constants.FLAG_RANGE_M = 22
 
+-- Polaroid (web STARTING_FILM / SHUTTER_COOLDOWN / SUS.visible).
+Constants.POLAROID_STARTING_FILM = 8
+Constants.POLAROID_MAX_FILM = 10
+Constants.POLAROID_SHUTTER_COOLDOWN = 0.9
+Constants.POLAROID_FLASH_WATCH_SUSPICION = 10
+Constants.POLAROID_FLASH_GLANCE_CHANCE = 0.5
+-- Shutter click (reuse short switch; Studio can swap later).
+Constants.SOUND_POLAROID = "rbxasset://sounds/switch.wav"
+Constants.SOUND_POLAROID_VOLUME = 0.4
+
 -- Sound bed (client). Built-in engine assets so the place needs no uploads.
 -- Swap these IDs when custom MTA-style clips are imported.
 Constants.SOUND_CHIME = "rbxasset://sounds/electronicpingshort.wav"

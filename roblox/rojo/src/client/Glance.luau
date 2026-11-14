@@ -99,7 +99,7 @@ function Glance.start()
 	end
 
 	ride.AttributeChanged:Connect(function(name: string)
-		if name == "TapeGlance" then
+		if name == "TapeGlance" or name == "FlashGlance" then
 			tapeGlanceUntil = os.clock() + 2.0
 			collect()
 			if #groups > 0 then

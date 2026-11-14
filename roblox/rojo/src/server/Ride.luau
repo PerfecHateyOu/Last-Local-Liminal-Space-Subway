@@ -27,6 +27,7 @@ local Dialogue = require(ReplicatedStorage.Shared.Dialogue)
 local Haven = require(ReplicatedStorage.Shared.Haven)
 local Trial = require(ReplicatedStorage.Shared.Trial)
 local Evp = require(ReplicatedStorage.Shared.Evp)
+local Polaroid = require(ReplicatedStorage.Shared.Polaroid)
 local Lines = require(ReplicatedStorage.Shared.Lines)
 local Score = require(ReplicatedStorage.Shared.Score)
 local Band = require(ReplicatedStorage.Shared.Band)
@@ -67,6 +68,15 @@ function Ride.start(car: CarBuilder.BuiltCar)
 	local evpPlayRemote = Instance.new("RemoteEvent")
 	evpPlayRemote.Name = "EvpPlay"
 	evpPlayRemote.Parent = remotes
+	local polaroidToggleRemote = Instance.new("RemoteEvent")
+	polaroidToggleRemote.Name = "PolaroidToggle"
+	polaroidToggleRemote.Parent = remotes
+	local polaroidSnapRemote = Instance.new("RemoteEvent")
+	polaroidSnapRemote.Name = "PolaroidSnap"
+	polaroidSnapRemote.Parent = remotes
+	local polaroidAlbumRemote = Instance.new("RemoteEvent")
+	polaroidAlbumRemote.Name = "PolaroidAlbum"
+	polaroidAlbumRemote.Parent = remotes
 
 	ride:SetAttribute("Phase", "intro")
 	ride:SetAttribute("PaText", "")
@@ -91,6 +101,12 @@ function Ride.start(car: CarBuilder.BuiltCar)
 	ride:SetAttribute("EvpSaved", "")
 	ride:SetAttribute("EvpPlayId", "")
 	ride:SetAttribute("TapeGlance", 0)
+	ride:SetAttribute("FlashGlance", 0)
+	ride:SetAttribute("CameraRaised", false)
+	ride:SetAttribute("AlbumOpen", false)
+	ride:SetAttribute("FilmLeft", Polaroid.STARTING_FILM)
+	ride:SetAttribute("PolaroidFlash", 0)
+	ride:SetAttribute("PolaroidAlbum", "[]")
 	ride:SetAttribute("Band", "calm")
 	ride:SetAttribute("FalseStopBonus", 0)
 	ride:SetAttribute("BoardStop", "")
@@ -331,6 +347,12 @@ function Ride.start(car: CarBuilder.BuiltCar)
 		return math.random()
 	end)
 	local currentSegStop: number? = nil
+	local cameraRaised = false
+	local albumOpen = false
+	local filmLeft = Polaroid.STARTING_FILM
+	local nextShotAt = 0
+	local polaroidPhotos: { Polaroid.Photo } = {}
+	local photoSeq = 0
 
 	local function applySanity(delta: number)
 		sanity = Haven.restoreSanity(sanity, delta, Constants.SANITY_MIN, Constants.SANITY_MAX)
@@ -348,11 +370,27 @@ function Ride.start(car: CarBuilder.BuiltCar)
 		ride:SetAttribute("EvpStatus", Evp.statusLine(evpState, riding == true))
 	end
 
+	local function publishCamera()
+		ride:SetAttribute("CameraRaised", cameraRaised)
+		ride:SetAttribute("AlbumOpen", albumOpen)
+		ride:SetAttribute("FilmLeft", filmLeft)
+		local slim = {}
+		for _, photo in polaroidPhotos do
+			table.insert(slim, { id = photo.id, stop = photo.stop })
+		end
+		ride:SetAttribute("PolaroidAlbum", HttpService:JSONEncode(slim))
+	end
+
 	local function handsBusy(): boolean
 		return ride:GetAttribute("ChoiceActive") == true
 			or ride:GetAttribute("MaskActive") == true
 			or ride:GetAttribute("TrialActive") == true
 			or ride:GetAttribute("Phase") == "trial"
+	end
+
+	local function lowerCamera()
+		cameraRaised = false
+		publishCamera()
 	end
 
 	local function giveRecorder(where: string)
@@ -370,6 +408,7 @@ function Ride.start(car: CarBuilder.BuiltCar)
 	end
 
 	publishEvp()
+	publishCamera()
 
 	evpToggleRemote.OnServerEvent:Connect(function(_player: Player)
 		if not hasRecorder then
@@ -389,8 +428,11 @@ function Ride.start(car: CarBuilder.BuiltCar)
 			showHint(Lines.RECORDER_BUSY, 2)
 			return
 		end
+		lowerCamera()
+		albumOpen = false
 		Evp.raise(evpState)
 		publishEvp()
+		publishCamera()
 	end)
 
 	evpTuneRemote.OnServerEvent:Connect(function(_player: Player, delta: any)
@@ -441,13 +483,48 @@ function Ride.start(car: CarBuilder.BuiltCar)
 		end)
 	end)
 
-	RunService.Heartbeat:Connect(function(dt: number)
-		if not evpState.raised then
+	polaroidToggleRemote.OnServerEvent:Connect(function(_player: Player)
+		local phase = ride:GetAttribute("Phase")
+		if phase ~= "ride" and phase ~= "stop" and phase ~= "haven" and phase ~= "intro" then
+			return
+		end
+		if cameraRaised then
+			lowerCamera()
 			return
 		end
 		if handsBusy() then
+			showHint(Lines.CAMERA_BUSY, 2)
+			return
+		end
+		if evpState.raised then
 			Evp.lower(evpState)
 			publishEvp()
+		end
+		albumOpen = false
+		cameraRaised = true
+		publishCamera()
+	end)
+
+	polaroidAlbumRemote.OnServerEvent:Connect(function(_player: Player)
+		albumOpen = not albumOpen
+		if albumOpen then
+			lowerCamera()
+		end
+		publishCamera()
+	end)
+
+	RunService.Heartbeat:Connect(function(dt: number)
+		if handsBusy() then
+			if cameraRaised then
+				lowerCamera()
+			end
+			if evpState.raised then
+				Evp.lower(evpState)
+				publishEvp()
+			end
+			return
+		end
+		if not evpState.raised then
 			return
 		end
 		local stopLabel = ""
@@ -508,6 +585,109 @@ function Ride.start(car: CarBuilder.BuiltCar)
 		ride:SetAttribute("Suspicion", suspicion)
 		publishBand()
 	end
+
+	polaroidSnapRemote.OnServerEvent:Connect(function(
+		_player: Player,
+		px: any,
+		py: any,
+		pz: any,
+		lx: any,
+		ly: any,
+		lz: any
+	)
+		if not cameraRaised then
+			return
+		end
+		if typeof(px) ~= "number" or typeof(py) ~= "number" or typeof(pz) ~= "number" then
+			return
+		end
+		if typeof(lx) ~= "number" or typeof(ly) ~= "number" or typeof(lz) ~= "number" then
+			return
+		end
+		local phase = ride:GetAttribute("Phase")
+		if phase ~= "ride" and phase ~= "stop" and phase ~= "haven" and phase ~= "intro" then
+			return
+		end
+		if handsBusy() then
+			showHint(Lines.CAMERA_BUSY, 2)
+			return
+		end
+		local now = os.clock()
+		if now < nextShotAt then
+			return
+		end
+		if filmLeft <= 0 then
+			showHint(Lines.CAMERA_OUT_OF_FILM, 2.5)
+			return
+		end
+
+		filmLeft = Polaroid.clampFilm(filmLeft - 1)
+		nextShotAt = now + Polaroid.SHUTTER_COOLDOWN
+		ride:SetAttribute("PolaroidFlash", workspace:GetServerTimeNow())
+
+		local camPos = Vector3.new(px, py, pz)
+		local lookDir = Vector3.new(lx, ly, lz)
+		local framed: { string } = {}
+		local liveIds: { string } = {}
+
+		-- Poster tell has no mesh: any shot while it is live frames it.
+		if posterLive then
+			table.insert(liveIds, "poster_changed")
+			table.insert(framed, "poster_changed")
+		end
+		for _, id in { AnomalySystem.ANNOUNCE_ID, AnomalySystem.COUNTDOWN_ID, AnomalySystem.EXTRA_ID } do
+			local model = car.passengers:FindFirstChild(id)
+			if
+				model ~= nil
+				and model:IsA("Model")
+				and model:GetAttribute("Anomaly") == true
+				and model:GetAttribute("Hidden") ~= true
+			then
+				table.insert(liveIds, id)
+				local at = model:GetPivot().Position
+				if Polaroid.inFrame(camPos, lookDir, at, Constants.STUDS_PER_METER) then
+					table.insert(framed, id)
+				end
+			end
+		end
+
+		photoSeq += 1
+		local stopLabel = ""
+		local stopAttr = ride:GetAttribute("NextStop")
+		if typeof(stopAttr) == "string" then
+			stopLabel = stopAttr
+		end
+		local photo: Polaroid.Photo = {
+			id = string.format("p%d", photoSeq),
+			stop = stopLabel,
+			framed = framed,
+			developed = false,
+		}
+		table.insert(polaroidPhotos, 1, photo)
+		while #polaroidPhotos > 16 do
+			table.remove(polaroidPhotos)
+		end
+
+		-- Privately marks the stop as noticed; no on-screen Caught (web photo path).
+		if phase == "ride" and Polaroid.photoCatches(framed, liveIds) then
+			caught = true
+			stopNoticed = true
+			applySuspicion(Score.flagDelta(true, true, Constants.FALSE_ALARM_SUSPICION, Constants.CORRECT_FLAG_SUSPICION))
+		end
+
+		if phase == "ride" or phase == "stop" then
+			local bandAttr = ride:GetAttribute("Band")
+			local band = if typeof(bandAttr) == "string" then bandAttr else "calm"
+			if Polaroid.flashWatched(band) then
+				applySuspicion(Polaroid.FLASH_WATCH_SUSPICION)
+				showHint(Lines.CAMERA_FLASH_WATCH, 2.5)
+			elseif math.random() < Polaroid.FLASH_GLANCE_CHANCE then
+				ride:SetAttribute("FlashGlance", workspace:GetServerTimeNow())
+			end
+		end
+
+		publishCamera()
+	end)
 
 	publishBand()
 

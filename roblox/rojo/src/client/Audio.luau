@@ -206,6 +206,11 @@ function Audio.start(button: TextButton)
 			if loopSound ~= nil and on and not muted then
 				loopSound.Volume = math.min(loopSound.Volume, Constants.SOUND_RUMBLE_MIN)
 			end
+		elseif name == "PolaroidFlash" then
+			local stamp = ride:GetAttribute("PolaroidFlash")
+			if typeof(stamp) == "number" and stamp > 0 then
+				playOneShot(Constants.SOUND_POLAROID, Constants.SOUND_POLAROID_VOLUME, 1.35)
+			end
 		elseif name == "EvpPlayId" then
 			local id = ride:GetAttribute("EvpPlayId")
 			local text = if typeof(id) == "string" then id else ""
