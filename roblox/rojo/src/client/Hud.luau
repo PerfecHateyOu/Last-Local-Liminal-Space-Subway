@@ -19,6 +19,11 @@ local stayButton: TextButton? = nil
 local offButton: TextButton? = nil
 local choiceFrame: Frame? = nil
 local choiceCountdown: TextLabel? = nil
+local maskFrame: Frame? = nil
+local maskCountdown: TextLabel? = nil
+local maskButtonA: TextButton? = nil
+local maskButtonB: TextButton? = nil
+local maskButtonC: TextButton? = nil
 local progressFill: Frame? = nil
 
 local function corner(parent: Instance, radius: number)
@@ -72,6 +77,50 @@ function Hud.setChoiceCountdown(text: string)
 	local countdown = choiceCountdown
 	if countdown ~= nil then
 		countdown.Text = text
+	end
+end
+
+function Hud.maskButtonA(): TextButton
+	assert(maskButtonA ~= nil, "Hud.start must run first")
+	return maskButtonA
+end
+
+function Hud.maskButtonB(): TextButton
+	assert(maskButtonB ~= nil, "Hud.start must run first")
+	return maskButtonB
+end
+
+function Hud.maskButtonC(): TextButton
+	assert(maskButtonC ~= nil, "Hud.start must run first")
+	return maskButtonC
+end
+
+function Hud.setMaskVisible(visible: boolean)
+	local frame = maskFrame
+	if frame ~= nil then
+		frame.Visible = visible
+	end
+end
+
+function Hud.setMaskCountdown(text: string)
+	local countdown = maskCountdown
+	if countdown ~= nil then
+		countdown.Text = text
+	end
+end
+
+function Hud.setMaskLabels(a: string, b: string, c: string)
+	local ba = maskButtonA
+	local bb = maskButtonB
+	local bc = maskButtonC
+	if ba ~= nil then
+		ba.Text = "[1]  " .. a
+	end
+	if bb ~= nil then
+		bb.Text = "[2]  " .. b
+	end
+	if bc ~= nil then
+		bc.Text = "[3]  " .. c
 	end
 end
 
@@ -380,6 +429,57 @@ function Hud.start()
 	stepOff.Parent = doorsCard
 	corner(stepOff, 8)
 	offButton = stepOff
+
+	local masksCard = Instance.new("Frame")
+	masksCard.Name = "MaskChoice"
+	masksCard.AnchorPoint = Vector2.new(0.5, 1)
+	masksCard.Position = UDim2.new(0.5, 0, 1, -214)
+	masksCard.Size = UDim2.fromOffset(360, 168)
+	masksCard.BackgroundColor3 = Color3.new(0, 0, 0)
+	masksCard.BackgroundTransparency = 0.28
+	masksCard.BorderSizePixel = 0
+	masksCard.Visible = false
+	masksCard.Parent = gui
+	corner(masksCard, 10)
+	maskFrame = masksCard
+
+	local masksTitle = label(masksCard, "Answer carefully.", 14, Constants.COLOR.warn)
+	masksTitle.Name = "Title"
+	masksTitle.Font = Enum.Font.GothamBold
+	masksTitle.Position = UDim2.fromOffset(12, 8)
+	masksTitle.Size = UDim2.new(1, -24, 0, 18)
+	masksTitle.TextXAlignment = Enum.TextXAlignment.Center
+
+	local masksCount = label(masksCard, "", 12, Color3.fromRGB(180, 176, 166))
+	masksCount.Name = "Countdown"
+	masksCount.Font = Enum.Font.Code
+	masksCount.Position = UDim2.fromOffset(12, 28)
+	masksCount.Size = UDim2.new(1, -24, 0, 16)
+	masksCount.TextXAlignment = Enum.TextXAlignment.Center
+	maskCountdown = masksCount
+
+	local function maskBtn(name: string, y: number): TextButton
+		local btn = Instance.new("TextButton")
+		btn.Name = name
+		btn.Position = UDim2.fromOffset(16, y)
+		btn.Size = UDim2.new(1, -32, 0, 36)
+		btn.BackgroundColor3 = Color3.fromRGB(22, 28, 36)
+		btn.BackgroundTransparency = 0.1
+		btn.BorderSizePixel = 0
+		btn.AutoButtonColor = true
+		btn.Font = Enum.Font.GothamMedium
+		btn.Text = ""
+		btn.TextColor3 = Constants.COLOR.cream
+		btn.TextSize = 14
+		btn.TextWrapped = true
+		btn.Parent = masksCard
+		corner(btn, 8)
+		return btn
+	end
+
+	maskButtonA = maskBtn("MaskA", 50)
+	maskButtonB = maskBtn("MaskB", 90)
+	maskButtonC = maskBtn("MaskC", 130)
 
 	local dwellCard = Instance.new("Frame")
 	dwellCard.Name = "Dwell"

@@ -1,9 +1,8 @@
 --!strict
 -- G train stops and the stretch table from src/constants.ts (STOPS, SEGS,
--- CHAPTERS). Only the fields this slice plays are kept: the name, whether the
--- stretch is real / false / haven, which arrival tick it uses, and whether
--- the PA stays quiet. Parent chats, mask checks, the haven, and the trial
--- are not in this slice.
+-- CHAPTERS). Fields this slice plays: name, real / false / haven, arrival
+-- tick, quiet PA, parent chat index, and mask check times (seconds into the
+-- stretch, fitted to sliceCruise). The haven cinematic and the trial stay out.
 
 local Route = {}
 
@@ -21,6 +20,10 @@ export type Segment = {
 	-- Classon Av only. Mom pulls you back; no trial.
 	forgiving: boolean,
 	paLie: string?,
+	-- Web SEGS.chat index into CHATS / calm swaps. Nil = no chat on this stretch.
+	chat: number?,
+	-- Seconds into the stretch when a mask check starts (slice-scaled).
+	masks: { number }?,
 	-- Web cruise is 26 unless noted. The slice uses a shorter cruise.
 	sliceCruise: number,
 }
@@ -51,15 +54,15 @@ local CHAPTERS = {
 -- Same order as SEGS. sliceCruise is the shortened stand-in for the web cruise
 -- (26, or the override on 6b and the last stretch).
 local SEGMENTS: { Segment } = {
-	{ stop = 2, b = false, kind = "real", tick = nil, silent = false, crowd = false, final = false, forgiving = false, paLie = nil, sliceCruise = 12 },
-	{ stop = 3, b = false, kind = "real", tick = nil, silent = false, crowd = false, final = false, forgiving = false, paLie = nil, sliceCruise = 12 },
-	{ stop = 4, b = false, kind = "false", tick = "doors", silent = false, crowd = false, final = false, forgiving = true, paLie = nil, sliceCruise = 12 },
-	{ stop = 5, b = false, kind = "real", tick = nil, silent = false, crowd = false, final = false, forgiving = false, paLie = nil, sliceCruise = 12 },
-	{ stop = 6, b = false, kind = "haven", tick = nil, silent = false, crowd = false, final = false, forgiving = false, paLie = nil, sliceCruise = 12 },
+	{ stop = 2, b = false, kind = "real", tick = nil, silent = false, crowd = false, final = false, forgiving = false, paLie = nil, chat = nil, masks = nil, sliceCruise = 12 },
+	{ stop = 3, b = false, kind = "real", tick = nil, silent = false, crowd = false, final = false, forgiving = false, paLie = nil, chat = 0, masks = { 12 }, sliceCruise = 12 },
+	{ stop = 4, b = false, kind = "false", tick = "doors", silent = false, crowd = false, final = false, forgiving = true, paLie = nil, chat = nil, masks = nil, sliceCruise = 12 },
+	{ stop = 5, b = false, kind = "real", tick = nil, silent = false, crowd = false, final = false, forgiving = false, paLie = nil, chat = 1, masks = { 12 }, sliceCruise = 12 },
+	{ stop = 6, b = false, kind = "haven", tick = nil, silent = false, crowd = false, final = false, forgiving = false, paLie = nil, chat = nil, masks = nil, sliceCruise = 12 },
 	-- 6b. No announcement. The arrival flicker is the whole-car blackout.
-	{ stop = 6, b = true, kind = "false", tick = "flicker", silent = true, crowd = false, final = false, forgiving = false, paLie = nil, sliceCruise = 8 },
-	{ stop = 7, b = false, kind = "real", tick = nil, silent = false, crowd = true, final = false, forgiving = false, paLie = nil, sliceCruise = 12 },
-	{ stop = 8, b = false, kind = "real", tick = nil, silent = false, crowd = true, final = false, forgiving = false, paLie = nil, sliceCruise = 12 },
+	{ stop = 6, b = true, kind = "false", tick = "flicker", silent = true, crowd = false, final = false, forgiving = false, paLie = nil, chat = nil, masks = nil, sliceCruise = 8 },
+	{ stop = 7, b = false, kind = "real", tick = nil, silent = false, crowd = true, final = false, forgiving = false, paLie = nil, chat = 2, masks = { 12 }, sliceCruise = 12 },
+	{ stop = 8, b = false, kind = "real", tick = nil, silent = false, crowd = true, final = false, forgiving = false, paLie = nil, chat = 3, masks = { 8, 13 }, sliceCruise = 12 },
 	{
 		stop = 9,
 		b = false,
@@ -70,13 +73,15 @@ local SEGMENTS: { Segment } = {
 		final = false,
 		forgiving = false,
 		paLie = "This is Court Square. Last stop. Everybody off the train.",
+		chat = nil,
+		masks = nil,
 		sliceCruise = 12,
 	},
-	{ stop = 10, b = false, kind = "real", tick = nil, silent = false, crowd = false, final = false, forgiving = false, paLie = nil, sliceCruise = 12 },
-	{ stop = 11, b = false, kind = "real", tick = nil, silent = false, crowd = false, final = false, forgiving = false, paLie = nil, sliceCruise = 12 },
+	{ stop = 10, b = false, kind = "real", tick = nil, silent = false, crowd = false, final = false, forgiving = false, paLie = nil, chat = 4, masks = { 12 }, sliceCruise = 12 },
+	{ stop = 11, b = false, kind = "real", tick = nil, silent = false, crowd = false, final = false, forgiving = false, paLie = nil, chat = nil, masks = nil, sliceCruise = 12 },
 	-- 21 St. False stop. Flicker tick: the lights go out for 0.16 s. No "This is".
-	{ stop = 12, b = false, kind = "false", tick = "flicker", silent = false, crowd = false, final = false, forgiving = false, paLie = nil, sliceCruise = 12 },
-	{ stop = 13, b = false, kind = "real", tick = nil, silent = false, crowd = false, final = true, forgiving = false, paLie = nil, sliceCruise = 10 },
+	{ stop = 12, b = false, kind = "false", tick = "flicker", silent = false, crowd = false, final = false, forgiving = false, paLie = nil, chat = nil, masks = { 12 }, sliceCruise = 12 },
+	{ stop = 13, b = false, kind = "real", tick = nil, silent = false, crowd = false, final = true, forgiving = false, paLie = nil, chat = nil, masks = nil, sliceCruise = 10 },
 }
 
 Route.SEGMENTS = SEGMENTS

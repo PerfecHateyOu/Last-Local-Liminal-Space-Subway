@@ -21,13 +21,17 @@ TBD is undecided — do not fill it in from a guess.
   `Lines.suspicionMeter` plus a fill bar. Display only — do not recompute bands
   on the client.
 - Per-stop feedback words: Caught / Missed / False flag / Clean.
+- Parent chats (`Dialogue` / Route `chat`) and first-tier mask prompts: odd
+  answers +15 (`MASK_FAIL_SUSPICION`), hesitation +8 (`MASK_TIMEOUT_SUSPICION`).
+  Sanity Ride attribute stub nudged on fail/timeout (full restraint is later).
 
 **Still not in this port (TBD)**
 
 - Caught-staring check (and the hold stare-interval multiplier is published only).
 - False-stop reaction and early-departure hooks (functions exist, always false).
 - Psych Log UI.
-- Parents' other lines changing by band.
+- Parents' other lines changing by band (chats/masks are in; band-tuned variants are not).
+- Critical-tier mask glitch UI and nightmare stare timing.
 - Court Square ending variants by final band.
 - Sitting-still decay from §3 (not wired).
 
