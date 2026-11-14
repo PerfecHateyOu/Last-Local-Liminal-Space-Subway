@@ -22,6 +22,7 @@ local Doors = require(ReplicatedStorage.Shared.Doors)
 local Dwell = require(ReplicatedStorage.Shared.Dwell)
 local Hold = require(ReplicatedStorage.Shared.Hold)
 local Dialogue = require(ReplicatedStorage.Shared.Dialogue)
+local Haven = require(ReplicatedStorage.Shared.Haven)
 local Lines = require(ReplicatedStorage.Shared.Lines)
 local Score = require(ReplicatedStorage.Shared.Score)
 local Band = require(ReplicatedStorage.Shared.Band)
@@ -59,6 +60,7 @@ function Ride.start(car: CarBuilder.BuiltCar)
 	ride:SetAttribute("DwellUntil", 0)
 	ride:SetAttribute("Suspicion", 0)
 	ride:SetAttribute("Sanity", Constants.SANITY_START)
+	ride:SetAttribute("HasRecorder", false)
 	ride:SetAttribute("Band", "calm")
 	ride:SetAttribute("FalseStopBonus", 0)
 	ride:SetAttribute("BoardStop", "")
@@ -284,9 +286,25 @@ function Ride.start(car: CarBuilder.BuiltCar)
 		return math.random()
 	end)
 
+	local hasRecorder = false
+
 	local function applySanity(delta: number)
-		sanity = math.clamp(sanity + delta, Constants.SANITY_MIN, Constants.SANITY_MAX)
+		sanity = Haven.restoreSanity(sanity, delta, Constants.SANITY_MIN, Constants.SANITY_MAX)
 		ride:SetAttribute("Sanity", sanity)
+	end
+
+	local function giveRecorder(where: string)
+		if hasRecorder or ride:GetAttribute("Phase") == "end" then
+			return
+		end
+		hasRecorder = true
+		ride:SetAttribute("HasRecorder", true)
+		if where == "haven" then
+			showSub(Lines.DAD_RECORDER_HAVEN, 4.2)
+		else
+			showSub(Lines.DAD_RECORDER_TRAIN, 4.2)
+		end
+		showHint(Lines.RECORDER_HINT, 5)
 	end
 
 	local function blinkBandTube()
@@ -709,6 +727,26 @@ function Ride.start(car: CarBuilder.BuiltCar)
 				showPa(Lines.nextStop(announced), Constants.NEXT_STOP_FOR)
 			end)
 		end
+		if seg.kind == "haven" then
+			local cueAt = math.max(Constants.NEXT_STOP_AT + 0.5, length - Haven.APPROACH_LEAD)
+			task.delay(cueAt, function()
+				if token ~= segToken or ride:GetAttribute("Phase") ~= "ride" then
+					return
+				end
+				if ride:GetAttribute("MaskActive") == true then
+					return
+				end
+				showSub(Lines.MOM_HAVEN_CUE, 3.2)
+			end)
+		end
+		if Haven.shouldTrainHandoff(hasRecorder, seg.stop, seg.b) then
+			task.delay(Haven.TRAIN_HANDOFF_AT, function()
+				if token ~= segToken or ride:GetAttribute("Phase") ~= "ride" then
+					return
+				end
+				giveRecorder("train")
+			end)
+		end
 		local chatIndex = seg.chat
 		if chatIndex ~= nil then
 			local exchange = Dialogue.chatFor(chatPlan, chatIndex)
@@ -940,11 +978,42 @@ function Ride.start(car: CarBuilder.BuiltCar)
 		if outcome.suspicionDelta ~= 0 then
 			applySuspicion(outcome.suspicionDelta)
 		end
-		if outcome.line ~= "" then
-			showSub(outcome.line, math.max(2.5, outcome.holdSeconds))
-		end
-		if outcome.holdSeconds > 0 then
-			task.wait(outcome.holdSeconds)
+		if outcome.mode == "haven" then
+			ride:SetAttribute("Phase", "haven")
+			local h0 = os.clock()
+			at(h0, Haven.MOM_STAND_AT)
+			if token ~= segToken then
+				return
+			end
+			showSub(Lines.MOM_HAVEN_STAND, 2.6)
+			at(h0, Haven.DAD_STOPS_AT)
+			if token ~= segToken then
+				return
+			end
+			showSub(Lines.DAD_HAVEN_STOPS, 2.8)
+			at(h0, Haven.RECORDER_AT)
+			if token ~= segToken then
+				return
+			end
+			giveRecorder("haven")
+			at(h0, Haven.SANITY_AT)
+			if token ~= segToken then
+				return
+			end
+			applySanity(Constants.SANITY_HAVEN)
+			showSub(Lines.HAVEN_BOARD, 2.0)
+			at(h0, Haven.DEPART_AT)
+			if token ~= segToken then
+				return
+			end
+			ride:SetAttribute("Phase", "stop")
+		else
+			if outcome.line ~= "" then
+				showSub(outcome.line, math.max(2.5, outcome.holdSeconds))
+			end
+			if outcome.holdSeconds > 0 then
+				task.wait(outcome.holdSeconds)
+			end
 		end
 		if token ~= segToken then
 			return

@@ -2,7 +2,7 @@
 -- G train stops and the stretch table from src/constants.ts (STOPS, SEGS,
 -- CHAPTERS). Fields this slice plays: name, real / false / haven, arrival
 -- tick, quiet PA, parent chat index, and mask check times (seconds into the
--- stretch, fitted to sliceCruise). The haven cinematic and the trial stay out.
+-- stretch, fitted to sliceCruise). Safe Haven runs at kind "haven"; the trial stays out.
 
 local Route = {}
 

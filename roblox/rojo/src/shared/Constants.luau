@@ -88,9 +88,11 @@ Constants.MASK_PROMPT_SECONDS = 6
 Constants.MASK_FAIL_SUSPICION = 15
 Constants.MASK_TIMEOUT_SUSPICION = 8
 -- Sanity is a Ride attribute stub until restraint / intervention (PR13).
+-- Safe Haven restores SAN.haven (15). Mask fail/timeout still nudge it down.
 Constants.SANITY_START = 100
 Constants.SANITY_MIN = 0
 Constants.SANITY_MAX = 100
+Constants.SANITY_HAVEN = 15
 Constants.MASK_FAIL_SANITY = 4
 Constants.MASK_TIMEOUT_SANITY = 2
 -- needsSus mask lines only appear at or above this suspicion.

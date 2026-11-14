@@ -1,6 +1,6 @@
 --!strict
 -- On-screen strings copied from the web game, plus the dwell banner,
--- the minute board, and the two tell labels. Do not add new dialogue.
+-- the minute board, tell labels, door choice, and Safe Haven lines.
 -- The dwell banner and the board are labels and numbers.
 -- Sources: src/constants.ts (STOPS, the Stop 9 paLie), src/game/gameState.ts
 -- (PA, boarding, the Court Sq line), src/components/HUD.tsx ("Next:"),
@@ -49,8 +49,19 @@ Lines.DOOR_PROMPT = "The doors are open."
 Lines.MOM_REAL_OFF = "Mom: Hey! Where are you going? Get back in here."
 Lines.MOM_REFUSE_HAVEN = "Mom: You don’t want to stretch your legs? …Okay."
 Lines.MOM_FALSE_FORGIVING = "Mom: Not this one, hon. The doors opened funny."
--- Stubs until Safe Haven (PR6) and False Stop Trial (PR7).
-Lines.HAVEN_STUB = "You step onto the platform. (Safe Haven comes later.) You get back on."
+-- Safe Haven (Myrtle–Willoughby). Web executeSafeHaven / giveRecorder.
+Lines.MOM_HAVEN_CUE = "Mom: I think this is our transfer. Let’s stretch our legs."
+Lines.MOM_HAVEN_STAND = "Mom: Feels good to stand up, right?"
+Lines.DAD_HAVEN_STOPS = "Dad: Couple more stops after this. Then Court Square."
+Lines.DAD_RECORDER_HAVEN =
+	"Dad: Here. Your grandfather’s. He used it on the night shift. Never could get it to stop picking up the radio."
+Lines.DAD_RECORDER_TRAIN =
+	"Dad: Here, hold onto this. Your grandfather’s old recorder. Never could get it to stop picking up the radio."
+Lines.RECORDER_HINT = "Dad gave you a tape recorder. (Recording comes later.)"
+Lines.HAVEN_BOARD = "You get back on with them."
+-- Kept for Doors.resolve signature / older call sites; unused once haven runs.
+Lines.HAVEN_STUB = ""
+-- Stub until False Stop Trial (PR7).
 Lines.TRIAL_STUB = "The platform feels wrong. Mom pulls you back. (The False Stop Trial comes later.)"
 
 -- ReportScreen: "False flag: {name}"
