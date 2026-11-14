@@ -18,6 +18,7 @@ local AnomalySystem = require(script.Parent.AnomalySystem)
 local CarBuilder = require(script.Parent.CarBuilder)
 local Scenery = require(script.Parent.Scenery)
 local Constants = require(ReplicatedStorage.Shared.Constants)
+local Doors = require(ReplicatedStorage.Shared.Doors)
 local Dwell = require(ReplicatedStorage.Shared.Dwell)
 local Hold = require(ReplicatedStorage.Shared.Hold)
 local Lines = require(ReplicatedStorage.Shared.Lines)
@@ -39,6 +40,9 @@ function Ride.start(car: CarBuilder.BuiltCar)
 	local flagRemote = Instance.new("RemoteEvent")
 	flagRemote.Name = "Flag"
 	flagRemote.Parent = remotes
+	local doorsRemote = Instance.new("RemoteEvent")
+	doorsRemote.Name = "Doors"
+	doorsRemote.Parent = remotes
 
 	ride:SetAttribute("Phase", "intro")
 	ride:SetAttribute("PaText", "")
@@ -60,6 +64,8 @@ function Ride.start(car: CarBuilder.BuiltCar)
 	ride:SetAttribute("StareIntervalScale", 1)
 	-- 1 open, 0 closed. Client sound listens; the door leaves still ease toward this.
 	ride:SetAttribute("DoorTarget", 1)
+	ride:SetAttribute("ChoiceActive", false)
+	ride:SetAttribute("ChoiceUntil", 0)
 
 	CarBuilder.addTells(
 		car.passengers,
@@ -399,6 +405,37 @@ function Ride.start(car: CarBuilder.BuiltCar)
 		return "clean", Lines.CLEAN
 	end
 
+	local pendingDoorChoice: string? = nil
+	local choiceEpoch = 0
+
+	doorsRemote.OnServerEvent:Connect(function(_player: Player, choice: any)
+		if ride:GetAttribute("ChoiceActive") ~= true then
+			return
+		end
+		if typeof(choice) ~= "string" then
+			return
+		end
+		if choice ~= "stay" and choice ~= "off" then
+			return
+		end
+		pendingDoorChoice = choice
+	end)
+
+	local function waitForDoorChoice(seconds: number): string
+		choiceEpoch += 1
+		local epoch = choiceEpoch
+		pendingDoorChoice = nil
+		ride:SetAttribute("ChoiceActive", true)
+		ride:SetAttribute("ChoiceUntil", workspace:GetServerTimeNow() + seconds)
+		local deadline = os.clock() + seconds
+		while os.clock() < deadline and pendingDoorChoice == nil and epoch == choiceEpoch do
+			task.wait(0.05)
+		end
+		ride:SetAttribute("ChoiceActive", false)
+		ride:SetAttribute("ChoiceUntil", 0)
+		return Doors.normalize(pendingDoorChoice)
+	end
+
 	flagRemote.OnServerEvent:Connect(function(player: Player, passengerId: any)
 		if typeof(passengerId) ~= "string" then
 			return
@@ -718,10 +755,7 @@ function Ride.start(car: CarBuilder.BuiltCar)
 		setDoorTarget(1)
 		local openedAt = os.clock()
 
-		-- The banner counts the minimum only. A PA lie keeps its own hold,
-		-- measured from arrival. That hold is not a second dwell.
-		local lieHold = if seg.paLie ~= nil then Constants.PA_LIE_HOLD else nil
-		local departAt = Dwell.departTime(openAt, Constants.MIN_DWELL_SECONDS, lieHold)
+		-- Minimum dwell still runs while the player chooses Stay / Step off.
 		beginDwell(Constants.MIN_DWELL_SECONDS)
 		task.delay(Constants.MIN_DWELL_SECONDS, function()
 			if token ~= segToken then
@@ -729,14 +763,52 @@ function Ride.start(car: CarBuilder.BuiltCar)
 			end
 			endDwell()
 		end)
-		at(t0, departAt)
+		showHint(Lines.DOOR_PROMPT, Constants.DOOR_CHOICE_SECONDS)
+		local picked = waitForDoorChoice(Constants.DOOR_CHOICE_SECONDS)
+		if token ~= segToken then
+			return
+		end
 		endDwell()
+		local outcome = Doors.resolve(
+			seg.kind,
+			seg.forgiving,
+			picked,
+			{
+				realOff = Constants.STEP_OFF_REAL_SUSPICION,
+				refuseHaven = Constants.REFUSE_HAVEN_SUSPICION,
+				falseOff = Constants.FALSE_STOP_STEP_OFF_SUSPICION,
+			},
+			Lines.MOM_REAL_OFF,
+			Lines.MOM_REFUSE_HAVEN,
+			Lines.MOM_FALSE_FORGIVING,
+			Lines.HAVEN_STUB,
+			Lines.TRIAL_STUB
+		)
+		if outcome.suspicionDelta ~= 0 then
+			applySuspicion(outcome.suspicionDelta)
+		end
+		if outcome.line ~= "" then
+			showSub(outcome.line, math.max(2.5, outcome.holdSeconds))
+		end
+		if outcome.holdSeconds > 0 then
+			task.wait(outcome.holdSeconds)
+		end
+		if token ~= segToken then
+			return
+		end
+		-- A PA lie keeps doors open at least PA_LIE_HOLD from arrival before leave.
+		local lieHold = if seg.paLie ~= nil then Constants.PA_LIE_HOLD else nil
+		if lieHold ~= nil then
+			local remainLie = lieHold - (os.clock() - t0)
+			if remainLie > 0 then
+				task.wait(remainLie)
+			end
+		end
 		resolveDeparture(os.clock() - openedAt)
 		showPa(Lines.STAND_CLEAR, 3)
-		at(t0, departAt + 1.4)
+		task.wait(1.4)
 		setDoorTarget(0)
-		-- 2.6s after stand-clear is the next stretch, not the dwell.
-		at(t0, departAt + 2.6)
+		task.wait(1.2)
 	end
 
 	task.spawn(function()

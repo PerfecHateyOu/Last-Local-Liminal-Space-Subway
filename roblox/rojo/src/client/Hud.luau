@@ -15,6 +15,10 @@ local Hud = {}
 
 local flagButton: TextButton? = nil
 local muteButton: TextButton? = nil
+local stayButton: TextButton? = nil
+local offButton: TextButton? = nil
+local choiceFrame: Frame? = nil
+local choiceCountdown: TextLabel? = nil
 local progressFill: Frame? = nil
 
 local function corner(parent: Instance, radius: number)
@@ -45,6 +49,30 @@ end
 function Hud.muteButton(): TextButton
 	assert(muteButton ~= nil, "Hud.start must run first")
 	return muteButton
+end
+
+function Hud.stayButton(): TextButton
+	assert(stayButton ~= nil, "Hud.start must run first")
+	return stayButton
+end
+
+function Hud.offButton(): TextButton
+	assert(offButton ~= nil, "Hud.start must run first")
+	return offButton
+end
+
+function Hud.setChoiceVisible(visible: boolean)
+	local frame = choiceFrame
+	if frame ~= nil then
+		frame.Visible = visible
+	end
+end
+
+function Hud.setChoiceCountdown(text: string)
+	local countdown = choiceCountdown
+	if countdown ~= nil then
+		countdown.Text = text
+	end
 end
 
 function Hud.setProgress(ratio: number, holding: boolean)
@@ -293,10 +321,70 @@ function Hud.start()
 	buttonScale.Parent = button
 	flagButton = button
 
+	local doorsCard = Instance.new("Frame")
+	doorsCard.Name = "DoorChoice"
+	doorsCard.AnchorPoint = Vector2.new(0.5, 1)
+	doorsCard.Position = UDim2.new(0.5, 0, 1, -214)
+	doorsCard.Size = UDim2.fromOffset(340, 118)
+	doorsCard.BackgroundColor3 = Color3.new(0, 0, 0)
+	doorsCard.BackgroundTransparency = 0.28
+	doorsCard.BorderSizePixel = 0
+	doorsCard.Visible = false
+	doorsCard.Parent = gui
+	corner(doorsCard, 10)
+	choiceFrame = doorsCard
+
+	local doorsTitle = label(doorsCard, Lines.DOOR_PROMPT, 14, Constants.COLOR.warn)
+	doorsTitle.Name = "Title"
+	doorsTitle.Font = Enum.Font.GothamBold
+	doorsTitle.Position = UDim2.fromOffset(12, 8)
+	doorsTitle.Size = UDim2.new(1, -24, 0, 20)
+	doorsTitle.TextXAlignment = Enum.TextXAlignment.Center
+
+	local doorsCount = label(doorsCard, "", 12, Color3.fromRGB(180, 176, 166))
+	doorsCount.Name = "Countdown"
+	doorsCount.Font = Enum.Font.Code
+	doorsCount.Position = UDim2.fromOffset(12, 30)
+	doorsCount.Size = UDim2.new(1, -24, 0, 16)
+	doorsCount.TextXAlignment = Enum.TextXAlignment.Center
+	choiceCountdown = doorsCount
+
+	local stay = Instance.new("TextButton")
+	stay.Name = "Stay"
+	stay.Position = UDim2.fromOffset(16, 56)
+	stay.Size = UDim2.fromOffset(148, 48)
+	stay.BackgroundColor3 = Color3.fromRGB(28, 46, 22)
+	stay.BackgroundTransparency = 0.1
+	stay.BorderSizePixel = 0
+	stay.AutoButtonColor = true
+	stay.Font = Enum.Font.GothamBold
+	stay.Text = "[1]  " .. Lines.STAY_ON
+	stay.TextColor3 = Constants.COLOR.cream
+	stay.TextSize = 15
+	stay.Parent = doorsCard
+	corner(stay, 8)
+	stayButton = stay
+
+	local stepOff = Instance.new("TextButton")
+	stepOff.Name = "StepOff"
+	stepOff.Position = UDim2.fromOffset(176, 56)
+	stepOff.Size = UDim2.fromOffset(148, 48)
+	stepOff.BackgroundColor3 = Color3.fromRGB(48, 28, 18)
+	stepOff.BackgroundTransparency = 0.1
+	stepOff.BorderSizePixel = 0
+	stepOff.AutoButtonColor = true
+	stepOff.Font = Enum.Font.GothamBold
+	stepOff.Text = "[2]  " .. Lines.STEP_OFF
+	stepOff.TextColor3 = Constants.COLOR.cream
+	stepOff.TextSize = 15
+	stepOff.Parent = doorsCard
+	corner(stepOff, 8)
+	offButton = stepOff
+
 	local dwellCard = Instance.new("Frame")
 	dwellCard.Name = "Dwell"
 	dwellCard.AnchorPoint = Vector2.new(0.5, 1)
-	dwellCard.Position = UDim2.new(0.5, 0, 1, -214)
+	dwellCard.Position = UDim2.new(0.5, 0, 1, -340)
 	dwellCard.Size = UDim2.fromOffset(280, 54)
 	dwellCard.BackgroundColor3 = Color3.new(0, 0, 0)
 	dwellCard.BackgroundTransparency = 0.35

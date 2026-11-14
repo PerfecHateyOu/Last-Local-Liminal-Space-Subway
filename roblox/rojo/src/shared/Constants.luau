@@ -69,6 +69,13 @@ Constants.DECAY_SUSPICION = 2
 -- doors, or staring, so the ride never adds it.
 Constants.FALSE_STOP_REACT_SUSPICION = 10
 
+-- Stay / step-off (web SUS.falsePos / refuseHaven / maskFail).
+Constants.STEP_OFF_REAL_SUSPICION = 20
+Constants.REFUSE_HAVEN_SUSPICION = 10
+Constants.FALSE_STOP_STEP_OFF_SUSPICION = 15
+-- Choice window after doors open. Timeout counts as Stay on.
+Constants.DOOR_CHOICE_SECONDS = 5
+
 -- Bands from the suspicion number. 0–24 calm, 25–49 uneasy, 50–74 watched,
 -- 75–100 hunted.
 Constants.BAND_CALM_MAX = 24

@@ -201,6 +201,13 @@ Constants.DECAY_SUSPICION = 2
 -- doors, or staring, so the ride never adds it.
 Constants.FALSE_STOP_REACT_SUSPICION = 10
 
+-- Stay / step-off (web SUS.falsePos / refuseHaven / maskFail).
+Constants.STEP_OFF_REAL_SUSPICION = 20
+Constants.REFUSE_HAVEN_SUSPICION = 10
+Constants.FALSE_STOP_STEP_OFF_SUSPICION = 15
+-- Choice window after doors open. Timeout counts as Stay on.
+Constants.DOOR_CHOICE_SECONDS = 5
+
 -- Bands from the suspicion number. 0–24 calm, 25–49 uneasy, 50–74 watched,
 -- 75–100 hunted.
 Constants.BAND_CALM_MAX = 24
@@ -352,6 +359,131 @@ return Constants
       </Item>
       <Item class="ModuleScript" referent="6">
         <Properties>
+          <string name="Name">Doors</string>
+          <string name="Source"><![CDATA[--!strict
+-- Stay / step-off outcomes. Mirrors web resolveDoors (gameState.ts).
+-- Haven cinematic and the False Stop Trial are stubs until later PRs.
+
+local Doors = {}
+
+export type Choice = "stay" | "off"
+export type StopKind = "real" | "false" | "haven"
+
+export type Outcome = {
+	choice: Choice,
+	correct: boolean,
+	suspicionDelta: number,
+	-- "depart" continues the ride. Stubs still depart after a beat.
+	mode: "depart" | "haven_stub" | "trial_stub",
+	line: string,
+	holdSeconds: number,
+}
+
+export type Amounts = {
+	realOff: number,
+	refuseHaven: number,
+	falseOff: number,
+}
+
+function Doors.normalize(choice: string?): Choice
+	if choice == "off" then
+		return "off"
+	end
+	return "stay"
+end
+
+-- kind/forgiving come from Route. line* are the spoken/subtitle strings.
+function Doors.resolve(
+	kind: StopKind,
+	forgiving: boolean,
+	rawChoice: string?,
+	amounts: Amounts,
+	lineRealOff: string,
+	lineRefuseHaven: string,
+	lineFalseForgiving: string,
+	lineHavenStub: string,
+	lineTrialStub: string
+): Outcome
+	local choice = Doors.normalize(rawChoice)
+	if kind == "real" then
+		if choice == "off" then
+			return {
+				choice = choice,
+				correct = false,
+				suspicionDelta = amounts.realOff,
+				mode = "depart",
+				line = lineRealOff,
+				holdSeconds = 3.2,
+			}
+		end
+		return {
+			choice = choice,
+			correct = true,
+			suspicionDelta = 0,
+			mode = "depart",
+			line = "",
+			holdSeconds = 0,
+		}
+	end
+	if kind == "haven" then
+		if choice == "off" then
+			-- Full Safe Haven is PR6. Step off, subtitle, get back on.
+			return {
+				choice = choice,
+				correct = true,
+				suspicionDelta = 0,
+				mode = "haven_stub",
+				line = lineHavenStub,
+				holdSeconds = 3.4,
+			}
+		end
+		return {
+			choice = choice,
+			correct = false,
+			suspicionDelta = amounts.refuseHaven,
+			mode = "depart",
+			line = lineRefuseHaven,
+			holdSeconds = 3.2,
+		}
+	end
+	-- False stop.
+	if choice == "stay" then
+		return {
+			choice = choice,
+			correct = true,
+			suspicionDelta = 0,
+			mode = "depart",
+			line = "",
+			holdSeconds = 0,
+		}
+	end
+	if forgiving then
+		return {
+			choice = choice,
+			correct = false,
+			suspicionDelta = amounts.falseOff,
+			mode = "depart",
+			line = lineFalseForgiving,
+			holdSeconds = 3.8,
+		}
+	end
+	-- Non-forgiving: trial is PR7. Soft-fail — pull back + suspicion.
+	return {
+		choice = choice,
+		correct = false,
+		suspicionDelta = amounts.falseOff,
+		mode = "trial_stub",
+		line = lineTrialStub,
+		holdSeconds = 3.8,
+	}
+end
+
+return Doors
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="7">
+        <Properties>
           <string name="Name">Dwell</string>
           <string name="Source"><![CDATA[--!strict
 -- Minimum-dwell math. The server owns the clock and whether anyone asked
@@ -391,7 +523,7 @@ return Dwell
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="7">
+      <Item class="ModuleScript" referent="8">
         <Properties>
           <string name="Name">Hold</string>
           <string name="Source"><![CDATA[--!strict
@@ -489,7 +621,7 @@ return Hold
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="8">
+      <Item class="ModuleScript" referent="9">
         <Properties>
           <string name="Name">KeepOut</string>
           <string name="Source"><![CDATA[--!strict
@@ -551,7 +683,7 @@ return KeepOut
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="9">
+      <Item class="ModuleScript" referent="10">
         <Properties>
           <string name="Name">Lines</string>
           <string name="Source"><![CDATA[--!strict
@@ -597,6 +729,17 @@ Lines.NEXT_LABEL = "Next:"
 -- Mute toggle. Not a spoken line.
 Lines.MUTE = "MUTE"
 Lines.UNMUTE = "UNMUTE"
+
+-- Stay / step-off choice (web presentDoorChoice / resolveDoors).
+Lines.STAY_ON = "Stay on"
+Lines.STEP_OFF = "Step off"
+Lines.DOOR_PROMPT = "The doors are open."
+Lines.MOM_REAL_OFF = "Mom: Hey! Where are you going? Get back in here."
+Lines.MOM_REFUSE_HAVEN = "Mom: You don’t want to stretch your legs? …Okay."
+Lines.MOM_FALSE_FORGIVING = "Mom: Not this one, hon. The doors opened funny."
+-- Stubs until Safe Haven (PR6) and False Stop Trial (PR7).
+Lines.HAVEN_STUB = "You step onto the platform. (Safe Haven comes later.) You get back on."
+Lines.TRIAL_STUB = "The platform feels wrong. Mom pulls you back. (The False Stop Trial comes later.)"
 
 -- ReportScreen: "False flag: {name}"
 function Lines.falseFlag(label: string): string
@@ -676,7 +819,7 @@ return Lines
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="10">
+      <Item class="ModuleScript" referent="11">
         <Properties>
           <string name="Name">Motion</string>
           <string name="Source"><![CDATA[--!strict
@@ -738,7 +881,7 @@ return Motion
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="11">
+      <Item class="ModuleScript" referent="12">
         <Properties>
           <string name="Name">Passengers</string>
           <string name="Source"><![CDATA[--!strict
@@ -990,7 +1133,7 @@ return Passengers
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="12">
+      <Item class="ModuleScript" referent="13">
         <Properties>
           <string name="Name">Route</string>
           <string name="Source"><![CDATA[--!strict
@@ -1013,6 +1156,8 @@ export type Segment = {
 	silent: boolean,
 	crowd: boolean,
 	final: boolean,
+	-- Classon Av only. Mom pulls you back; no trial.
+	forgiving: boolean,
 	paLie: string?,
 	-- Web cruise is 26 unless noted. The slice uses a shorter cruise.
 	sliceCruise: number,
@@ -1044,15 +1189,15 @@ local CHAPTERS = {
 -- Same order as SEGS. sliceCruise is the shortened stand-in for the web cruise
 -- (26, or the override on 6b and the last stretch).
 local SEGMENTS: { Segment } = {
-	{ stop = 2, b = false, kind = "real", tick = nil, silent = false, crowd = false, final = false, paLie = nil, sliceCruise = 12 },
-	{ stop = 3, b = false, kind = "real", tick = nil, silent = false, crowd = false, final = false, paLie = nil, sliceCruise = 12 },
-	{ stop = 4, b = false, kind = "false", tick = "doors", silent = false, crowd = false, final = false, paLie = nil, sliceCruise = 12 },
-	{ stop = 5, b = false, kind = "real", tick = nil, silent = false, crowd = false, final = false, paLie = nil, sliceCruise = 12 },
-	{ stop = 6, b = false, kind = "haven", tick = nil, silent = false, crowd = false, final = false, paLie = nil, sliceCruise = 12 },
+	{ stop = 2, b = false, kind = "real", tick = nil, silent = false, crowd = false, final = false, forgiving = false, paLie = nil, sliceCruise = 12 },
+	{ stop = 3, b = false, kind = "real", tick = nil, silent = false, crowd = false, final = false, forgiving = false, paLie = nil, sliceCruise = 12 },
+	{ stop = 4, b = false, kind = "false", tick = "doors", silent = false, crowd = false, final = false, forgiving = true, paLie = nil, sliceCruise = 12 },
+	{ stop = 5, b = false, kind = "real", tick = nil, silent = false, crowd = false, final = false, forgiving = false, paLie = nil, sliceCruise = 12 },
+	{ stop = 6, b = false, kind = "haven", tick = nil, silent = false, crowd = false, final = false, forgiving = false, paLie = nil, sliceCruise = 12 },
 	-- 6b. No announcement. The arrival flicker is the whole-car blackout.
-	{ stop = 6, b = true, kind = "false", tick = "flicker", silent = true, crowd = false, final = false, paLie = nil, sliceCruise = 8 },
-	{ stop = 7, b = false, kind = "real", tick = nil, silent = false, crowd = true, final = false, paLie = nil, sliceCruise = 12 },
-	{ stop = 8, b = false, kind = "real", tick = nil, silent = false, crowd = true, final = false, paLie = nil, sliceCruise = 12 },
+	{ stop = 6, b = true, kind = "false", tick = "flicker", silent = true, crowd = false, final = false, forgiving = false, paLie = nil, sliceCruise = 8 },
+	{ stop = 7, b = false, kind = "real", tick = nil, silent = false, crowd = true, final = false, forgiving = false, paLie = nil, sliceCruise = 12 },
+	{ stop = 8, b = false, kind = "real", tick = nil, silent = false, crowd = true, final = false, forgiving = false, paLie = nil, sliceCruise = 12 },
 	{
 		stop = 9,
 		b = false,
@@ -1061,14 +1206,15 @@ local SEGMENTS: { Segment } = {
 		silent = false,
 		crowd = false,
 		final = false,
+		forgiving = false,
 		paLie = "This is Court Square. Last stop. Everybody off the train.",
 		sliceCruise = 12,
 	},
-	{ stop = 10, b = false, kind = "real", tick = nil, silent = false, crowd = false, final = false, paLie = nil, sliceCruise = 12 },
-	{ stop = 11, b = false, kind = "real", tick = nil, silent = false, crowd = false, final = false, paLie = nil, sliceCruise = 12 },
+	{ stop = 10, b = false, kind = "real", tick = nil, silent = false, crowd = false, final = false, forgiving = false, paLie = nil, sliceCruise = 12 },
+	{ stop = 11, b = false, kind = "real", tick = nil, silent = false, crowd = false, final = false, forgiving = false, paLie = nil, sliceCruise = 12 },
 	-- 21 St. False stop. Flicker tick: the lights go out for 0.16 s. No "This is".
-	{ stop = 12, b = false, kind = "false", tick = "flicker", silent = false, crowd = false, final = false, paLie = nil, sliceCruise = 12 },
-	{ stop = 13, b = false, kind = "real", tick = nil, silent = false, crowd = false, final = true, paLie = nil, sliceCruise = 10 },
+	{ stop = 12, b = false, kind = "false", tick = "flicker", silent = false, crowd = false, final = false, forgiving = false, paLie = nil, sliceCruise = 12 },
+	{ stop = 13, b = false, kind = "real", tick = nil, silent = false, crowd = false, final = true, forgiving = false, paLie = nil, sliceCruise = 10 },
 }
 
 Route.SEGMENTS = SEGMENTS
@@ -1099,7 +1245,7 @@ return Route
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="13">
+      <Item class="ModuleScript" referent="14">
         <Properties>
           <string name="Name">Score</string>
           <string name="Source"><![CDATA[--!strict
@@ -1169,11 +1315,11 @@ return Score
       </Item>
     </Item>
   </Item>
-  <Item class="ServerScriptService" referent="14">
+  <Item class="ServerScriptService" referent="15">
     <Properties>
       <string name="Name">ServerScriptService</string>
     </Properties>
-    <Item class="Script" referent="15">
+    <Item class="Script" referent="16">
       <Properties>
         <string name="Name">Server</string>
         <token name="RunContext">0</token>
@@ -1232,7 +1378,7 @@ for _, player in Players:GetPlayers() do
 end
 ]]></string>
       </Properties>
-      <Item class="ModuleScript" referent="16">
+      <Item class="ModuleScript" referent="17">
         <Properties>
           <string name="Name">AnomalySystem</string>
           <string name="Source"><![CDATA[--!strict
@@ -1312,7 +1458,7 @@ return AnomalySystem
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="17">
+      <Item class="ModuleScript" referent="18">
         <Properties>
           <string name="Name">CarBuilder</string>
           <string name="Source"><![CDATA[--!strict
@@ -2356,7 +2502,7 @@ return CarBuilder
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="18">
+      <Item class="ModuleScript" referent="19">
         <Properties>
           <string name="Name">Ride</string>
           <string name="Source"><![CDATA[--!strict
@@ -2379,6 +2525,7 @@ local AnomalySystem = require(script.Parent.AnomalySystem)
 local CarBuilder = require(script.Parent.CarBuilder)
 local Scenery = require(script.Parent.Scenery)
 local Constants = require(ReplicatedStorage.Shared.Constants)
+local Doors = require(ReplicatedStorage.Shared.Doors)
 local Dwell = require(ReplicatedStorage.Shared.Dwell)
 local Hold = require(ReplicatedStorage.Shared.Hold)
 local Lines = require(ReplicatedStorage.Shared.Lines)
@@ -2400,6 +2547,9 @@ function Ride.start(car: CarBuilder.BuiltCar)
 	local flagRemote = Instance.new("RemoteEvent")
 	flagRemote.Name = "Flag"
 	flagRemote.Parent = remotes
+	local doorsRemote = Instance.new("RemoteEvent")
+	doorsRemote.Name = "Doors"
+	doorsRemote.Parent = remotes
 
 	ride:SetAttribute("Phase", "intro")
 	ride:SetAttribute("PaText", "")
@@ -2421,6 +2571,8 @@ function Ride.start(car: CarBuilder.BuiltCar)
 	ride:SetAttribute("StareIntervalScale", 1)
 	-- 1 open, 0 closed. Client sound listens; the door leaves still ease toward this.
 	ride:SetAttribute("DoorTarget", 1)
+	ride:SetAttribute("ChoiceActive", false)
+	ride:SetAttribute("ChoiceUntil", 0)
 
 	CarBuilder.addTells(
 		car.passengers,
@@ -2760,6 +2912,37 @@ function Ride.start(car: CarBuilder.BuiltCar)
 		return "clean", Lines.CLEAN
 	end
 
+	local pendingDoorChoice: string? = nil
+	local choiceEpoch = 0
+
+	doorsRemote.OnServerEvent:Connect(function(_player: Player, choice: any)
+		if ride:GetAttribute("ChoiceActive") ~= true then
+			return
+		end
+		if typeof(choice) ~= "string" then
+			return
+		end
+		if choice ~= "stay" and choice ~= "off" then
+			return
+		end
+		pendingDoorChoice = choice
+	end)
+
+	local function waitForDoorChoice(seconds: number): string
+		choiceEpoch += 1
+		local epoch = choiceEpoch
+		pendingDoorChoice = nil
+		ride:SetAttribute("ChoiceActive", true)
+		ride:SetAttribute("ChoiceUntil", workspace:GetServerTimeNow() + seconds)
+		local deadline = os.clock() + seconds
+		while os.clock() < deadline and pendingDoorChoice == nil and epoch == choiceEpoch do
+			task.wait(0.05)
+		end
+		ride:SetAttribute("ChoiceActive", false)
+		ride:SetAttribute("ChoiceUntil", 0)
+		return Doors.normalize(pendingDoorChoice)
+	end
+
 	flagRemote.OnServerEvent:Connect(function(player: Player, passengerId: any)
 		if typeof(passengerId) ~= "string" then
 			return
@@ -3079,10 +3262,7 @@ function Ride.start(car: CarBuilder.BuiltCar)
 		setDoorTarget(1)
 		local openedAt = os.clock()
 
-		-- The banner counts the minimum only. A PA lie keeps its own hold,
-		-- measured from arrival. That hold is not a second dwell.
-		local lieHold = if seg.paLie ~= nil then Constants.PA_LIE_HOLD else nil
-		local departAt = Dwell.departTime(openAt, Constants.MIN_DWELL_SECONDS, lieHold)
+		-- Minimum dwell still runs while the player chooses Stay / Step off.
 		beginDwell(Constants.MIN_DWELL_SECONDS)
 		task.delay(Constants.MIN_DWELL_SECONDS, function()
 			if token ~= segToken then
@@ -3090,14 +3270,52 @@ function Ride.start(car: CarBuilder.BuiltCar)
 			end
 			endDwell()
 		end)
-		at(t0, departAt)
+		showHint(Lines.DOOR_PROMPT, Constants.DOOR_CHOICE_SECONDS)
+		local picked = waitForDoorChoice(Constants.DOOR_CHOICE_SECONDS)
+		if token ~= segToken then
+			return
+		end
 		endDwell()
+		local outcome = Doors.resolve(
+			seg.kind,
+			seg.forgiving,
+			picked,
+			{
+				realOff = Constants.STEP_OFF_REAL_SUSPICION,
+				refuseHaven = Constants.REFUSE_HAVEN_SUSPICION,
+				falseOff = Constants.FALSE_STOP_STEP_OFF_SUSPICION,
+			},
+			Lines.MOM_REAL_OFF,
+			Lines.MOM_REFUSE_HAVEN,
+			Lines.MOM_FALSE_FORGIVING,
+			Lines.HAVEN_STUB,
+			Lines.TRIAL_STUB
+		)
+		if outcome.suspicionDelta ~= 0 then
+			applySuspicion(outcome.suspicionDelta)
+		end
+		if outcome.line ~= "" then
+			showSub(outcome.line, math.max(2.5, outcome.holdSeconds))
+		end
+		if outcome.holdSeconds > 0 then
+			task.wait(outcome.holdSeconds)
+		end
+		if token ~= segToken then
+			return
+		end
+		-- A PA lie keeps doors open at least PA_LIE_HOLD from arrival before leave.
+		local lieHold = if seg.paLie ~= nil then Constants.PA_LIE_HOLD else nil
+		if lieHold ~= nil then
+			local remainLie = lieHold - (os.clock() - t0)
+			if remainLie > 0 then
+				task.wait(remainLie)
+			end
+		end
 		resolveDeparture(os.clock() - openedAt)
 		showPa(Lines.STAND_CLEAR, 3)
-		at(t0, departAt + 1.4)
+		task.wait(1.4)
 		setDoorTarget(0)
-		-- 2.6s after stand-clear is the next stretch, not the dwell.
-		at(t0, departAt + 2.6)
+		task.wait(1.2)
 	end
 
 	task.spawn(function()
@@ -3138,7 +3356,7 @@ return Ride
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="19">
+      <Item class="ModuleScript" referent="20">
         <Properties>
           <string name="Name">Scenery</string>
           <string name="Source"><![CDATA[--!strict
@@ -3404,7 +3622,7 @@ return Scenery
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="20">
+      <Item class="ModuleScript" referent="21">
         <Properties>
           <string name="Name">WorldLight</string>
           <string name="Source"><![CDATA[--!strict
@@ -3550,18 +3768,18 @@ return WorldLight
       </Item>
     </Item>
   </Item>
-  <Item class="StarterPlayer" referent="21">
+  <Item class="StarterPlayer" referent="22">
     <Properties>
       <string name="Name">StarterPlayer</string>
       <float name="CameraMaxZoomDistance">0.5</float>
       <float name="CameraMinZoomDistance">0.5</float>
       <token name="CameraMode">1</token>
     </Properties>
-    <Item class="StarterPlayerScripts" referent="22">
+    <Item class="StarterPlayerScripts" referent="23">
       <Properties>
         <string name="Name">StarterPlayerScripts</string>
       </Properties>
-      <Item class="LocalScript" referent="23">
+      <Item class="LocalScript" referent="24">
         <Properties>
           <string name="Name">Client</string>
           <string name="Source"><![CDATA[--!strict
@@ -3572,16 +3790,18 @@ local Walk = require(script.Walk)
 local Sway = require(script.Sway)
 local Glance = require(script.Glance)
 local Audio = require(script.Audio)
+local Choice = require(script.Choice)
 
 Hud.start()
 Flag.start(Hud.flagButton())
 Audio.start(Hud.muteButton())
+Choice.start(Hud.stayButton(), Hud.offButton(), Hud.setChoiceVisible, Hud.setChoiceCountdown)
 Walk.start()
 Sway.start()
 Glance.start()
 ]]></string>
         </Properties>
-        <Item class="ModuleScript" referent="24">
+        <Item class="ModuleScript" referent="25">
           <Properties>
             <string name="Name">Audio</string>
             <string name="Source"><![CDATA[--!strict
@@ -3819,7 +4039,95 @@ return Audio
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="25">
+        <Item class="ModuleScript" referent="26">
+          <Properties>
+            <string name="Name">Choice</string>
+            <string name="Source"><![CDATA[--!strict
+-- Stay / Step off UI. Server owns validation; this only fires the Doors remote
+-- while ChoiceActive is true. Timeout on the server counts as Stay on.
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+
+local Lines = require(ReplicatedStorage.Shared.Lines)
+
+local Choice = {}
+
+function Choice.start(stayButton: TextButton, offButton: TextButton, setVisible: (boolean) -> (), setCountdown: (string) -> ())
+	local ride = ReplicatedStorage:WaitForChild("Ride")
+	local remotes = ReplicatedStorage:WaitForChild("Remotes")
+	local doorsRemote = remotes:WaitForChild("Doors") :: RemoteEvent
+	local sent = false
+
+	local function active(): boolean
+		return ride:GetAttribute("ChoiceActive") == true
+	end
+
+	local function pick(choice: string)
+		if not active() or sent then
+			return
+		end
+		sent = true
+		doorsRemote:FireServer(choice)
+	end
+
+	stayButton.MouseButton1Click:Connect(function()
+		pick("stay")
+	end)
+	offButton.MouseButton1Click:Connect(function()
+		pick("off")
+	end)
+
+	UserInputService.InputBegan:Connect(function(input: InputObject, processed: boolean)
+		if processed or not active() then
+			return
+		end
+		if input.KeyCode == Enum.KeyCode.One or input.KeyCode == Enum.KeyCode.KeypadOne then
+			pick("stay")
+		elseif input.KeyCode == Enum.KeyCode.Two or input.KeyCode == Enum.KeyCode.KeypadTwo then
+			pick("off")
+		end
+	end)
+
+	local function refresh()
+		local on = active()
+		setVisible(on)
+		if not on then
+			sent = false
+			setCountdown("")
+			return
+		end
+		local deadline = ride:GetAttribute("ChoiceUntil")
+		if typeof(deadline) ~= "number" or deadline <= 0 then
+			setCountdown("")
+			return
+		end
+		local remain = math.ceil(deadline - workspace:GetServerTimeNow())
+		if remain < 1 then
+			remain = 1
+		end
+		setCountdown(Lines.dwellCountdown(remain) .. " · default Stay on")
+	end
+
+	ride.AttributeChanged:Connect(function(name: string)
+		if name == "ChoiceActive" or name == "ChoiceUntil" then
+			refresh()
+		end
+	end)
+	RunService.Heartbeat:Connect(function()
+		if active() then
+			refresh()
+		end
+	end)
+	refresh()
+end
+
+return Choice
+]]></string>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="27">
           <Properties>
             <string name="Name">Flag</string>
             <string name="Source"><![CDATA[--!strict
@@ -3952,7 +4260,7 @@ return Flag
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="26">
+        <Item class="ModuleScript" referent="28">
           <Properties>
             <string name="Name">Glance</string>
             <string name="Source"><![CDATA[--!strict
@@ -4119,7 +4427,7 @@ return Glance
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="27">
+        <Item class="ModuleScript" referent="29">
           <Properties>
             <string name="Name">Hud</string>
             <string name="Source"><![CDATA[--!strict
@@ -4139,6 +4447,10 @@ local Hud = {}
 
 local flagButton: TextButton? = nil
 local muteButton: TextButton? = nil
+local stayButton: TextButton? = nil
+local offButton: TextButton? = nil
+local choiceFrame: Frame? = nil
+local choiceCountdown: TextLabel? = nil
 local progressFill: Frame? = nil
 
 local function corner(parent: Instance, radius: number)
@@ -4169,6 +4481,30 @@ end
 function Hud.muteButton(): TextButton
 	assert(muteButton ~= nil, "Hud.start must run first")
 	return muteButton
+end
+
+function Hud.stayButton(): TextButton
+	assert(stayButton ~= nil, "Hud.start must run first")
+	return stayButton
+end
+
+function Hud.offButton(): TextButton
+	assert(offButton ~= nil, "Hud.start must run first")
+	return offButton
+end
+
+function Hud.setChoiceVisible(visible: boolean)
+	local frame = choiceFrame
+	if frame ~= nil then
+		frame.Visible = visible
+	end
+end
+
+function Hud.setChoiceCountdown(text: string)
+	local countdown = choiceCountdown
+	if countdown ~= nil then
+		countdown.Text = text
+	end
 end
 
 function Hud.setProgress(ratio: number, holding: boolean)
@@ -4417,10 +4753,70 @@ function Hud.start()
 	buttonScale.Parent = button
 	flagButton = button
 
+	local doorsCard = Instance.new("Frame")
+	doorsCard.Name = "DoorChoice"
+	doorsCard.AnchorPoint = Vector2.new(0.5, 1)
+	doorsCard.Position = UDim2.new(0.5, 0, 1, -214)
+	doorsCard.Size = UDim2.fromOffset(340, 118)
+	doorsCard.BackgroundColor3 = Color3.new(0, 0, 0)
+	doorsCard.BackgroundTransparency = 0.28
+	doorsCard.BorderSizePixel = 0
+	doorsCard.Visible = false
+	doorsCard.Parent = gui
+	corner(doorsCard, 10)
+	choiceFrame = doorsCard
+
+	local doorsTitle = label(doorsCard, Lines.DOOR_PROMPT, 14, Constants.COLOR.warn)
+	doorsTitle.Name = "Title"
+	doorsTitle.Font = Enum.Font.GothamBold
+	doorsTitle.Position = UDim2.fromOffset(12, 8)
+	doorsTitle.Size = UDim2.new(1, -24, 0, 20)
+	doorsTitle.TextXAlignment = Enum.TextXAlignment.Center
+
+	local doorsCount = label(doorsCard, "", 12, Color3.fromRGB(180, 176, 166))
+	doorsCount.Name = "Countdown"
+	doorsCount.Font = Enum.Font.Code
+	doorsCount.Position = UDim2.fromOffset(12, 30)
+	doorsCount.Size = UDim2.new(1, -24, 0, 16)
+	doorsCount.TextXAlignment = Enum.TextXAlignment.Center
+	choiceCountdown = doorsCount
+
+	local stay = Instance.new("TextButton")
+	stay.Name = "Stay"
+	stay.Position = UDim2.fromOffset(16, 56)
+	stay.Size = UDim2.fromOffset(148, 48)
+	stay.BackgroundColor3 = Color3.fromRGB(28, 46, 22)
+	stay.BackgroundTransparency = 0.1
+	stay.BorderSizePixel = 0
+	stay.AutoButtonColor = true
+	stay.Font = Enum.Font.GothamBold
+	stay.Text = "[1]  " .. Lines.STAY_ON
+	stay.TextColor3 = Constants.COLOR.cream
+	stay.TextSize = 15
+	stay.Parent = doorsCard
+	corner(stay, 8)
+	stayButton = stay
+
+	local stepOff = Instance.new("TextButton")
+	stepOff.Name = "StepOff"
+	stepOff.Position = UDim2.fromOffset(176, 56)
+	stepOff.Size = UDim2.fromOffset(148, 48)
+	stepOff.BackgroundColor3 = Color3.fromRGB(48, 28, 18)
+	stepOff.BackgroundTransparency = 0.1
+	stepOff.BorderSizePixel = 0
+	stepOff.AutoButtonColor = true
+	stepOff.Font = Enum.Font.GothamBold
+	stepOff.Text = "[2]  " .. Lines.STEP_OFF
+	stepOff.TextColor3 = Constants.COLOR.cream
+	stepOff.TextSize = 15
+	stepOff.Parent = doorsCard
+	corner(stepOff, 8)
+	offButton = stepOff
+
 	local dwellCard = Instance.new("Frame")
 	dwellCard.Name = "Dwell"
 	dwellCard.AnchorPoint = Vector2.new(0.5, 1)
-	dwellCard.Position = UDim2.new(0.5, 0, 1, -214)
+	dwellCard.Position = UDim2.new(0.5, 0, 1, -340)
 	dwellCard.Size = UDim2.fromOffset(280, 54)
 	dwellCard.BackgroundColor3 = Color3.new(0, 0, 0)
 	dwellCard.BackgroundTransparency = 0.35
@@ -4578,7 +4974,7 @@ return Hud
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="28">
+        <Item class="ModuleScript" referent="30">
           <Properties>
             <string name="Name">Sway</string>
             <string name="Source"><![CDATA[--!strict
@@ -4659,7 +5055,7 @@ return Sway
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="29">
+        <Item class="ModuleScript" referent="31">
           <Properties>
             <string name="Name">Walk</string>
             <string name="Source"><![CDATA[--!strict
@@ -4792,7 +5188,7 @@ return Walk
       </Item>
     </Item>
   </Item>
-  <Item class="Workspace" referent="30">
+  <Item class="Workspace" referent="32">
     <Properties>
       <string name="Name">Workspace</string>
       <float name="Gravity">196.2</float>
