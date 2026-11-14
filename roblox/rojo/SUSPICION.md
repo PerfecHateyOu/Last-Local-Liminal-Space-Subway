@@ -1,47 +1,64 @@
 # Last Local (Roblox) — Suspicion System Design
 
-A design draft for the suspicion system in the Roblox slice. Builds on the
-flag mechanic already in the slice (see `README.md`, `src/client/Flag.luau`,
-and `src/server/Ride.luau`); it does not replace it. There is no
-`last-local-roblox-guide.md` in this port. Tuning numbers are starting
-values to playtest, not verified results. Anything marked TBD is undecided
-— do not fill it in from a guess.
+A design note for suspicion in the Rojo slice. Builds on the flag mechanic
+(see `README.md`, `src/client/Flag.luau`, and `src/server/Ride.luau`). Tuning
+numbers are starting values to playtest, not verified results. Anything marked
+TBD is undecided — do not fill it in from a guess.
 
-## Port notes
+## Port notes (current code)
 
-The Rojo port has no suspicion meter yet. It only has the flag, caught,
-false-flag, and an end-of-ride result (missed and false flags). It does
-not show a 0–100 meter, and it does not report a per-stop result.
+**Already in this port**
 
-The player is a passenger: the kid riding with Mom and Dad, the same as
-the web game. Decided. They are not a conductor. See §5.
+- Server-owned meter 0–100 on `ReplicatedStorage.Ride` attribute `Suspicion`.
+- Bands from `Shared.Band` / `Constants` thresholds: **0–24 calm**, **25–49 uneasy**,
+  **50–74 watched**, **75–100 hunted**. Published as Ride attribute `Band`.
+- Flag deltas and per-stop decay via `Shared.Score` (correct flag −5, false alarm
+  +10, clean stop −7 including decay, miss decay only −2). Reaching 100 does
+  **not** end the ride.
+- Band effects: uneasy glances + occasional one-tube blink; watched heads turn +
+  PA word-repeat; hunted slow dim. Client `Glance.luau` poses heads from `Band`.
+- On-screen meter in `Hud.luau`: **`25 UNEASY`**-style label from
+  `Lines.suspicionMeter` plus a fill bar. Display only — do not recompute bands
+  on the client.
+- Per-stop feedback words: Caught / Missed / False flag / Clean.
 
-`roblox/exporter/` is a different track. Its `addSuspicion` ends the ride
-when suspicion reaches 100 (phase `end`, ending EXPOSED: the parents pull
-you off at the next platform). That conflicts with §12, "No fail state in
-the slice." This is an open question. It is not resolved. This Rojo port
-does not copy that ending.
+**Still not in this port (TBD)**
+
+- Caught-staring check (and the hold stare-interval multiplier is published only).
+- False-stop reaction and early-departure hooks (functions exist, always false).
+- Psych Log UI.
+- Parents' other lines changing by band.
+- Court Square ending variants by final band.
+- Sitting-still decay from §3 (not wired).
+
+The player is a passenger: the kid riding with Mom and Dad, the same as the web
+game. Decided. They are not a conductor. See §5.
+
+`roblox/exporter/` is a different track. Its `addSuspicion` ends the ride when
+suspicion reaches 100 (phase `end`, ending EXPOSED). That conflicts with §12,
+"No fail state in the slice." This is an open question. It is not resolved.
+This Rojo port does not copy that ending.
 
 ## The slice this is for
 
-One G-train car, Hoyt–Schermerhorn → Court Square (13 stops). Already in
-the slice: the flag mechanic, false stops at Classon Av and Metropolitan Av,
-the blackout after Myrtle–Willoughby, and the Court Square ending. Not in
-the slice (out of scope here): sound, cars A and C, stepping off, the Safe
-Haven, the trial, the camera, the tape recorder.
+One G-train car, Hoyt–Schermerhorn → Court Square (13 stops). Already in the
+slice: the flag mechanic, suspicion meter + bands, false stops at Classon Av and
+Metropolitan Av, the blackout after Myrtle–Willoughby, and the Court Square
+score sticky. Not in the slice (out of scope here): sound, cars A and C,
+stepping off, the Safe Haven, the trial, the camera, the tape recorder.
 
-The video that fed this draft: *ROBLOX: Conducting an R62A 1 Train in NYC
+The video that fed early drafts: *ROBLOX: Conducting an R62A 1 Train in NYC
 Subway: Automated* (Tako Elevators) and the game it shows, *NYC Subway:
 Automated* by Automated Transit Studio
-(https://www.roblox.com/games/13804003310/NYC-Subway-Automated). The ideas
-taken from it are listed under "Borrowed from the video" in each section.
+(https://www.roblox.com/games/13804003310/NYC-Subway-Automated). Ideas taken
+from it are listed under "Borrowed from the video" in each section.
 
 ## 1. What suspicion is
 
 Suspicion is the car's attention on you: how much the passengers, the
 conductor, and the train itself have noticed you noticing things. It is a
-0–100 meter, shown on screen (display-only, like the web game's HUD — the
-web HUD reads "25 UNEASY" at 25, so the bands below keep that threshold).
+0–100 meter, shown on screen (display-only — the HUD reads **"25 UNEASY"** at
+25 with the Rojo band thresholds below).
 
 - **0–24 CALM** — nobody is paying attention to you.
 - **25–49 UNEASY** — glances. A passenger looks up when you move.
@@ -61,7 +78,7 @@ Everything below follows that rule: the server decides, the client displays.
 | False alarm — flagging when no anomaly is active | +10 | Applied when a flag lands while no tell is up and the poster has not changed. Flagging the wrong person while a tell or the poster is up does not add this. |
 | Reacting at a false stop | +10 | The amount is in Constants. This port cannot see standing, moving to the doors, or staring, so the hook stays off. |
 | Leaving before the dwell ends | +10 | Stays off. The player is a passenger and cannot depart. The amount stays in Constants for the unused hook. See §5. |
-| Staring at the conductor or a parent for too long | +5 | New. The people in the car notice being watched, anomaly or not. |
+| Staring at the conductor or a parent for too long | +5 | New. The people in the car notice being watched, anomaly or not. Not wired yet. |
 
 ## 3. What lowers suspicion
 
@@ -70,13 +87,13 @@ Everything below follows that rule: the server decides, the client displays.
 | Decay over time | −2 per stop with no incident | Applied on a miss and on a clean stop. A miss does not also raise suspicion. |
 | Correct flag — flagging while an anomaly is active | −5 | Applied when the flag is noticed. The screen still says Caught. |
 | Completing a stop cleanly | −5 | Applied with the decay, so a clean stop is −7. Arrive, dwell, depart, nothing flagged, no anomaly on that stop. |
-| Sitting still and looking away | −2 per stop | New. Acting normal is the safest play. |
+| Sitting still and looking away | −2 per stop | New. Not wired yet. |
 
 ## 4. Per-stop result
 
 At the end of each stop the server reports one result. The screen shows it
-briefly, using the existing words where they exist. There is no suspicion
-meter. The Psych Log is still not in this port (TBD):
+briefly. The suspicion meter stays visible. The Psych Log is still not in this
+port (TBD):
 
 - **Noticed** — you flagged an active anomaly. The screen says Caught.
 - **Missed** — an anomaly was active and you never flagged it. Suspicion
@@ -143,7 +160,7 @@ on hanging LED countdown boards ("1.0 Rose St 1min").
 - Announcements are prerecorded and slightly wrong on purpose. The
   conductor never answers questions. Keep the player alone with the PA.
 - The Ding before each announcement stays. It is the sound the player
-  learns to dread.
+  learns to dread. (Sound itself is not in this slice yet.)
 
 ## 8. Atmosphere tells (borrowed from the video)
 
@@ -185,6 +202,8 @@ The blackout is already in the slice. Suspicion shapes it:
   blackout event here.
 - Suspicion does not reset at the blackout. It carries into Court Square.
 
+(Blackout duration by band is not wired yet; the flicker tick length is fixed.)
+
 ## 11. The ending (Court Square)
 
 Final suspicion at arrival changes the ending:
@@ -194,6 +213,7 @@ Final suspicion at arrival changes the ending:
   shows.
 
 Exact ending variants are TBD. Do not build them from this draft alone.
+Today the ending is still the sticky Caught/Missed score line only.
 
 ## 12. Implementation notes (Roblox)
 
@@ -231,15 +251,14 @@ Exact ending variants are TBD. Do not build them from this draft alone.
   state is TBD. The exporter's suspicion-100 ending conflicts with this
   and is not resolved (see Port notes and §14).
 
-## 13. Build order
+## 13. Build order (remaining)
 
-1. Dwell banner + early-departure penalty (§5).
-2. Wrong-announcement and wrong-countdown tells (§7).
-3. Held At Signal with one strip or tube flickering, or a slow dim (§6, §8). Not a whole-car flicker.
-4. False-alarm penalty + per-stop results (§2–§4).
-5. Band effects (§9) — glances first, then announcement glitches.
-6. Blackout shaping (§10) and ending variants (§11) — only after 1–5
-   playtest clean.
+1. ~~Dwell banner + early-departure penalty hook.~~ Done (banner on; penalty unused on purpose).
+2. ~~Wrong-announcement and wrong-countdown tells.~~ Done.
+3. ~~Held At Signal with one strip or tube flickering, or a slow dim.~~ Done.
+4. ~~False-alarm penalty + per-stop results + HUD meter.~~ Done (meter + Score; Psych Log still TBD).
+5. Band effects — glances / PA glitch / dim are in; parent lines and blackout shaping still open.
+6. Blackout shaping (§10) and ending variants (§11) — only after playtest of 1–5.
 
 ## 14. Open questions (TBD — do not fill in)
 

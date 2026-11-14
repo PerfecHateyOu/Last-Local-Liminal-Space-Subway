@@ -81,4 +81,35 @@ end
 Lines.ANNOUNCEMENT = "the announcement"
 Lines.COUNTDOWN = "the countdown"
 
+-- Suspicion HUD. The number is Ride.Suspicion; the word is Ride.Band
+-- (calm / uneasy / watched / hunted from Shared.Band). Display only.
+Lines.BAND_CALM = "CALM"
+Lines.BAND_UNEASY = "UNEASY"
+Lines.BAND_WATCHED = "WATCHED"
+Lines.BAND_HUNTED = "HUNTED"
+
+function Lines.bandLabel(band: string): string
+	if band == "uneasy" then
+		return Lines.BAND_UNEASY
+	end
+	if band == "watched" then
+		return Lines.BAND_WATCHED
+	end
+	if band == "hunted" then
+		return Lines.BAND_HUNTED
+	end
+	return Lines.BAND_CALM
+end
+
+-- "25 UNEASY" — whole number plus the band word.
+function Lines.suspicionMeter(value: number, band: string): string
+	local n = math.floor(value + 0.5)
+	if n < 0 then
+		n = 0
+	elseif n > 100 then
+		n = 100
+	end
+	return tostring(n) .. " " .. Lines.bandLabel(band)
+end
+
 return Lines
