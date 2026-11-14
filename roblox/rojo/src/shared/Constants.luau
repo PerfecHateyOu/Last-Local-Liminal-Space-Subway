@@ -182,8 +182,9 @@ Constants.FINAL_DIM = 0.62
 -- https://create.roblox.com/docs/art/modeling/specifications
 Constants.MESH_TRIANGLE_LIMIT = 20000
 
--- How far a flag ray reaches, in metres. Long enough to cover one car.
-Constants.FLAG_RANGE_M = 20
+-- How far a flag ray reaches, in metres. Long enough for one car of the
+-- three-car consist (A / B / C) from inside that car.
+Constants.FLAG_RANGE_M = 22
 
 -- Sound bed (client). Built-in engine assets so the place needs no uploads.
 -- Swap these IDs when custom MTA-style clips are imported.

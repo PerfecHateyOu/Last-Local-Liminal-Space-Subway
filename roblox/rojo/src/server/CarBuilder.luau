@@ -9,6 +9,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Constants = require(ReplicatedStorage.Shared.Constants)
 local KeepOut = require(ReplicatedStorage.Shared.KeepOut)
 local Passengers = require(ReplicatedStorage.Shared.Passengers)
+local Consist = require(script.Parent.Consist)
 
 local CarBuilder = {}
 
@@ -641,6 +642,8 @@ local function hidePartCarVisuals(car: Model)
 		ShellWall = true,
 		Bulkhead = true,
 		GangwayDoor = true,
+		FrontGangwayDoor = true,
+		RearGangwayDoor = true,
 		Lintel = true,
 		Ceiling = true,
 	}
@@ -895,8 +898,9 @@ function CarBuilder.build(): BuiltCar
 			color = Constants.COLOR.wall,
 			material = Enum.Material.Concrete,
 		})
+		-- Consist wires ProximityPrompt open/close. Closed until the player opens.
 		makePart({
-			name = "GangwayDoor",
+			name = if x < 0 then "FrontGangwayDoor" else "RearGangwayDoor",
 			parent = shell,
 			size = sizeM(0.12, 2.15, 0.96),
 			cframe = CFrame.new(metres(x, 1.08, 0)),
@@ -990,13 +994,23 @@ function CarBuilder.build(): BuiltCar
 		warn(string.format("[Last Local] Only %d passengers are in the car; the fallback figures did not all spawn.", riding))
 	end
 
-	return {
+	local built: BuiltCar = {
 		model = car,
 		doors = doors,
 		lamps = lamps,
 		passengers = passengers,
 		board = board,
 	}
+	Consist.attach({
+		model = car,
+		passengers = passengers,
+		spawnPassenger = buildPassenger,
+	})
+	return built
+end
+
+function CarBuilder.spawnPassenger(def: Passengers.PassengerDef, folder: Folder): string
+	return buildPassenger(def, folder)
 end
 
 -- Two plates on the wall. Hidden until a tell is active. The player flags

@@ -90,8 +90,22 @@ function Route.stopName(stop: number): string
 	return STOPS[stop] or ""
 end
 
--- HUD chapter line. "CAR B (MID)" is the only car in this slice.
-function Route.chapterLine(stop: number): string
+-- Web gameState currentCarIndex thresholds (metres along the consist).
+Route.CAR_A_MAX_X = -10.2
+Route.CAR_C_MIN_X = 10.2
+
+function Route.carLabel(xMetres: number): string
+	if xMetres < Route.CAR_A_MAX_X then
+		return "CAR A (LEAD)"
+	elseif xMetres > Route.CAR_C_MIN_X then
+		return "CAR C (REAR)"
+	end
+	return "CAR B (MID)"
+end
+
+-- HUD chapter line. Car letter defaults to mid until the client swaps it
+-- from the player's position.
+function Route.chapterLine(stop: number, carLabel: string?): string
 	local numeral = "I"
 	local title = "THE DESCENT"
 	for _, chapter in CHAPTERS do
@@ -101,7 +115,16 @@ function Route.chapterLine(stop: number): string
 			break
 		end
 	end
-	return "CH. " .. numeral .. " · " .. title .. " · CAR B (MID)"
+	return "CH. " .. numeral .. " · " .. title .. " · " .. (carLabel or "CAR B (MID)")
+end
+
+-- Replace the trailing car tag on a chapter line (server still ships MID).
+function Route.withCarLabel(chapterLine: string, carLabel: string): string
+	local replaced, count = string.gsub(chapterLine, "CAR [ABC] %([^%)]+%)", carLabel, 1)
+	if count > 0 then
+		return replaced
+	end
+	return chapterLine .. " · " .. carLabel
 end
 
 function Route.segmentLength(segment: Segment, accel: number, brake: number): number
