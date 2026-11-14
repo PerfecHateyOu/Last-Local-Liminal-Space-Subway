@@ -101,7 +101,7 @@ On the stretch into **Bedford–Nostrand Avs**, an unrecognized passenger appear
 
 Flag only counts while the doors are closed and you are between stations. Holding F at the platform does nothing. That matches the web game. At each stop the screen briefly shows Caught, Missed, False flag, or Clean. Suspicion starts at 0. A correct flag lowers it; a false alarm (flagging while nothing is wrong) raises it; a clean stop and a quiet miss each decay it a little. Reaching 100 does not end the ride. As the band rises, a passenger may glance when you walk, then heads turn toward you and one word of the conductor's line repeats. One ceiling tube may blink. Higher still, the lamps dim slowly. The whole car does not flicker. Design notes for what is still TBD (staring check, Psych Log, parent lines, ending variants) live in `SUSPICION.md`.
 
-You stay on the train at every stop. Choosing to step off is not in this slice.
+When the doors open, you get **Stay on** / **Step off** ([1] / [2], or the buttons). Timeout stays on. Stepping off a real stop raises suspicion and Mom pulls you back. At Myrtle–Willoughby (haven) and at non-forgiving false stops (Metropolitan Av, 21 St, the silent 6b), step-off is a **stub** until Safe Haven and the False Stop Trial land — you get a subtitle and the ride continues. Classon Av is forgiving: Mom grabs your sleeve if you step off.
 
 ## Publish
 
@@ -177,4 +177,4 @@ The full per-mesh list is `assets/triangle-counts.json`. Export was Blender 4.0.
 
 ## Not in this version
 
-Cars A and C, stepping off, the parents' other lines, the Safe Haven, the trial, the camera, and the tape recorder. A minimal sound bed is in (chime, rumble, door latch, clacks, mute); ride-music decay, pause music, EVP hiss, heartbeat, and intercom voice are not. Suspicion scoring, bands, and the on-screen meter are in; staring detection, the Psych Log, parent-line changes by band, and band-based Court Square endings are not. The mid-ride extra passenger is in (far seat on the Bedford–Nostrand stretch); the rest of the web anomaly catalog is not. The open-air stretch over Newtown Creek is not in this version: every stop is still in the tunnel. Those are later slices.
+Cars A and C, the parents' other lines, the full Safe Haven cinematic, the False Stop Trial scene, the camera, and the tape recorder. Stay / step-off choice is in (haven and trial step-offs are stubs). A minimal sound bed is in (chime, rumble, door latch, clacks, mute); ride-music decay, pause music, EVP hiss, heartbeat, and intercom voice are not. Suspicion scoring, bands, and the on-screen meter are in; staring detection, the Psych Log, parent-line changes by band, and band-based Court Square endings are not. The mid-ride extra passenger is in (far seat on the Bedford–Nostrand stretch); the rest of the web anomaly catalog is not. The open-air stretch over Newtown Creek is not in this version: every stop is still in the tunnel. Those are later slices.

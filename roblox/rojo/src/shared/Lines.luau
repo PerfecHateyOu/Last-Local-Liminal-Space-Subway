@@ -42,6 +42,17 @@ Lines.NEXT_LABEL = "Next:"
 Lines.MUTE = "MUTE"
 Lines.UNMUTE = "UNMUTE"
 
+-- Stay / step-off choice (web presentDoorChoice / resolveDoors).
+Lines.STAY_ON = "Stay on"
+Lines.STEP_OFF = "Step off"
+Lines.DOOR_PROMPT = "The doors are open."
+Lines.MOM_REAL_OFF = "Mom: Hey! Where are you going? Get back in here."
+Lines.MOM_REFUSE_HAVEN = "Mom: You don’t want to stretch your legs? …Okay."
+Lines.MOM_FALSE_FORGIVING = "Mom: Not this one, hon. The doors opened funny."
+-- Stubs until Safe Haven (PR6) and False Stop Trial (PR7).
+Lines.HAVEN_STUB = "You step onto the platform. (Safe Haven comes later.) You get back on."
+Lines.TRIAL_STUB = "The platform feels wrong. Mom pulls you back. (The False Stop Trial comes later.)"
+
 -- ReportScreen: "False flag: {name}"
 function Lines.falseFlag(label: string): string
 	return Lines.FALSE_FLAG .. ": " .. label
