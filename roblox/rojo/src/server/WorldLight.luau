@@ -15,10 +15,14 @@
 -- car lamps, and this service never blacks the car out.
 
 local Lighting = game:GetService("Lighting")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Trestle = require(ReplicatedStorage.Shared.Trestle)
 
 local WorldLight = {}
 
 local applying = false
+local openAir = 0
 
 local function killDefaultSky()
 	for _, child in Lighting:GetChildren() do
@@ -92,18 +96,21 @@ function WorldLight.apply()
 	-- Web ambient is 0.15 white, which is a dim fill, not a white wash.
 	Lighting.Ambient = Color3.fromRGB(12, 11, 10)
 	Lighting.OutdoorAmbient = Color3.fromRGB(0, 0, 0)
-	-- App.tsx: fog 0x040504, near 9 m, far 30 m.
-	Lighting.FogColor = Color3.fromRGB(4, 5, 4)
-	Lighting.FogStart = 9 * 3
-	Lighting.FogEnd = 30 * 3
+	-- App.tsx: fog 0x040504, near 9 m, far 30 m. Trestle outside lerps to sodium dusk.
+	local k = openAir
+	local tunnelFog = Color3.fromRGB(Trestle.TUNNEL_FOG_RGB[1], Trestle.TUNNEL_FOG_RGB[2], Trestle.TUNNEL_FOG_RGB[3])
+	local trestleFog = Color3.fromRGB(Trestle.FOG_RGB[1], Trestle.FOG_RGB[2], Trestle.FOG_RGB[3])
+	Lighting.FogColor = tunnelFog:Lerp(trestleFog, k)
+	Lighting.FogStart = Trestle.TUNNEL_FOG_START + (Trestle.OPEN_FOG_START - Trestle.TUNNEL_FOG_START) * k
+	Lighting.FogEnd = Trestle.TUNNEL_FOG_END + (Trestle.OPEN_FOG_END - Trestle.TUNNEL_FOG_END) * k
 
 	local air = atmosphere()
-	air.Density = 0.45
+	air.Density = 0.45 - 0.12 * k
 	air.Offset = 0
-	air.Color = Color3.fromRGB(4, 5, 4)
-	air.Decay = Color3.fromRGB(3, 4, 3)
-	air.Glare = 0
-	air.Haze = 1.1
+	air.Color = tunnelFog:Lerp(trestleFog, k)
+	air.Decay = Color3.fromRGB(3, 4, 3):Lerp(Color3.fromRGB(40, 24, 16), k)
+	air.Glare = 0.05 * k
+	air.Haze = 1.1 + 0.4 * k
 
 	local correction = grade()
 	correction.Brightness = -0.05
@@ -119,6 +126,16 @@ function WorldLight.apply()
 	glow.Threshold = 1.45
 
 	applying = false
+end
+
+-- 0 = tunnel murk, 1 = Newtown Creek open air (web trestleOutside).
+function WorldLight.setOpenAir(level: number)
+	local nextLevel = math.clamp(level, 0, 1)
+	if math.abs(nextLevel - openAir) < 0.02 then
+		return
+	end
+	openAir = nextLevel
+	WorldLight.apply()
 end
 
 function WorldLight.bind()

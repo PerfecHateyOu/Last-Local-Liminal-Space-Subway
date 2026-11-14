@@ -3,6 +3,7 @@
 -- and PaText stay server-owned; this module listens and plays.
 -- Chime before PA, rumble from stretch speed, door open/close, track clacks.
 -- No ride-music decay, pause music, EVP, heartbeat, or intercom voice.
+-- OpenAir (0–1) fades a wind/rain bed on the Newtown Creek trestle.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
@@ -19,11 +20,13 @@ local Audio = {}
 local muted = false
 local group: SoundGroup? = nil
 local rumble: Sound? = nil
+local openAir: Sound? = nil
 local muteButton: TextButton? = nil
 local lastDoor: number? = nil
 local lastPa = ""
 local clackTravel = 0
 local lastSpeedSample = 0
+local openAirLevel = 0
 
 local function makeSound(name: string, id: string, volume: number, looped: boolean): Sound
 	local sound = Instance.new("Sound")
@@ -128,6 +131,10 @@ function Audio.setMute(value: boolean)
 	if loop ~= nil and muted then
 		loop.Volume = 0
 	end
+	local wind = openAir
+	if wind ~= nil and muted then
+		wind.Volume = 0
+	end
 	refreshMuteLabel()
 end
 
@@ -154,7 +161,14 @@ function Audio.start(button: TextButton)
 	loop:Play()
 	rumble = loop
 
+	local wind = makeSound("OpenAir", Constants.SOUND_OPEN_AIR, 0, true)
+	wind.PlaybackSpeed = Constants.SOUND_OPEN_AIR_PLAYBACK
+	wind:Play()
+	openAir = wind
+
 	local ride = ReplicatedStorage:WaitForChild("Ride")
+	local openAttr = ride:GetAttribute("OpenAir")
+	openAirLevel = if typeof(openAttr) == "number" then math.clamp(openAttr, 0, 1) else 0
 
 	local function onDoor(value: any)
 		if typeof(value) ~= "number" then
@@ -211,6 +225,9 @@ function Audio.start(button: TextButton)
 			if typeof(stamp) == "number" and stamp > 0 then
 				playOneShot(Constants.SOUND_POLAROID, Constants.SOUND_POLAROID_VOLUME, 1.35)
 			end
+		elseif name == "OpenAir" then
+			local level = ride:GetAttribute("OpenAir")
+			openAirLevel = if typeof(level) == "number" then math.clamp(level, 0, 1) else 0
 		elseif name == "EvpPlayId" then
 			local id = ride:GetAttribute("EvpPlayId")
 			local text = if typeof(id) == "string" then id else ""
@@ -249,6 +266,13 @@ function Audio.start(button: TextButton)
 			loopSound.Volume = if fraction > 0.02 then vol else 0
 		elseif loopSound ~= nil and muted then
 			loopSound.Volume = 0
+		end
+		local windSound = openAir
+		if windSound ~= nil and not muted then
+			-- Web peaks ~0.14 * level; slice uses a quieter stand-in.
+			windSound.Volume = Constants.SOUND_OPEN_AIR_MAX * openAirLevel
+		elseif windSound ~= nil and muted then
+			windSound.Volume = 0
 		end
 		if fraction > 0.08 then
 			clackTravel += Constants.TOP_SPEED_MPS * fraction * dt
