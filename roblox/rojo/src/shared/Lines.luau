@@ -38,6 +38,10 @@ Lines.CLEAN = "Clean"
 -- HUD station card.
 Lines.NEXT_LABEL = "Next:"
 
+-- Mute toggle. Not a spoken line.
+Lines.MUTE = "MUTE"
+Lines.UNMUTE = "UNMUTE"
+
 -- ReportScreen: "False flag: {name}"
 function Lines.falseFlag(label: string): string
 	return Lines.FALSE_FLAG .. ": " .. label

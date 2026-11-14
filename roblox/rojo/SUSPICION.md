@@ -44,8 +44,10 @@ This Rojo port does not copy that ending.
 One G-train car, Hoyt–Schermerhorn → Court Square (13 stops). Already in the
 slice: the flag mechanic, suspicion meter + bands, false stops at Classon Av and
 Metropolitan Av, the blackout after Myrtle–Willoughby, and the Court Square
-score sticky. Not in the slice (out of scope here): sound, cars A and C,
+score sticky. Not in the slice (out of scope here): cars A and C,
 stepping off, the Safe Haven, the trial, the camera, the tape recorder.
+A minimal sound bed (PA chime, rumble, door latch, clacks, mute) is in;
+ride-music decay, EVP, heartbeat, and intercom voice are not.
 
 The video that fed early drafts: *ROBLOX: Conducting an R62A 1 Train in NYC
 Subway: Automated* (Tako Elevators) and the game it shows, *NYC Subway:
@@ -160,7 +162,8 @@ on hanging LED countdown boards ("1.0 Rose St 1min").
 - Announcements are prerecorded and slightly wrong on purpose. The
   conductor never answers questions. Keep the player alone with the PA.
 - The Ding before each announcement stays. It is the sound the player
-  learns to dread. (Sound itself is not in this slice yet.)
+  learns to dread. The client sound bed plays a two-tone chime when
+  `PaText` updates (built-in assets; not a full intercom voice).
 
 ## 8. Atmosphere tells (borrowed from the video)
 
