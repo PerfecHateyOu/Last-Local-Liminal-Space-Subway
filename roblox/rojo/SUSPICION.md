@@ -23,7 +23,9 @@ TBD is undecided — do not fill it in from a guess.
 - Per-stop feedback words: Caught / Missed / False flag / Clean.
 - Parent chats (`Dialogue` / Route `chat`) and first-tier mask prompts: odd
   answers +15 (`MASK_FAIL_SUSPICION`), hesitation +8 (`MASK_TIMEOUT_SUSPICION`).
-  Sanity Ride attribute stub nudged on fail/timeout (full restraint is later).
+  Sanity Ride attribute nudged on fail/timeout; Safe Haven restores +15.
+- Safe Haven at Myrtle–Willoughby: step off → platform linger + `HasRecorder`;
+  stay aboard → `refuseHaven` +10. Train handoff if you skipped the platform.
 
 **Still not in this port (TBD)**
 
@@ -34,6 +36,7 @@ TBD is undecided — do not fill it in from a guess.
 - Critical-tier mask glitch UI and nightmare stare timing.
 - Court Square ending variants by final band.
 - Sitting-still decay from §3 (not wired).
+- EVP raise/record UI (recorder flag only).
 
 The player is a passenger: the kid riding with Mom and Dad, the same as the web
 game. Decided. They are not a conductor. See §5.
@@ -47,11 +50,11 @@ This Rojo port does not copy that ending.
 
 One G-train car, Hoyt–Schermerhorn → Court Square (13 stops). Already in the
 slice: the flag mechanic, suspicion meter + bands, false stops at Classon Av and
-Metropolitan Av, the blackout after Myrtle–Willoughby, and the Court Square
-score sticky. Not in the slice (out of scope here): cars A and C,
-stepping off, the Safe Haven, the trial, the camera, the tape recorder.
+Metropolitan Av, the Safe Haven at Myrtle–Willoughby (recorder unlock), the
+blackout after Myrtle–Willoughby, and the Court Square score sticky. Not in
+the slice (out of scope here): cars A and C, the trial, the camera, EVP UI.
 A minimal sound bed (PA chime, rumble, door latch, clacks, mute) is in;
-ride-music decay, EVP, heartbeat, and intercom voice are not.
+ride-music decay, EVP hiss, heartbeat, and intercom voice are not.
 
 The video that fed early drafts: *ROBLOX: Conducting an R62A 1 Train in NYC
 Subway: Automated* (Tako Elevators) and the game it shows, *NYC Subway:

@@ -27,10 +27,10 @@ local realOff = resolve("real", false, "off")
 check("real off raises suspicion", realOff.suspicionDelta == 20 and realOff.line == "REAL")
 
 local havenOff = resolve("haven", false, "off")
-check("haven off is stub", havenOff.mode == "haven_stub" and havenOff.correct and havenOff.suspicionDelta == 0)
+check("haven off runs haven", havenOff.mode == "haven" and havenOff.correct and havenOff.suspicionDelta == 0)
 
 local havenStay = resolve("haven", false, "stay")
-check("haven stay refuses", havenStay.suspicionDelta == 10 and havenStay.line == "REFUSE")
+check("haven stay refuses", havenStay.suspicionDelta == 10 and havenStay.line == "REFUSE" and havenStay.mode == "depart")
 
 local falseStay = resolve("false", false, "stay")
 check("false stay is correct", falseStay.correct and falseStay.suspicionDelta == 0)
