@@ -21,6 +21,7 @@ local Constants = require(ReplicatedStorage.Shared.Constants)
 local Doors = require(ReplicatedStorage.Shared.Doors)
 local Dwell = require(ReplicatedStorage.Shared.Dwell)
 local Hold = require(ReplicatedStorage.Shared.Hold)
+local Dialogue = require(ReplicatedStorage.Shared.Dialogue)
 local Lines = require(ReplicatedStorage.Shared.Lines)
 local Score = require(ReplicatedStorage.Shared.Score)
 local Band = require(ReplicatedStorage.Shared.Band)
@@ -43,6 +44,9 @@ function Ride.start(car: CarBuilder.BuiltCar)
 	local doorsRemote = Instance.new("RemoteEvent")
 	doorsRemote.Name = "Doors"
 	doorsRemote.Parent = remotes
+	local maskRemote = Instance.new("RemoteEvent")
+	maskRemote.Name = "Mask"
+	maskRemote.Parent = remotes
 
 	ride:SetAttribute("Phase", "intro")
 	ride:SetAttribute("PaText", "")
@@ -54,6 +58,7 @@ function Ride.start(car: CarBuilder.BuiltCar)
 	ride:SetAttribute("ChapterLine", Route.chapterLine(1))
 	ride:SetAttribute("DwellUntil", 0)
 	ride:SetAttribute("Suspicion", 0)
+	ride:SetAttribute("Sanity", Constants.SANITY_START)
 	ride:SetAttribute("Band", "calm")
 	ride:SetAttribute("FalseStopBonus", 0)
 	ride:SetAttribute("BoardStop", "")
@@ -66,6 +71,11 @@ function Ride.start(car: CarBuilder.BuiltCar)
 	ride:SetAttribute("DoorTarget", 1)
 	ride:SetAttribute("ChoiceActive", false)
 	ride:SetAttribute("ChoiceUntil", 0)
+	ride:SetAttribute("MaskActive", false)
+	ride:SetAttribute("MaskUntil", 0)
+	ride:SetAttribute("MaskA", "")
+	ride:SetAttribute("MaskB", "")
+	ride:SetAttribute("MaskC", "")
 
 	CarBuilder.addTells(
 		car.passengers,
@@ -260,12 +270,24 @@ function Ride.start(car: CarBuilder.BuiltCar)
 	local falseFlags = 0
 	local caught = false
 	local suspicion = 0
+	local sanity = Constants.SANITY_START
 	local stopHadAnomaly = false
 	local stopNoticed = false
 	local stopFalseAlarm = false
 	local posterLive = false
 	local inFinal = false
 	local huntedDim = false
+	local maskUsed: { [string]: boolean } = {}
+	local maskLast: string? = nil
+	local maskBusy = false
+	local chatPlan = Dialogue.buildChatPlan(function()
+		return math.random()
+	end)
+
+	local function applySanity(delta: number)
+		sanity = math.clamp(sanity + delta, Constants.SANITY_MIN, Constants.SANITY_MAX)
+		ride:SetAttribute("Sanity", sanity)
+	end
 
 	local function blinkBandTube()
 		for _, lamp in car.lamps do
@@ -407,6 +429,8 @@ function Ride.start(car: CarBuilder.BuiltCar)
 
 	local pendingDoorChoice: string? = nil
 	local choiceEpoch = 0
+	local pendingMaskChoice: string? = nil
+	local maskEpoch = 0
 
 	doorsRemote.OnServerEvent:Connect(function(_player: Player, choice: any)
 		if ride:GetAttribute("ChoiceActive") ~= true then
@@ -419,6 +443,19 @@ function Ride.start(car: CarBuilder.BuiltCar)
 			return
 		end
 		pendingDoorChoice = choice
+	end)
+
+	maskRemote.OnServerEvent:Connect(function(_player: Player, choice: any)
+		if ride:GetAttribute("MaskActive") ~= true then
+			return
+		end
+		if typeof(choice) ~= "string" then
+			return
+		end
+		if choice ~= "A" and choice ~= "B" and choice ~= "C" then
+			return
+		end
+		pendingMaskChoice = choice
 	end)
 
 	local function waitForDoorChoice(seconds: number): string
@@ -434,6 +471,84 @@ function Ride.start(car: CarBuilder.BuiltCar)
 		ride:SetAttribute("ChoiceActive", false)
 		ride:SetAttribute("ChoiceUntil", 0)
 		return Doors.normalize(pendingDoorChoice)
+	end
+
+	local function clearMaskUi()
+		ride:SetAttribute("MaskActive", false)
+		ride:SetAttribute("MaskUntil", 0)
+		ride:SetAttribute("MaskA", "")
+		ride:SetAttribute("MaskB", "")
+		ride:SetAttribute("MaskC", "")
+	end
+
+	local function waitForMaskChoice(seconds: number, answers: { { text: string, val: string } }): string?
+		maskEpoch += 1
+		local epoch = maskEpoch
+		pendingMaskChoice = nil
+		ride:SetAttribute("MaskA", answers[1].text)
+		ride:SetAttribute("MaskB", answers[2].text)
+		ride:SetAttribute("MaskC", answers[3].text)
+		ride:SetAttribute("MaskActive", true)
+		ride:SetAttribute("MaskUntil", workspace:GetServerTimeNow() + seconds)
+		local deadline = os.clock() + seconds
+		while os.clock() < deadline and pendingMaskChoice == nil and epoch == maskEpoch do
+			if ride:GetAttribute("Phase") ~= "ride" then
+				break
+			end
+			task.wait(0.05)
+		end
+		local picked = pendingMaskChoice
+		clearMaskUi()
+		if picked == nil then
+			return nil
+		end
+		local index = if picked == "A" then 1 elseif picked == "B" then 2 else 3
+		return answers[index].val
+	end
+
+	local segToken = 0
+
+	local function runMaskCheck(token: number)
+		if maskBusy or token ~= segToken then
+			return
+		end
+		if ride:GetAttribute("Phase") ~= "ride" then
+			return
+		end
+		if ride:GetAttribute("ChoiceActive") == true then
+			return
+		end
+		local pool = Dialogue.maskPool(suspicion, Constants.MASK_NEED_SUSPICION)
+		local line = Dialogue.pickMask(pool, maskUsed, maskLast, function()
+			return math.random()
+		end)
+		if line == nil then
+			return
+		end
+		maskBusy = true
+		maskUsed[line.line] = true
+		maskLast = line.line
+		showSub(Dialogue.maskPrompt(line.who, line.line), Constants.MASK_PROMPT_SECONDS)
+		local answers = Dialogue.shuffleAnswers(line.calm, line.off[1], line.off[2], function()
+			return math.random()
+		end)
+		local val = waitForMaskChoice(Constants.MASK_CHOICE_SECONDS, answers)
+		if token ~= segToken then
+			maskBusy = false
+			return
+		end
+		if val == nil then
+			applySuspicion(Constants.MASK_TIMEOUT_SUSPICION)
+			applySanity(-Constants.MASK_TIMEOUT_SANITY)
+			showSub(Dialogue.maskHesitate(line.who), 2.6)
+		elseif val == "calm" then
+			showSub(Dialogue.youAnswer(line.calm, line.who), 2.4)
+		else
+			applySuspicion(Constants.MASK_FAIL_SUSPICION)
+			applySanity(-Constants.MASK_FAIL_SANITY)
+			showSub(Dialogue.maskOdd(line.who), 2.8)
+		end
+		maskBusy = false
 	end
 
 	flagRemote.OnServerEvent:Connect(function(player: Player, passengerId: any)
@@ -496,8 +611,6 @@ function Ride.start(car: CarBuilder.BuiltCar)
 		showFeedback(kind, word, true)
 		showSub(Lines.scoreLine(miss, falseFlags), 30)
 	end
-
-	local segToken = 0
 
 	-- One named tube, on and off. stripHold keeps applyLights from painting
 	-- that tube. No other lamp is touched, and forcedOff is not set.
@@ -595,6 +708,43 @@ function Ride.start(car: CarBuilder.BuiltCar)
 				end
 				showPa(Lines.nextStop(announced), Constants.NEXT_STOP_FOR)
 			end)
+		end
+		local chatIndex = seg.chat
+		if chatIndex ~= nil then
+			local exchange = Dialogue.chatFor(chatPlan, chatIndex)
+			if exchange ~= nil then
+				local first = exchange[1]
+				local second = exchange[2]
+				task.delay(Constants.CHAT_AT_1, function()
+					if token ~= segToken or ride:GetAttribute("Phase") ~= "ride" then
+						return
+					end
+					if ride:GetAttribute("MaskActive") == true or ride:GetAttribute("ChoiceActive") == true then
+						return
+					end
+					showSub(Dialogue.chatLine(first.who, first.line), Constants.CHAT_LINE_SECONDS)
+				end)
+				task.delay(Constants.CHAT_AT_2, function()
+					if token ~= segToken or ride:GetAttribute("Phase") ~= "ride" then
+						return
+					end
+					if ride:GetAttribute("MaskActive") == true or ride:GetAttribute("ChoiceActive") == true then
+						return
+					end
+					showSub(Dialogue.chatLine(second.who, second.line), Constants.CHAT_LINE_SECONDS)
+				end)
+			end
+		end
+		local maskTimes = seg.masks
+		if maskTimes ~= nil then
+			for _, at in maskTimes do
+				task.delay(at, function()
+					if token ~= segToken then
+						return
+					end
+					runMaskCheck(token)
+				end)
+			end
 		end
 		if picked == "poster_changed" then
 			task.delay(8, function()
@@ -697,6 +847,9 @@ function Ride.start(car: CarBuilder.BuiltCar)
 	local function arrive(seg: Route.Segment)
 		segToken += 1
 		local token = segToken
+		maskEpoch += 1
+		clearMaskUi()
+		maskBusy = false
 		ride:SetAttribute("Phase", "stop")
 		local kind = Score.result(stopHadAnomaly, stopNoticed, stopFalseAlarm)
 		applySuspicion(Score.endDelta(kind, Constants.CLEAN_STOP_SUSPICION, Constants.DECAY_SUSPICION))

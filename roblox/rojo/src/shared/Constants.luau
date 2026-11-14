@@ -76,6 +76,26 @@ Constants.FALSE_STOP_STEP_OFF_SUSPICION = 15
 -- Choice window after doors open. Timeout counts as Stay on.
 Constants.DOOR_CHOICE_SECONDS = 5
 
+-- Parent chats during cruise (web CHAT_AT / CHAT_LINE_S). Slice times sit
+-- after the next-stop PA (7 + 4.5) on the shortened stretch.
+Constants.CHAT_AT_1 = 12.0
+Constants.CHAT_AT_2 = 14.2
+Constants.CHAT_LINE_SECONDS = 2.6
+
+-- Mask checks (web MASK_CHECK_S / presentChoice). First dialogue tier only.
+Constants.MASK_CHOICE_SECONDS = 4
+Constants.MASK_PROMPT_SECONDS = 6
+Constants.MASK_FAIL_SUSPICION = 15
+Constants.MASK_TIMEOUT_SUSPICION = 8
+-- Sanity is a Ride attribute stub until restraint / intervention (PR13).
+Constants.SANITY_START = 100
+Constants.SANITY_MIN = 0
+Constants.SANITY_MAX = 100
+Constants.MASK_FAIL_SANITY = 4
+Constants.MASK_TIMEOUT_SANITY = 2
+-- needsSus mask lines only appear at or above this suspicion.
+Constants.MASK_NEED_SUSPICION = 10
+
 -- Bands from the suspicion number. 0–24 calm, 25–49 uneasy, 50–74 watched,
 -- 75–100 hunted.
 Constants.BAND_CALM_MAX = 24
