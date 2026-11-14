@@ -195,6 +195,10 @@ Constants.POLAROID_FLASH_GLANCE_CHANCE = 0.5
 -- Shutter click (reuse short switch; Studio can swap later).
 Constants.SOUND_POLAROID = "rbxasset://sounds/switch.wav"
 Constants.SOUND_POLAROID_VOLUME = 0.4
+-- Open-air trestle wind/rain bed (web audioEngine.setOpenAir).
+Constants.SOUND_OPEN_AIR = "rbxasset://sounds/swoosh.wav"
+Constants.SOUND_OPEN_AIR_MAX = 0.12
+Constants.SOUND_OPEN_AIR_PLAYBACK = 0.55
 
 -- Sound bed (client). Built-in engine assets so the place needs no uploads.
 -- Swap these IDs when custom MTA-style clips are imported.

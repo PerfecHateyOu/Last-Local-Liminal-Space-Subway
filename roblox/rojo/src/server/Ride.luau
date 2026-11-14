@@ -19,7 +19,9 @@ local AnomalySystem = require(script.Parent.AnomalySystem)
 local CarBuilder = require(script.Parent.CarBuilder)
 local Scenery = require(script.Parent.Scenery)
 local TrialSpace = require(script.Parent.TrialSpace)
+local WorldLight = require(script.Parent.WorldLight)
 local Constants = require(ReplicatedStorage.Shared.Constants)
+local Trestle = require(ReplicatedStorage.Shared.Trestle)
 local Doors = require(ReplicatedStorage.Shared.Doors)
 local Dwell = require(ReplicatedStorage.Shared.Dwell)
 local Hold = require(ReplicatedStorage.Shared.Hold)
@@ -107,6 +109,7 @@ function Ride.start(car: CarBuilder.BuiltCar)
 	ride:SetAttribute("FilmLeft", Polaroid.STARTING_FILM)
 	ride:SetAttribute("PolaroidFlash", 0)
 	ride:SetAttribute("PolaroidAlbum", "[]")
+	ride:SetAttribute("OpenAir", 0)
 	ride:SetAttribute("Band", "calm")
 	ride:SetAttribute("FalseStopBonus", 0)
 	ride:SetAttribute("BoardStop", "")
@@ -254,6 +257,8 @@ function Ride.start(car: CarBuilder.BuiltCar)
 	local odo = 0
 	local leaving, arriving = Scenery.build()
 	Scenery.setName(leaving, Route.stopName(1))
+	local trestlePlan: Trestle.Plan = Trestle.plan(0, false, 0, 1)
+	local lastOpenAir = -1
 
 	type Stretch = {
 		start: number,
@@ -265,6 +270,16 @@ function Ride.start(car: CarBuilder.BuiltCar)
 		holdFor: number,
 	}
 	local stretch: Stretch? = nil
+
+	local function publishOpenAir(level: number)
+		if math.abs(level - lastOpenAir) < 0.03 then
+			return
+		end
+		lastOpenAir = level
+		ride:SetAttribute("OpenAir", level)
+		Scenery.setOpenAirLevel(level)
+		WorldLight.setOpenAir(level)
+	end
 
 	local function beginStretch(seg: Route.Segment, holdAt: number, holdFor: number)
 		local accel = Constants.ACCEL
@@ -280,6 +295,10 @@ function Ride.start(car: CarBuilder.BuiltCar)
 		local dist = Motion.segmentDistance(accel, cruise, brake, Constants.TOP_SPEED_MPS)
 		arriving.base = odo + dist
 		Scenery.setName(arriving, Route.stopName(seg.stop))
+		-- Newtown Creek: open-air 21 St approach / departure (web gameState trestle).
+		trestlePlan = Trestle.plan(seg.stop, seg.b, odo, dist)
+		Scenery.setOpenAir(leaving, Trestle.leavingOpenAir(seg.stop))
+		Scenery.setOpenAir(arriving, Trestle.arrivingOpenAir(seg.stop, seg.b))
 		local now = workspace:GetServerTimeNow()
 		stretch = {
 			start = now,
@@ -308,6 +327,8 @@ function Ride.start(car: CarBuilder.BuiltCar)
 			local motionT = Hold.motionTime(elapsed, current.holdAt, current.holdFor)
 			odo = current.origin + Motion.distance(motionT, current.accel, current.cruise, current.brake, Constants.TOP_SPEED_MPS)
 		end
+		local openLevel = if ride:GetAttribute("Phase") == "trial" then 0 else Trestle.outsideLevel(odo, trestlePlan)
+		publishOpenAir(openLevel)
 		Scenery.place(odo)
 		doorOpen += (doorTarget - doorOpen) * (1 - math.exp(-7 * dt))
 		for _, leaf in car.doors do
