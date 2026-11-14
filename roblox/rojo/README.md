@@ -47,11 +47,15 @@ If a person faces the wall instead of the aisle, select their model inside **Mod
 
 ### Names this slice actually uses
 
-Put the modeled car in as **`Car_B`**. If that model is missing, the Part-built car is used and the ride still runs. Door leaves, gangway doors, and `LightStrip_00` through `LightStrip_11` keep those names so the doors can slide and each tube can be driven on its own. A single tube may blink. The whole car still goes dark only on the door tick.
+Put the modeled mid car in as **`Car_B`**. Optional lead/rear visuals are **`Car_A`** / **`Car_C`** (Part shells are always built for collision). If a model is missing, the Part-built car is used and the ride still runs. Door leaves, gangway doors (`FrontGangwayDoor` / `RearGangwayDoor`), and `LightStrip_00` through `LightStrip_11` keep those names so the doors can slide and each tube can be driven on its own. A single tube may blink. The whole car still goes dark only on the door tick.
+
+Walk to either end of Car B and use the **gangway door** prompt to open it, then cross the bellows into Car A (lead) or Car C (rear). The chapter line swaps to **CAR A (LEAD)** / **CAR C (REAR)** from your position. Sparse riders sit in A and C; standing keep-out still applies. Anomalies stay on Car B only.
 
 | Name in ReplicatedStorage.Models | What it is |
 | --- | --- |
 | `Car_B` | Bill's Car B interior. Also accepted as `car_B_interior`. |
+| `Car_A` | Optional lead-car visual over the Part shell. |
+| `Car_C` | Optional rear-car visual over the Part shell. |
 | `prop_phone` | Mom and Dad's phone. Also `Prop_Phone`. |
 | `prop_phone_texter` | The texter's phone. Also `Prop_PhoneTexter`. |
 | `prop_tote_bag` | The coat woman's tote. Also `Prop_ToteBag`. |
@@ -179,4 +183,4 @@ The full per-mesh list is `assets/triangle-counts.json`. Export was Blender 4.0.
 
 ## Not in this version
 
-Cars A and C, and the Polaroid camera. The tape recorder / EVP is in after Safe Haven unlock (`HasRecorder`): raise with **R**, tune with **[** / **]** or the wheel, hold **REC** / Space on a locked voice, **Tab** for the Evidence tape list and playback (parents may glance). Case Files persistence across rides is not. The False Stop Trial is in; ending branches from trial history are not. Parent chats and first-tier mask prompts are in; Critical-tier mask glitch UI and nightmare stare timing are not. Stay / step-off choice is in. A minimal sound bed is in (chime, rumble, door latch, clacks, mute); ride-music decay, pause music, full EVP hiss bed, heartbeat, and intercom voice are not. Suspicion scoring, bands, and the on-screen meter are in; staring detection, the Psych Log, parent-line changes by band, and band-based Court Square endings are not. Sanity is a Ride attribute (mask answers nudge it; haven restores it; trial spends it). The mid-ride extra passenger is in (far seat on the Bedford–Nostrand stretch); the rest of the web anomaly catalog is not. The open-air stretch over Newtown Creek is not in this version: every stop is still in the tunnel. Those are later slices.
+The Polaroid camera. Cars A and C with walkable gangways are in (Part shells; optional `Car_A` / `Car_C` meshes). The tape recorder / EVP is in after Safe Haven unlock (`HasRecorder`): raise with **R**, tune with **[** / **]** or the wheel, hold **REC** / Space on a locked voice, **Tab** for the Evidence tape list and playback (parents may glance). Case Files persistence across rides is not. The False Stop Trial is in; ending branches from trial history are not. Parent chats and first-tier mask prompts are in; Critical-tier mask glitch UI and nightmare stare timing are not. Stay / step-off choice is in. A minimal sound bed is in (chime, rumble, door latch, clacks, mute); ride-music decay, pause music, full EVP hiss bed, heartbeat, and intercom voice are not. Suspicion scoring, bands, and the on-screen meter are in; staring detection, the Psych Log, parent-line changes by band, and band-based Court Square endings are not. Sanity is a Ride attribute (mask answers nudge it; haven restores it; trial spends it). The mid-ride extra passenger is in (far seat on the Bedford–Nostrand stretch); the rest of the web anomaly catalog is not. The open-air stretch over Newtown Creek is not in this version: every stop is still in the tunnel. Those are later slices.

@@ -203,6 +203,73 @@ local LIST: { PassengerDef } = {
 
 Passengers.LIST = LIST
 
+-- Sparse riders in Cars A and C (web subwayCarBuilder carA/carC). Part
+-- fallback only; optional GLB names reuse existing archetypes when imported.
+local ADJACENT: { PassengerDef } = {
+	{
+		id = "pa1",
+		label = "the commuter reading in Car A",
+		modelName = "passenger_office_standing",
+		x = -18.5,
+		z = -1.3,
+		ry = 0,
+		standing = false,
+		anomaly = false,
+		crowd = false,
+		skin = Color3.fromRGB(210, 166, 121),
+		shirt = Color3.fromRGB(74, 93, 78),
+		pants = Color3.fromRGB(34, 38, 41),
+		hair = Color3.fromRGB(28, 26, 23),
+	},
+	{
+		id = "pa2",
+		label = "the commuter staring ahead in Car A",
+		modelName = "passenger_overcoat",
+		x = -22.0,
+		z = 1.3,
+		ry = math.pi,
+		standing = false,
+		anomaly = false,
+		crowd = false,
+		skin = Color3.fromRGB(166, 116, 88),
+		shirt = Color3.fromRGB(140, 94, 56),
+		pants = Color3.fromRGB(51, 51, 51),
+		hair = Color3.fromRGB(9, 9, 9),
+	},
+	{
+		id = "pc1",
+		label = "the passenger holding the pole in Car C",
+		modelName = "passenger_texter_standing",
+		x = 17.0,
+		z = 0.55,
+		ry = -math.pi / 2,
+		standing = true,
+		anomaly = false,
+		crowd = false,
+		skin = Color3.fromRGB(191, 128, 80),
+		shirt = Color3.fromRGB(46, 59, 82),
+		pants = Color3.fromRGB(31, 32, 34),
+		hair = Color3.fromRGB(24, 21, 18),
+	},
+	{
+		id = "pc2",
+		label = "the hooded passenger in Car C",
+		modelName = "passenger_hoodie_standing",
+		x = 23.5,
+		z = -1.3,
+		ry = 0,
+		standing = false,
+		anomaly = false,
+		crowd = false,
+		skin = Color3.fromRGB(230, 194, 165),
+		shirt = Color3.fromRGB(31, 31, 36),
+		pants = Color3.fromRGB(45, 45, 51),
+		hair = Color3.fromRGB(10, 10, 12),
+	},
+}
+
+Passengers.ADJACENT = ADJACENT
+
 -- Names to try under ReplicatedStorage.Models. Seated riders prefer the
 -- seated NPC export from Bill's blend; standing riders prefer the standing one.
 -- The older manifest file name still works.
