@@ -24,6 +24,11 @@ local maskCountdown: TextLabel? = nil
 local maskButtonA: TextButton? = nil
 local maskButtonB: TextButton? = nil
 local maskButtonC: TextButton? = nil
+local trialFrame: Frame? = nil
+local trialCountdown: TextLabel? = nil
+local trialButtonA: TextButton? = nil
+local trialButtonB: TextButton? = nil
+local trialButtonC: TextButton? = nil
 local progressFill: Frame? = nil
 
 local function corner(parent: Instance, radius: number)
@@ -121,6 +126,53 @@ function Hud.setMaskLabels(a: string, b: string, c: string)
 	end
 	if bc ~= nil then
 		bc.Text = "[3]  " .. c
+	end
+end
+
+function Hud.trialButtonA(): TextButton
+	assert(trialButtonA ~= nil, "Hud.start must run first")
+	return trialButtonA
+end
+
+function Hud.trialButtonB(): TextButton
+	assert(trialButtonB ~= nil, "Hud.start must run first")
+	return trialButtonB
+end
+
+function Hud.trialButtonC(): TextButton
+	assert(trialButtonC ~= nil, "Hud.start must run first")
+	return trialButtonC
+end
+
+function Hud.setTrialVisible(visible: boolean)
+	local frame = trialFrame
+	if frame ~= nil then
+		frame.Visible = visible
+	end
+end
+
+function Hud.setTrialCountdown(text: string)
+	local countdown = trialCountdown
+	if countdown ~= nil then
+		countdown.Text = text
+	end
+end
+
+function Hud.setTrialLabels(a: string, b: string, c: string, slots: number)
+	local ba = trialButtonA
+	local bb = trialButtonB
+	local bc = trialButtonC
+	if ba ~= nil then
+		ba.Text = "[1]  " .. a
+		ba.Visible = slots >= 1
+	end
+	if bb ~= nil then
+		bb.Text = "[2]  " .. b
+		bb.Visible = slots >= 2
+	end
+	if bc ~= nil then
+		bc.Text = "[3]  " .. c
+		bc.Visible = slots >= 3
 	end
 end
 
@@ -480,6 +532,57 @@ function Hud.start()
 	maskButtonA = maskBtn("MaskA", 50)
 	maskButtonB = maskBtn("MaskB", 90)
 	maskButtonC = maskBtn("MaskC", 130)
+
+	local trialCard = Instance.new("Frame")
+	trialCard.Name = "TrialChoice"
+	trialCard.AnchorPoint = Vector2.new(0.5, 1)
+	trialCard.Position = UDim2.new(0.5, 0, 1, -214)
+	trialCard.Size = UDim2.fromOffset(360, 168)
+	trialCard.BackgroundColor3 = Color3.new(0, 0, 0)
+	trialCard.BackgroundTransparency = 0.28
+	trialCard.BorderSizePixel = 0
+	trialCard.Visible = false
+	trialCard.Parent = gui
+	corner(trialCard, 10)
+	trialFrame = trialCard
+
+	local trialTitle = label(trialCard, "Find the way back.", 14, Constants.COLOR.warn)
+	trialTitle.Name = "Title"
+	trialTitle.Font = Enum.Font.GothamBold
+	trialTitle.Position = UDim2.fromOffset(12, 8)
+	trialTitle.Size = UDim2.new(1, -24, 0, 18)
+	trialTitle.TextXAlignment = Enum.TextXAlignment.Center
+
+	local trialCount = label(trialCard, "", 12, Color3.fromRGB(180, 176, 166))
+	trialCount.Name = "Countdown"
+	trialCount.Font = Enum.Font.Code
+	trialCount.Position = UDim2.fromOffset(12, 28)
+	trialCount.Size = UDim2.new(1, -24, 0, 16)
+	trialCount.TextXAlignment = Enum.TextXAlignment.Center
+	trialCountdown = trialCount
+
+	local function trialBtn(name: string, y: number): TextButton
+		local btn = Instance.new("TextButton")
+		btn.Name = name
+		btn.Position = UDim2.fromOffset(16, y)
+		btn.Size = UDim2.new(1, -32, 0, 36)
+		btn.BackgroundColor3 = Color3.fromRGB(36, 28, 22)
+		btn.BackgroundTransparency = 0.1
+		btn.BorderSizePixel = 0
+		btn.AutoButtonColor = true
+		btn.Font = Enum.Font.GothamMedium
+		btn.Text = ""
+		btn.TextColor3 = Constants.COLOR.cream
+		btn.TextSize = 14
+		btn.TextWrapped = true
+		btn.Parent = trialCard
+		corner(btn, 8)
+		return btn
+	end
+
+	trialButtonA = trialBtn("TrialA", 50)
+	trialButtonB = trialBtn("TrialB", 90)
+	trialButtonC = trialBtn("TrialC", 130)
 
 	local dwellCard = Instance.new("Frame")
 	dwellCard.Name = "Dwell"

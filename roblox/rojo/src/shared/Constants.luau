@@ -76,6 +76,13 @@ Constants.FALSE_STOP_STEP_OFF_SUSPICION = 15
 -- Choice window after doors open. Timeout counts as Stay on.
 Constants.DOOR_CHOICE_SECONDS = 5
 
+-- False Stop Trial exit (web SUS.falsePos / SAN.trial).
+Constants.TRIAL_EXIT_SUSPICION = 20
+Constants.TRIAL_SANITY = 20
+Constants.TRIAL_CYCLE = 3.6
+Constants.TRIAL_FLICK_SECONDS = 0.14
+Constants.TRIAL_HINT_SECONDS = 6
+
 -- Parent chats during cruise (web CHAT_AT / CHAT_LINE_S). Slice times sit
 -- after the next-stop PA (7 + 4.5) on the shortened stretch.
 Constants.CHAT_AT_1 = 12.0

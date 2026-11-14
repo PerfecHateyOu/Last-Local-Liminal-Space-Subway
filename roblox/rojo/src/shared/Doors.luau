@@ -1,6 +1,7 @@
 --!strict
 -- Stay / step-off outcomes. Mirrors web resolveDoors (gameState.ts).
--- Haven runs Shared.Haven + Ride.executeHaven. Trial stays a soft stub (PR7).
+-- Haven runs Shared.Haven + Ride.executeHaven.
+-- Non-forgiving false step-off runs Shared.Trial + TrialSpace.
 
 local Doors = {}
 
@@ -12,8 +13,8 @@ export type Outcome = {
 	correct: boolean,
 	suspicionDelta: number,
 	-- "depart" continues the ride. "haven" runs the platform linger.
-	-- "trial_stub" soft-fails until the False Stop Trial (PR7).
-	mode: "depart" | "haven" | "trial_stub",
+	-- "trial" runs the False Stop Trial room.
+	mode: "depart" | "haven" | "trial",
 	line: string,
 	holdSeconds: number,
 }
@@ -41,7 +42,7 @@ function Doors.resolve(
 	lineRefuseHaven: string,
 	lineFalseForgiving: string,
 	_lineHavenUnused: string,
-	lineTrialStub: string
+	_lineTrialUnused: string
 ): Outcome
 	local choice = Doors.normalize(rawChoice)
 	if kind == "real" then
@@ -106,14 +107,14 @@ function Doors.resolve(
 			holdSeconds = 3.8,
 		}
 	end
-	-- Non-forgiving: trial is PR7. Soft-fail — pull back + suspicion.
+	-- Non-forgiving: enter the False Stop Trial. Suspicion applies on exit.
 	return {
 		choice = choice,
 		correct = false,
-		suspicionDelta = amounts.falseOff,
-		mode = "trial_stub",
-		line = lineTrialStub,
-		holdSeconds = 3.8,
+		suspicionDelta = 0,
+		mode = "trial",
+		line = "",
+		holdSeconds = 0,
 	}
 end
 

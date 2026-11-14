@@ -39,7 +39,7 @@ local forgiveOff = resolve("false", true, "off")
 check("forgiving false off", forgiveOff.mode == "depart" and forgiveOff.suspicionDelta == 15 and forgiveOff.line == "FORGIVE")
 
 local trialOff = resolve("false", false, "off")
-check("trial stub soft-fail", trialOff.mode == "trial_stub" and trialOff.suspicionDelta == 15 and trialOff.line == "TRIAL")
+check("trial enters room", trialOff.mode == "trial" and trialOff.suspicionDelta == 0)
 
 if failures > 0 then
 	error(tostring(failures) .. " failed")

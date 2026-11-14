@@ -26,6 +26,9 @@ TBD is undecided — do not fill it in from a guess.
   Sanity Ride attribute nudged on fail/timeout; Safe Haven restores +15.
 - Safe Haven at Myrtle–Willoughby: step off → platform linger + `HasRecorder`;
   stay aboard → `refuseHaven` +10. Train handoff if you skipped the platform.
+- False Stop Trial on non-forgiving false step-offs: path/board rounds, lying
+  signs, chime+light (and board door) tells. Exit applies +20 suspicion and
+  −20 sanity; Mom/Dad pull-you-back lines; ride resumes.
 
 **Still not in this port (TBD)**
 
@@ -34,9 +37,10 @@ TBD is undecided — do not fill it in from a guess.
 - Psych Log UI.
 - Parents' other lines changing by band (chats/masks are in; band-tuned variants are not).
 - Critical-tier mask glitch UI and nightmare stare timing.
-- Court Square ending variants by final band.
+- Court Square ending variants by final band (trial history not wired to endings).
 - Sitting-still decay from §3 (not wired).
 - EVP raise/record UI (recorder flag only).
+- Polaroid-inside-trial polish.
 
 The player is a passenger: the kid riding with Mom and Dad, the same as the web
 game. Decided. They are not a conductor. See §5.
@@ -51,9 +55,9 @@ This Rojo port does not copy that ending.
 One G-train car, Hoyt–Schermerhorn → Court Square (13 stops). Already in the
 slice: the flag mechanic, suspicion meter + bands, false stops at Classon Av and
 Metropolitan Av, the Safe Haven at Myrtle–Willoughby (recorder unlock), the
-blackout after Myrtle–Willoughby, and the Court Square score sticky. Not in
-the slice (out of scope here): cars A and C, the trial, the camera, EVP UI.
-A minimal sound bed (PA chime, rumble, door latch, clacks, mute) is in;
+False Stop Trial, the blackout after Myrtle–Willoughby, and the Court Square
+score sticky. Not in the slice (out of scope here): cars A and C, the camera,
+EVP UI. A minimal sound bed (PA chime, rumble, door latch, clacks, mute) is in;
 ride-music decay, EVP hiss, heartbeat, and intercom voice are not.
 
 The video that fed early drafts: *ROBLOX: Conducting an R62A 1 Train in NYC

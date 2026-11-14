@@ -8,6 +8,7 @@ local Glance = require(script.Glance)
 local Audio = require(script.Audio)
 local Choice = require(script.Choice)
 local Mask = require(script.Mask)
+local TrialChoice = require(script.TrialChoice)
 
 Hud.start()
 Flag.start(Hud.flagButton())
@@ -20,6 +21,14 @@ Mask.start(
 	Hud.setMaskVisible,
 	Hud.setMaskCountdown,
 	Hud.setMaskLabels
+)
+TrialChoice.start(
+	Hud.trialButtonA(),
+	Hud.trialButtonB(),
+	Hud.trialButtonC(),
+	Hud.setTrialVisible,
+	Hud.setTrialCountdown,
+	Hud.setTrialLabels
 )
 Walk.start()
 Sway.start()
