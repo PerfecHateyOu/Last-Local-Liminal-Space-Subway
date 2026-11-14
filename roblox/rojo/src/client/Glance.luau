@@ -79,6 +79,7 @@ function Glance.start()
 	local glanceGroup: Cluster? = nil
 	local glanceStart = 0
 	local nextGlance = 0
+	local tapeGlanceUntil = 0
 
 	local function collect()
 		local car = workspace:FindFirstChild("SubwayCar")
@@ -96,6 +97,17 @@ function Glance.start()
 			end
 		end
 	end
+
+	ride.AttributeChanged:Connect(function(name: string)
+		if name == "TapeGlance" then
+			tapeGlanceUntil = os.clock() + 2.0
+			collect()
+			if #groups > 0 then
+				glanceGroup = groups[math.random(1, #groups)]
+				glanceStart = os.clock()
+			end
+		end
+	end)
 
 	local function angleToward(group: Cluster, maxRad: number): number
 		local character = player.Character
@@ -117,16 +129,18 @@ function Glance.start()
 
 	RunService.Heartbeat:Connect(function()
 		collect()
+		local now = os.clock()
+		local tapeGlance = now < tapeGlanceUntil
 		local band = ride:GetAttribute("Band")
 		local look = if typeof(band) == "string" then Band.look(band) else "none"
-		if look == "none" then
+		if look == "none" and not tapeGlance then
 			for _, group in groups do
 				restore(group)
 			end
 			glanceGroup = nil
 			return
 		end
-		if look == "turn" then
+		if look == "turn" and not tapeGlance then
 			glanceGroup = nil
 			local maxRad = math.rad(Constants.TURN_YAW_DEG)
 			for _, group in groups do
@@ -134,11 +148,12 @@ function Glance.start()
 			end
 			return
 		end
-		local now = os.clock()
-		if glanceGroup == nil and moving() and now >= nextGlance and #groups > 0 then
+		if glanceGroup == nil and (tapeGlance or (moving() and now >= nextGlance)) and #groups > 0 then
 			glanceGroup = groups[math.random(1, #groups)]
 			glanceStart = now
-			nextGlance = now + Constants.GLANCE_COOLDOWN
+			if not tapeGlance then
+				nextGlance = now + Constants.GLANCE_COOLDOWN
+			end
 		end
 		local active = glanceGroup
 		for _, group in groups do

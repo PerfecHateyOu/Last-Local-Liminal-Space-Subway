@@ -29,6 +29,8 @@ local trialCountdown: TextLabel? = nil
 local trialButtonA: TextButton? = nil
 local trialButtonB: TextButton? = nil
 local trialButtonC: TextButton? = nil
+local recorderButton: TextButton? = nil
+local evidenceButton: TextButton? = nil
 local progressFill: Frame? = nil
 
 local function corner(parent: Instance, radius: number)
@@ -174,6 +176,16 @@ function Hud.setTrialLabels(a: string, b: string, c: string, slots: number)
 		bc.Text = "[3]  " .. c
 		bc.Visible = slots >= 3
 	end
+end
+
+function Hud.recorderButton(): TextButton
+	assert(recorderButton ~= nil, "Hud.start must run first")
+	return recorderButton
+end
+
+function Hud.evidenceButton(): TextButton
+	assert(evidenceButton ~= nil, "Hud.start must run first")
+	return evidenceButton
 end
 
 function Hud.setProgress(ratio: number, holding: boolean)
@@ -351,10 +363,10 @@ function Hud.start()
 	feedback.Visible = false
 	feedback.Parent = gui
 
-	local strip = label(gui, "[F] FLAG   ·   [WASD] WALK   ·   [M] MUTE", 13, Color3.fromRGB(220, 216, 206))
+	local strip = label(gui, "[F] FLAG   ·   [R] REC   ·   [TAB] EVIDENCE   ·   [M] MUTE", 13, Color3.fromRGB(220, 216, 206))
 	strip.AnchorPoint = Vector2.new(0, 1)
 	strip.Position = UDim2.new(0, 14, 1, -18)
-	strip.Size = UDim2.fromOffset(320, 22)
+	strip.Size = UDim2.fromOffset(460, 22)
 	strip.Font = Enum.Font.Code
 
 	local mute = Instance.new("TextButton")
@@ -373,6 +385,42 @@ function Hud.start()
 	mute.Parent = gui
 	corner(mute, 6)
 	muteButton = mute
+
+	local recorder = Instance.new("TextButton")
+	recorder.Name = "Recorder"
+	recorder.AnchorPoint = Vector2.new(0, 1)
+	recorder.Position = UDim2.new(0, 94, 1, -48)
+	recorder.Size = UDim2.fromOffset(64, 28)
+	recorder.BackgroundColor3 = Color3.fromRGB(8, 8, 8)
+	recorder.BackgroundTransparency = 0.15
+	recorder.BorderSizePixel = 0
+	recorder.AutoButtonColor = true
+	recorder.Font = Enum.Font.GothamBold
+	recorder.Text = "REC"
+	recorder.TextColor3 = Constants.COLOR.cream
+	recorder.TextSize = 12
+	recorder.Visible = false
+	recorder.Parent = gui
+	corner(recorder, 6)
+	recorderButton = recorder
+
+	local evidenceBtn = Instance.new("TextButton")
+	evidenceBtn.Name = "Evidence"
+	evidenceBtn.AnchorPoint = Vector2.new(0, 1)
+	evidenceBtn.Position = UDim2.new(0, 166, 1, -48)
+	evidenceBtn.Size = UDim2.fromOffset(88, 28)
+	evidenceBtn.BackgroundColor3 = Color3.fromRGB(8, 8, 8)
+	evidenceBtn.BackgroundTransparency = 0.15
+	evidenceBtn.BorderSizePixel = 0
+	evidenceBtn.AutoButtonColor = true
+	evidenceBtn.Font = Enum.Font.GothamBold
+	evidenceBtn.Text = "EVIDENCE"
+	evidenceBtn.TextColor3 = Constants.COLOR.cream
+	evidenceBtn.TextSize = 11
+	evidenceBtn.Visible = false
+	evidenceBtn.Parent = gui
+	corner(evidenceBtn, 6)
+	evidenceButton = evidenceBtn
 
 	local barBack = Instance.new("Frame")
 	barBack.Name = "FlagBar"
