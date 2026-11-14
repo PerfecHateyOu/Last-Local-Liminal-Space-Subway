@@ -14,6 +14,7 @@ local Lines = require(ReplicatedStorage.Shared.Lines)
 local Hud = {}
 
 local flagButton: TextButton? = nil
+local muteButton: TextButton? = nil
 local progressFill: Frame? = nil
 
 local function corner(parent: Instance, radius: number)
@@ -39,6 +40,11 @@ end
 function Hud.flagButton(): TextButton
 	assert(flagButton ~= nil, "Hud.start must run first")
 	return flagButton
+end
+
+function Hud.muteButton(): TextButton
+	assert(muteButton ~= nil, "Hud.start must run first")
+	return muteButton
 end
 
 function Hud.setProgress(ratio: number, holding: boolean)
@@ -216,11 +222,28 @@ function Hud.start()
 	feedback.Visible = false
 	feedback.Parent = gui
 
-	local strip = label(gui, "[F] FLAG   ·   [WASD] WALK", 13, Color3.fromRGB(220, 216, 206))
+	local strip = label(gui, "[F] FLAG   ·   [WASD] WALK   ·   [M] MUTE", 13, Color3.fromRGB(220, 216, 206))
 	strip.AnchorPoint = Vector2.new(0, 1)
 	strip.Position = UDim2.new(0, 14, 1, -18)
-	strip.Size = UDim2.fromOffset(220, 22)
+	strip.Size = UDim2.fromOffset(320, 22)
 	strip.Font = Enum.Font.Code
+
+	local mute = Instance.new("TextButton")
+	mute.Name = "Mute"
+	mute.AnchorPoint = Vector2.new(0, 1)
+	mute.Position = UDim2.new(0, 14, 1, -48)
+	mute.Size = UDim2.fromOffset(72, 28)
+	mute.BackgroundColor3 = Color3.fromRGB(8, 8, 8)
+	mute.BackgroundTransparency = 0.15
+	mute.BorderSizePixel = 0
+	mute.AutoButtonColor = true
+	mute.Font = Enum.Font.GothamBold
+	mute.Text = Lines.MUTE
+	mute.TextColor3 = Constants.COLOR.cream
+	mute.TextSize = 12
+	mute.Parent = gui
+	corner(mute, 6)
+	muteButton = mute
 
 	local barBack = Instance.new("Frame")
 	barBack.Name = "FlagBar"

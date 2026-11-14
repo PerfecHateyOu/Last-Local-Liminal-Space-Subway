@@ -16,6 +16,7 @@ The car is built from Parts. People are your Blender models if you import them, 
    - **WASD** walks. The **mouse** looks. You cannot jump.
    - The amber line at the top is the conductor. The words are the ones from the web game.
    - Under the station card, the suspicion meter reads like **0 CALM** (then **25 UNEASY**, **50 WATCHED**, **75 HUNTED** as the number rises). The bar under it is the same 0–100 value. The server owns the number; the HUD only shows it.
+   - A two-tone chime plays when the conductor speaks. Tunnel rumble and track clacks follow speed while you are between stations. Doors make a short latch sound when they open or close. Press **M** or the **MUTE** button to silence the bed.
    - After the doors close, put the dot in the middle of the screen on a person and **hold F** (or hold the **FLAG** button). The bar fills in about a second.
    - **Caught** means that person was the wrong one. **False flag:** plus their name means they were ordinary.
    - You cannot walk through a standing passenger. Seated people are on the benches, out of the aisle.
@@ -176,4 +177,4 @@ The full per-mesh list is `assets/triangle-counts.json`. Export was Blender 4.0.
 
 ## Not in this version
 
-Sound, cars A and C, stepping off, the parents' other lines, the Safe Haven, the trial, the camera, and the tape recorder. Suspicion scoring, bands, and the on-screen meter are in; staring detection, the Psych Log, parent-line changes by band, and band-based Court Square endings are not. The mid-ride extra passenger is in (far seat on the Bedford–Nostrand stretch); the rest of the web anomaly catalog is not. The open-air stretch over Newtown Creek is not in this version: every stop is still in the tunnel. Those are later slices.
+Cars A and C, stepping off, the parents' other lines, the Safe Haven, the trial, the camera, and the tape recorder. A minimal sound bed is in (chime, rumble, door latch, clacks, mute); ride-music decay, pause music, EVP hiss, heartbeat, and intercom voice are not. Suspicion scoring, bands, and the on-screen meter are in; staring detection, the Psych Log, parent-line changes by band, and band-based Court Square endings are not. The mid-ride extra passenger is in (far seat on the Bedford–Nostrand stretch); the rest of the web anomaly catalog is not. The open-air stretch over Newtown Creek is not in this version: every stop is still in the tunnel. Those are later slices.

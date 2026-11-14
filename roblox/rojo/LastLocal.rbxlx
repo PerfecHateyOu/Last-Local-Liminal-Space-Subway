@@ -281,6 +281,21 @@ Constants.MESH_TRIANGLE_LIMIT = 20000
 -- How far a flag ray reaches, in metres. Long enough to cover one car.
 Constants.FLAG_RANGE_M = 20
 
+-- Sound bed (client). Built-in engine assets so the place needs no uploads.
+-- Swap these IDs when custom MTA-style clips are imported.
+Constants.SOUND_CHIME = "rbxasset://sounds/electronicpingshort.wav"
+Constants.SOUND_DOOR = "rbxasset://sounds/switch.wav"
+Constants.SOUND_CLACK = "rbxasset://sounds/impact_explosion_03.mp3"
+Constants.SOUND_RUMBLE = "rbxasset://sounds/swoosh.wav"
+Constants.SOUND_CHIME_VOLUME = 0.45
+Constants.SOUND_DOOR_VOLUME = 0.35
+Constants.SOUND_CLACK_VOLUME = 0.12
+Constants.SOUND_RUMBLE_MIN = 0.02
+Constants.SOUND_RUMBLE_MAX = 0.14
+Constants.SOUND_RUMBLE_PLAYBACK = 0.35
+-- Metres of travel between track clacks at top speed (client integrates speed).
+Constants.CLACK_SPACING_M = 9
+
 -- constants.ts V. Cruise speed in metres per second. The slice's accel, cruise
 -- and brake times scale the distance; they do not change this speed.
 Constants.TOP_SPEED_MPS = 14
@@ -578,6 +593,10 @@ Lines.CLEAN = "Clean"
 
 -- HUD station card.
 Lines.NEXT_LABEL = "Next:"
+
+-- Mute toggle. Not a spoken line.
+Lines.MUTE = "MUTE"
+Lines.UNMUTE = "UNMUTE"
 
 -- ReportScreen: "False flag: {name}"
 function Lines.falseFlag(label: string): string
@@ -2400,6 +2419,8 @@ function Ride.start(car: CarBuilder.BuiltCar)
 	ride:SetAttribute("HoldFor", 0)
 	ride:SetAttribute("Held", false)
 	ride:SetAttribute("StareIntervalScale", 1)
+	-- 1 open, 0 closed. Client sound listens; the door leaves still ease toward this.
+	ride:SetAttribute("DoorTarget", 1)
 
 	CarBuilder.addTells(
 		car.passengers,
@@ -2469,6 +2490,10 @@ function Ride.start(car: CarBuilder.BuiltCar)
 
 	local doorOpen = 1
 	local doorTarget = 1
+	local function setDoorTarget(value: number)
+		doorTarget = value
+		ride:SetAttribute("DoorTarget", value)
+	end
 	local dim = 1
 	local dimFrom = 1
 	local dimTo = 1
@@ -2836,7 +2861,7 @@ function Ride.start(car: CarBuilder.BuiltCar)
 		ride:SetAttribute("ChapterLine", Route.chapterLine(seg.stop))
 		CarBuilder.setCrowd(car.passengers, seg.crowd)
 		clearExtra()
-		doorTarget = 0
+		setDoorTarget(0)
 
 		local length = Route.segmentLength(seg, Constants.ACCEL, Constants.BRAKE)
 		inFinal = seg.final
@@ -3020,7 +3045,7 @@ function Ride.start(car: CarBuilder.BuiltCar)
 
 		if seg.final then
 			at(t0, 2.3)
-			doorTarget = 1
+			setDoorTarget(1)
 			-- Doors stay open. There is no departure, so the penalty is not applied.
 			beginDwell(Constants.MIN_DWELL_SECONDS)
 			task.delay(Constants.MIN_DWELL_SECONDS, function()
@@ -3051,7 +3076,7 @@ function Ride.start(car: CarBuilder.BuiltCar)
 
 		local openAt = 0.35 + (if seg.tick == "doors" then 1.15 else 1.95)
 		at(t0, openAt)
-		doorTarget = 1
+		setDoorTarget(1)
 		local openedAt = os.clock()
 
 		-- The banner counts the minimum only. A PA lie keeps its own hold,
@@ -3070,7 +3095,7 @@ function Ride.start(car: CarBuilder.BuiltCar)
 		resolveDeparture(os.clock() - openedAt)
 		showPa(Lines.STAND_CLEAR, 3)
 		at(t0, departAt + 1.4)
-		doorTarget = 0
+		setDoorTarget(0)
 		-- 2.6s after stand-clear is the next stretch, not the dwell.
 		at(t0, departAt + 2.6)
 	end
@@ -3078,7 +3103,7 @@ function Ride.start(car: CarBuilder.BuiltCar)
 	task.spawn(function()
 		ride:SetAttribute("Phase", "intro")
 		doorOpen = 1
-		doorTarget = 1
+		setDoorTarget(1)
 		local openedAt = os.clock()
 		beginDwell(Constants.MIN_DWELL_SECONDS)
 		task.delay(Constants.MIN_DWELL_SECONDS, function()
@@ -3096,7 +3121,7 @@ function Ride.start(car: CarBuilder.BuiltCar)
 		showPa(Lines.STAND_CLEAR, 3)
 		task.wait(1.4)
 		resolveDeparture(os.clock() - openedAt)
-		doorTarget = 0
+		setDoorTarget(0)
 		task.wait(1.2)
 
 		for _, seg in Route.SEGMENTS do
@@ -3546,15 +3571,255 @@ local Flag = require(script.Flag)
 local Walk = require(script.Walk)
 local Sway = require(script.Sway)
 local Glance = require(script.Glance)
+local Audio = require(script.Audio)
 
 Hud.start()
 Flag.start(Hud.flagButton())
+Audio.start(Hud.muteButton())
 Walk.start()
 Sway.start()
 Glance.start()
 ]]></string>
         </Properties>
         <Item class="ModuleScript" referent="24">
+          <Properties>
+            <string name="Name">Audio</string>
+            <string name="Source"><![CDATA[--!strict
+-- Minimal sound bed. Client only. Phase, stretch timing, Held, DoorTarget,
+-- and PaText stay server-owned; this module listens and plays.
+-- Chime before PA, rumble from stretch speed, door open/close, track clacks.
+-- No ride-music decay, pause music, EVP, heartbeat, or intercom voice.
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local SoundService = game:GetService("SoundService")
+local UserInputService = game:GetService("UserInputService")
+
+local Constants = require(ReplicatedStorage.Shared.Constants)
+local Hold = require(ReplicatedStorage.Shared.Hold)
+local Lines = require(ReplicatedStorage.Shared.Lines)
+local Motion = require(ReplicatedStorage.Shared.Motion)
+
+local Audio = {}
+
+local muted = false
+local group: SoundGroup? = nil
+local rumble: Sound? = nil
+local muteButton: TextButton? = nil
+local lastDoor: number? = nil
+local lastPa = ""
+local clackTravel = 0
+local lastSpeedSample = 0
+
+local function makeSound(name: string, id: string, volume: number, looped: boolean): Sound
+	local sound = Instance.new("Sound")
+	sound.Name = name
+	sound.SoundId = id
+	sound.Volume = volume
+	sound.Looped = looped
+	sound.RollOffMode = Enum.RollOffMode.InverseTapered
+	if group ~= nil then
+		sound.SoundGroup = group
+	end
+	sound.Parent = SoundService
+	return sound
+end
+
+local function playOneShot(id: string, volume: number, playback: number?)
+	if muted then
+		return
+	end
+	local sound = makeSound("OneShot", id, volume, false)
+	if playback ~= nil then
+		sound.PlaybackSpeed = playback
+	end
+	sound:Play()
+	sound.Ended:Once(function()
+		sound:Destroy()
+	end)
+	task.delay(4, function()
+		if sound.Parent ~= nil then
+			sound:Destroy()
+		end
+	end)
+end
+
+local function playChime()
+	-- Two-tone stand-in for the MTA ding using one built-in ping pitched twice.
+	playOneShot(Constants.SOUND_CHIME, Constants.SOUND_CHIME_VOLUME, 1.05)
+	task.delay(0.45, function()
+		playOneShot(Constants.SOUND_CHIME, Constants.SOUND_CHIME_VOLUME * 0.9, 0.84)
+	end)
+end
+
+local function playDoor(opening: boolean)
+	playOneShot(Constants.SOUND_DOOR, Constants.SOUND_DOOR_VOLUME, if opening then 1.1 else 0.85)
+end
+
+local function playClack()
+	playOneShot(Constants.SOUND_CLACK, Constants.SOUND_CLACK_VOLUME, 1.4 + math.random() * 0.2)
+end
+
+local function speedFraction(): number
+	local ride = ReplicatedStorage:FindFirstChild("Ride")
+	if ride == nil then
+		return 0
+	end
+	if ride:GetAttribute("Phase") ~= "ride" then
+		return 0
+	end
+	local start = ride:GetAttribute("StretchStart")
+	local accel = ride:GetAttribute("StretchAccel")
+	local cruise = ride:GetAttribute("StretchCruise")
+	local brake = ride:GetAttribute("StretchBrake")
+	if typeof(start) ~= "number" or typeof(accel) ~= "number" or typeof(cruise) ~= "number" or typeof(brake) ~= "number" then
+		return 0
+	end
+	local holdAt = ride:GetAttribute("HoldAt")
+	local holdFor = ride:GetAttribute("HoldFor")
+	local at = if typeof(holdAt) == "number" then holdAt else 0
+	local span = if typeof(holdFor) == "number" then holdFor else 0
+	local elapsed = workspace:GetServerTimeNow() - start
+	if not Hold.moving(elapsed, at, span) then
+		return 0
+	end
+	local motionT = Hold.motionTime(elapsed, at, span)
+	local top = Constants.TOP_SPEED_MPS
+	local velocity = Motion.speed(motionT, accel, cruise, brake, top)
+	if top <= 0 then
+		return 0
+	end
+	return math.clamp(velocity / top, 0, 1)
+end
+
+local function refreshMuteLabel()
+	local button = muteButton
+	if button == nil then
+		return
+	end
+	button.Text = if muted then Lines.UNMUTE else Lines.MUTE
+end
+
+function Audio.isMuted(): boolean
+	return muted
+end
+
+function Audio.setMute(value: boolean)
+	muted = value
+	local bus = group
+	if bus ~= nil then
+		bus.Volume = if muted then 0 else 1
+	end
+	local loop = rumble
+	if loop ~= nil and muted then
+		loop.Volume = 0
+	end
+	refreshMuteLabel()
+end
+
+function Audio.toggleMute(): boolean
+	Audio.setMute(not muted)
+	return muted
+end
+
+function Audio.start(button: TextButton)
+	muteButton = button
+	refreshMuteLabel()
+	button.MouseButton1Click:Connect(function()
+		Audio.toggleMute()
+	end)
+
+	local bus = Instance.new("SoundGroup")
+	bus.Name = "LastLocal"
+	bus.Volume = 1
+	bus.Parent = SoundService
+	group = bus
+
+	local loop = makeSound("Rumble", Constants.SOUND_RUMBLE, 0, true)
+	loop.PlaybackSpeed = Constants.SOUND_RUMBLE_PLAYBACK
+	loop:Play()
+	rumble = loop
+
+	local ride = ReplicatedStorage:WaitForChild("Ride")
+
+	local function onDoor(value: any)
+		if typeof(value) ~= "number" then
+			return
+		end
+		local previous = lastDoor
+		lastDoor = value
+		if previous == nil then
+			return
+		end
+		if previous < 0.5 and value >= 0.5 then
+			playDoor(true)
+		elseif previous >= 0.5 and value < 0.5 then
+			playDoor(false)
+		end
+	end
+
+	local function onPa(value: any)
+		local text = if typeof(value) == "string" then value else ""
+		if text ~= "" and text ~= lastPa then
+			playChime()
+		end
+		lastPa = text
+	end
+
+	onDoor(ride:GetAttribute("DoorTarget"))
+	onPa(ride:GetAttribute("PaText"))
+
+	ride.AttributeChanged:Connect(function(name: string)
+		if name == "DoorTarget" then
+			onDoor(ride:GetAttribute("DoorTarget"))
+		elseif name == "PaText" then
+			onPa(ride:GetAttribute("PaText"))
+		end
+	end)
+
+	UserInputService.InputBegan:Connect(function(input: InputObject, processed: boolean)
+		if processed then
+			return
+		end
+		if input.KeyCode == Enum.KeyCode.M then
+			Audio.toggleMute()
+		end
+	end)
+
+	lastSpeedSample = os.clock()
+	RunService.Heartbeat:Connect(function()
+		local now = os.clock()
+		local dt = now - lastSpeedSample
+		lastSpeedSample = now
+		if dt <= 0 or dt > 0.5 then
+			return
+		end
+		local fraction = speedFraction()
+		local loopSound = rumble
+		if loopSound ~= nil and not muted then
+			local vol = Constants.SOUND_RUMBLE_MIN
+				+ (Constants.SOUND_RUMBLE_MAX - Constants.SOUND_RUMBLE_MIN) * fraction
+			loopSound.Volume = if fraction > 0.02 then vol else 0
+		elseif loopSound ~= nil and muted then
+			loopSound.Volume = 0
+		end
+		if fraction > 0.08 then
+			clackTravel += Constants.TOP_SPEED_MPS * fraction * dt
+			if clackTravel >= Constants.CLACK_SPACING_M then
+				clackTravel = 0
+				playClack()
+			end
+		else
+			clackTravel = 0
+		end
+	end)
+end
+
+return Audio
+]]></string>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="25">
           <Properties>
             <string name="Name">Flag</string>
             <string name="Source"><![CDATA[--!strict
@@ -3687,7 +3952,7 @@ return Flag
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="25">
+        <Item class="ModuleScript" referent="26">
           <Properties>
             <string name="Name">Glance</string>
             <string name="Source"><![CDATA[--!strict
@@ -3854,7 +4119,7 @@ return Glance
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="26">
+        <Item class="ModuleScript" referent="27">
           <Properties>
             <string name="Name">Hud</string>
             <string name="Source"><![CDATA[--!strict
@@ -3873,6 +4138,7 @@ local Lines = require(ReplicatedStorage.Shared.Lines)
 local Hud = {}
 
 local flagButton: TextButton? = nil
+local muteButton: TextButton? = nil
 local progressFill: Frame? = nil
 
 local function corner(parent: Instance, radius: number)
@@ -3898,6 +4164,11 @@ end
 function Hud.flagButton(): TextButton
 	assert(flagButton ~= nil, "Hud.start must run first")
 	return flagButton
+end
+
+function Hud.muteButton(): TextButton
+	assert(muteButton ~= nil, "Hud.start must run first")
+	return muteButton
 end
 
 function Hud.setProgress(ratio: number, holding: boolean)
@@ -4075,11 +4346,28 @@ function Hud.start()
 	feedback.Visible = false
 	feedback.Parent = gui
 
-	local strip = label(gui, "[F] FLAG   ·   [WASD] WALK", 13, Color3.fromRGB(220, 216, 206))
+	local strip = label(gui, "[F] FLAG   ·   [WASD] WALK   ·   [M] MUTE", 13, Color3.fromRGB(220, 216, 206))
 	strip.AnchorPoint = Vector2.new(0, 1)
 	strip.Position = UDim2.new(0, 14, 1, -18)
-	strip.Size = UDim2.fromOffset(220, 22)
+	strip.Size = UDim2.fromOffset(320, 22)
 	strip.Font = Enum.Font.Code
+
+	local mute = Instance.new("TextButton")
+	mute.Name = "Mute"
+	mute.AnchorPoint = Vector2.new(0, 1)
+	mute.Position = UDim2.new(0, 14, 1, -48)
+	mute.Size = UDim2.fromOffset(72, 28)
+	mute.BackgroundColor3 = Color3.fromRGB(8, 8, 8)
+	mute.BackgroundTransparency = 0.15
+	mute.BorderSizePixel = 0
+	mute.AutoButtonColor = true
+	mute.Font = Enum.Font.GothamBold
+	mute.Text = Lines.MUTE
+	mute.TextColor3 = Constants.COLOR.cream
+	mute.TextSize = 12
+	mute.Parent = gui
+	corner(mute, 6)
+	muteButton = mute
 
 	local barBack = Instance.new("Frame")
 	barBack.Name = "FlagBar"
@@ -4290,7 +4578,7 @@ return Hud
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="27">
+        <Item class="ModuleScript" referent="28">
           <Properties>
             <string name="Name">Sway</string>
             <string name="Source"><![CDATA[--!strict
@@ -4371,7 +4659,7 @@ return Sway
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="28">
+        <Item class="ModuleScript" referent="29">
           <Properties>
             <string name="Name">Walk</string>
             <string name="Source"><![CDATA[--!strict
@@ -4504,7 +4792,7 @@ return Walk
       </Item>
     </Item>
   </Item>
-  <Item class="Workspace" referent="29">
+  <Item class="Workspace" referent="30">
     <Properties>
       <string name="Name">Workspace</string>
       <float name="Gravity">196.2</float>

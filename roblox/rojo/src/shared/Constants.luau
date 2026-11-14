@@ -149,6 +149,21 @@ Constants.MESH_TRIANGLE_LIMIT = 20000
 -- How far a flag ray reaches, in metres. Long enough to cover one car.
 Constants.FLAG_RANGE_M = 20
 
+-- Sound bed (client). Built-in engine assets so the place needs no uploads.
+-- Swap these IDs when custom MTA-style clips are imported.
+Constants.SOUND_CHIME = "rbxasset://sounds/electronicpingshort.wav"
+Constants.SOUND_DOOR = "rbxasset://sounds/switch.wav"
+Constants.SOUND_CLACK = "rbxasset://sounds/impact_explosion_03.mp3"
+Constants.SOUND_RUMBLE = "rbxasset://sounds/swoosh.wav"
+Constants.SOUND_CHIME_VOLUME = 0.45
+Constants.SOUND_DOOR_VOLUME = 0.35
+Constants.SOUND_CLACK_VOLUME = 0.12
+Constants.SOUND_RUMBLE_MIN = 0.02
+Constants.SOUND_RUMBLE_MAX = 0.14
+Constants.SOUND_RUMBLE_PLAYBACK = 0.35
+-- Metres of travel between track clacks at top speed (client integrates speed).
+Constants.CLACK_SPACING_M = 9
+
 -- constants.ts V. Cruise speed in metres per second. The slice's accel, cruise
 -- and brake times scale the distance; they do not change this speed.
 Constants.TOP_SPEED_MPS = 14

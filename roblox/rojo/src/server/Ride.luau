@@ -58,6 +58,8 @@ function Ride.start(car: CarBuilder.BuiltCar)
 	ride:SetAttribute("HoldFor", 0)
 	ride:SetAttribute("Held", false)
 	ride:SetAttribute("StareIntervalScale", 1)
+	-- 1 open, 0 closed. Client sound listens; the door leaves still ease toward this.
+	ride:SetAttribute("DoorTarget", 1)
 
 	CarBuilder.addTells(
 		car.passengers,
@@ -127,6 +129,10 @@ function Ride.start(car: CarBuilder.BuiltCar)
 
 	local doorOpen = 1
 	local doorTarget = 1
+	local function setDoorTarget(value: number)
+		doorTarget = value
+		ride:SetAttribute("DoorTarget", value)
+	end
 	local dim = 1
 	local dimFrom = 1
 	local dimTo = 1
@@ -494,7 +500,7 @@ function Ride.start(car: CarBuilder.BuiltCar)
 		ride:SetAttribute("ChapterLine", Route.chapterLine(seg.stop))
 		CarBuilder.setCrowd(car.passengers, seg.crowd)
 		clearExtra()
-		doorTarget = 0
+		setDoorTarget(0)
 
 		local length = Route.segmentLength(seg, Constants.ACCEL, Constants.BRAKE)
 		inFinal = seg.final
@@ -678,7 +684,7 @@ function Ride.start(car: CarBuilder.BuiltCar)
 
 		if seg.final then
 			at(t0, 2.3)
-			doorTarget = 1
+			setDoorTarget(1)
 			-- Doors stay open. There is no departure, so the penalty is not applied.
 			beginDwell(Constants.MIN_DWELL_SECONDS)
 			task.delay(Constants.MIN_DWELL_SECONDS, function()
@@ -709,7 +715,7 @@ function Ride.start(car: CarBuilder.BuiltCar)
 
 		local openAt = 0.35 + (if seg.tick == "doors" then 1.15 else 1.95)
 		at(t0, openAt)
-		doorTarget = 1
+		setDoorTarget(1)
 		local openedAt = os.clock()
 
 		-- The banner counts the minimum only. A PA lie keeps its own hold,
@@ -728,7 +734,7 @@ function Ride.start(car: CarBuilder.BuiltCar)
 		resolveDeparture(os.clock() - openedAt)
 		showPa(Lines.STAND_CLEAR, 3)
 		at(t0, departAt + 1.4)
-		doorTarget = 0
+		setDoorTarget(0)
 		-- 2.6s after stand-clear is the next stretch, not the dwell.
 		at(t0, departAt + 2.6)
 	end
@@ -736,7 +742,7 @@ function Ride.start(car: CarBuilder.BuiltCar)
 	task.spawn(function()
 		ride:SetAttribute("Phase", "intro")
 		doorOpen = 1
-		doorTarget = 1
+		setDoorTarget(1)
 		local openedAt = os.clock()
 		beginDwell(Constants.MIN_DWELL_SECONDS)
 		task.delay(Constants.MIN_DWELL_SECONDS, function()
@@ -754,7 +760,7 @@ function Ride.start(car: CarBuilder.BuiltCar)
 		showPa(Lines.STAND_CLEAR, 3)
 		task.wait(1.4)
 		resolveDeparture(os.clock() - openedAt)
-		doorTarget = 0
+		setDoorTarget(0)
 		task.wait(1.2)
 
 		for _, seg in Route.SEGMENTS do
