@@ -11,6 +11,7 @@
 -- The last stretch may dim in a straight line. Tunnel lamps are outside and
 -- never write these interior lights.
 
+local HttpService = game:GetService("HttpService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
@@ -25,6 +26,7 @@ local Hold = require(ReplicatedStorage.Shared.Hold)
 local Dialogue = require(ReplicatedStorage.Shared.Dialogue)
 local Haven = require(ReplicatedStorage.Shared.Haven)
 local Trial = require(ReplicatedStorage.Shared.Trial)
+local Evp = require(ReplicatedStorage.Shared.Evp)
 local Lines = require(ReplicatedStorage.Shared.Lines)
 local Score = require(ReplicatedStorage.Shared.Score)
 local Band = require(ReplicatedStorage.Shared.Band)
@@ -53,6 +55,18 @@ function Ride.start(car: CarBuilder.BuiltCar)
 	local trialRemote = Instance.new("RemoteEvent")
 	trialRemote.Name = "Trial"
 	trialRemote.Parent = remotes
+	local evpToggleRemote = Instance.new("RemoteEvent")
+	evpToggleRemote.Name = "EvpToggle"
+	evpToggleRemote.Parent = remotes
+	local evpTuneRemote = Instance.new("RemoteEvent")
+	evpTuneRemote.Name = "EvpTune"
+	evpTuneRemote.Parent = remotes
+	local evpRecordRemote = Instance.new("RemoteEvent")
+	evpRecordRemote.Name = "EvpRecord"
+	evpRecordRemote.Parent = remotes
+	local evpPlayRemote = Instance.new("RemoteEvent")
+	evpPlayRemote.Name = "EvpPlay"
+	evpPlayRemote.Parent = remotes
 
 	ride:SetAttribute("Phase", "intro")
 	ride:SetAttribute("PaText", "")
@@ -66,6 +80,17 @@ function Ride.start(car: CarBuilder.BuiltCar)
 	ride:SetAttribute("Suspicion", 0)
 	ride:SetAttribute("Sanity", Constants.SANITY_START)
 	ride:SetAttribute("HasRecorder", false)
+	ride:SetAttribute("SegStop", 0)
+	ride:SetAttribute("EvpRaised", false)
+	ride:SetAttribute("EvpKhz", 120)
+	ride:SetAttribute("EvpMeter", 0)
+	ride:SetAttribute("EvpLocked", "")
+	ride:SetAttribute("EvpStatus", "")
+	ride:SetAttribute("EvpRecordT", 0)
+	ride:SetAttribute("EvpTapes", "[]")
+	ride:SetAttribute("EvpSaved", "")
+	ride:SetAttribute("EvpPlayId", "")
+	ride:SetAttribute("TapeGlance", 0)
 	ride:SetAttribute("Band", "calm")
 	ride:SetAttribute("FalseStopBonus", 0)
 	ride:SetAttribute("BoardStop", "")
@@ -302,10 +327,32 @@ function Ride.start(car: CarBuilder.BuiltCar)
 	end)
 
 	local hasRecorder = false
+	local evpState = Evp.newState(function()
+		return math.random()
+	end)
+	local currentSegStop: number? = nil
 
 	local function applySanity(delta: number)
 		sanity = Haven.restoreSanity(sanity, delta, Constants.SANITY_MIN, Constants.SANITY_MAX)
 		ride:SetAttribute("Sanity", sanity)
+	end
+
+	local function publishEvp()
+		ride:SetAttribute("EvpRaised", evpState.raised)
+		ride:SetAttribute("EvpKhz", evpState.khz)
+		ride:SetAttribute("EvpMeter", evpState.meter)
+		ride:SetAttribute("EvpLocked", evpState.lockedKind)
+		ride:SetAttribute("EvpRecordT", evpState.recordT)
+		ride:SetAttribute("EvpTapes", HttpService:JSONEncode(evpState.tapes))
+		local riding = ride:GetAttribute("Phase") == "ride"
+		ride:SetAttribute("EvpStatus", Evp.statusLine(evpState, riding == true))
+	end
+
+	local function handsBusy(): boolean
+		return ride:GetAttribute("ChoiceActive") == true
+			or ride:GetAttribute("MaskActive") == true
+			or ride:GetAttribute("TrialActive") == true
+			or ride:GetAttribute("Phase") == "trial"
 	end
 
 	local function giveRecorder(where: string)
@@ -321,6 +368,109 @@ function Ride.start(car: CarBuilder.BuiltCar)
 		end
 		showHint(Lines.RECORDER_HINT, 5)
 	end
+
+	publishEvp()
+
+	evpToggleRemote.OnServerEvent:Connect(function(_player: Player)
+		if not hasRecorder then
+			showHint(Lines.RECORDER_NONE, 2.5)
+			return
+		end
+		if evpState.raised then
+			Evp.lower(evpState)
+			publishEvp()
+			return
+		end
+		local phase = ride:GetAttribute("Phase")
+		if phase ~= "ride" and phase ~= "stop" and phase ~= "haven" and phase ~= "intro" then
+			return
+		end
+		if handsBusy() then
+			showHint(Lines.RECORDER_BUSY, 2)
+			return
+		end
+		Evp.raise(evpState)
+		publishEvp()
+	end)
+
+	evpTuneRemote.OnServerEvent:Connect(function(_player: Player, delta: any)
+		if not evpState.raised then
+			return
+		end
+		if typeof(delta) ~= "number" then
+			return
+		end
+		Evp.tune(evpState, math.clamp(delta, -5, 5))
+		publishEvp()
+	end)
+
+	evpRecordRemote.OnServerEvent:Connect(function(_player: Player, on: any)
+		if not evpState.raised then
+			return
+		end
+		if typeof(on) ~= "boolean" then
+			return
+		end
+		Evp.setRecording(evpState, on)
+		publishEvp()
+	end)
+
+	evpPlayRemote.OnServerEvent:Connect(function(_player: Player, signalId: any)
+		if typeof(signalId) ~= "string" then
+			return
+		end
+		if not Evp.hasTape(evpState, signalId) then
+			return
+		end
+		local sig = Evp.signalById(signalId)
+		if sig == nil then
+			return
+		end
+		ride:SetAttribute("EvpPlayId", signalId)
+		showSub("Tape: " .. sig.title, 3.5)
+		local phase = ride:GetAttribute("Phase")
+		if (phase == "ride" or phase == "stop") and math.random() < Evp.TAPE_GLANCE_CHANCE then
+			task.delay(0.8, function()
+				ride:SetAttribute("TapeGlance", workspace:GetServerTimeNow())
+			end)
+		end
+		task.delay(4, function()
+			if ride:GetAttribute("EvpPlayId") == signalId then
+				ride:SetAttribute("EvpPlayId", "")
+			end
+		end)
+	end)
+
+	RunService.Heartbeat:Connect(function(dt: number)
+		if not evpState.raised then
+			return
+		end
+		if handsBusy() then
+			Evp.lower(evpState)
+			publishEvp()
+			return
+		end
+		local stopLabel = ""
+		local stopAttr = ride:GetAttribute("NextStop")
+		if typeof(stopAttr) == "string" then
+			stopLabel = stopAttr
+		end
+		local ridingStop: number? = nil
+		if ride:GetAttribute("Phase") == "ride" then
+			ridingStop = currentSegStop
+		end
+		local tape = Evp.update(evpState, dt, ridingStop, stopLabel)
+		publishEvp()
+		if tape ~= nil then
+			ride:SetAttribute("EvpSaved", tape.title)
+			showSub("Saved to tape: " .. tape.title, 2.6)
+			task.delay(2.8, function()
+				if ride:GetAttribute("EvpSaved") == tape.title then
+					ride:SetAttribute("EvpSaved", "")
+				end
+			end)
+		end
+	end)
 
 	local function blinkBandTube()
 		for _, lamp in car.lamps do
@@ -823,6 +973,8 @@ function Ride.start(car: CarBuilder.BuiltCar)
 	local function runSegment(seg: Route.Segment)
 		segToken += 1
 		local token = segToken
+		currentSegStop = seg.stop
+		ride:SetAttribute("SegStop", seg.stop)
 		ride:SetAttribute("Phase", "ride")
 		ride:SetAttribute("NextStop", Route.stopName(seg.stop))
 		ride:SetAttribute("ChapterLine", Route.chapterLine(seg.stop))
@@ -1048,6 +1200,12 @@ function Ride.start(car: CarBuilder.BuiltCar)
 		maskEpoch += 1
 		clearMaskUi()
 		maskBusy = false
+		currentSegStop = nil
+		ride:SetAttribute("SegStop", 0)
+		if evpState.raised then
+			-- Carriers only while moving; keep the recorder up but clear the lock.
+			publishEvp()
+		end
 		ride:SetAttribute("Phase", "stop")
 		local kind = Score.result(stopHadAnomaly, stopNoticed, stopFalseAlarm)
 		applySuspicion(Score.endDelta(kind, Constants.CLEAN_STOP_SUSPICION, Constants.DECAY_SUSPICION))

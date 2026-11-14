@@ -57,7 +57,9 @@ Lines.DAD_RECORDER_HAVEN =
 	"Dad: Here. Your grandfather’s. He used it on the night shift. Never could get it to stop picking up the radio."
 Lines.DAD_RECORDER_TRAIN =
 	"Dad: Here, hold onto this. Your grandfather’s old recorder. Never could get it to stop picking up the radio."
-Lines.RECORDER_HINT = "Dad gave you a tape recorder. (Recording comes later.)"
+Lines.RECORDER_HINT = "Dad gave you a tape recorder. Press R to raise it. Tab opens Evidence."
+Lines.RECORDER_NONE = "You don’t have anything to record with."
+Lines.RECORDER_BUSY = "Your hands are full."
 Lines.HAVEN_BOARD = "You get back on with them."
 -- Kept for Doors.resolve signature / older call sites; unused once haven runs.
 Lines.HAVEN_STUB = ""

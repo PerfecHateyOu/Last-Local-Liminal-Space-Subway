@@ -183,6 +183,9 @@ function Audio.start(button: TextButton)
 	onDoor(ride:GetAttribute("DoorTarget"))
 	onPa(ride:GetAttribute("PaText"))
 
+	local lastEvpRaised = false
+	local lastPlayId = ""
+
 	ride.AttributeChanged:Connect(function(name: string)
 		if name == "DoorTarget" then
 			onDoor(ride:GetAttribute("DoorTarget"))
@@ -193,6 +196,26 @@ function Audio.start(button: TextButton)
 			if typeof(stamp) == "number" and stamp > 0 then
 				playChime()
 			end
+		elseif name == "EvpRaised" then
+			local on = ride:GetAttribute("EvpRaised") == true
+			if on and not lastEvpRaised then
+				playOneShot(Constants.SOUND_DOOR, 0.15, 1.6)
+			end
+			lastEvpRaised = on
+			local loopSound = rumble
+			if loopSound ~= nil and on and not muted then
+				loopSound.Volume = math.min(loopSound.Volume, Constants.SOUND_RUMBLE_MIN)
+			end
+		elseif name == "EvpPlayId" then
+			local id = ride:GetAttribute("EvpPlayId")
+			local text = if typeof(id) == "string" then id else ""
+			if text ~= "" and text ~= lastPlayId then
+				playOneShot(Constants.SOUND_CHIME, 0.25, 0.7)
+				task.delay(0.35, function()
+					playOneShot(Constants.SOUND_CHIME, 0.2, 0.55)
+				end)
+			end
+			lastPlayId = text
 		end
 	end)
 

@@ -1,6 +1,6 @@
 --!strict
 -- Safe Haven helpers from gameState.executeSafeHaven / giveRecorder.
--- Full EVP UI stays out; this only unlocks HasRecorder and restores sanity.
+-- Unlocks HasRecorder for the EVP UI (PR8) and restores sanity.
 
 local Haven = {}
 
