@@ -145,6 +145,7 @@ function Ride.start(car: CarBuilder.BuiltCar)
 		AnomalySystem.COUNTDOWN_ID,
 		Lines.COUNTDOWN
 	)
+	CarBuilder.addCatalogProps(car.passengers)
 
 	local paToken = 0
 	local subToken = 0
@@ -656,7 +657,19 @@ function Ride.start(car: CarBuilder.BuiltCar)
 			table.insert(liveIds, "poster_changed")
 			table.insert(framed, "poster_changed")
 		end
-		for _, id in { AnomalySystem.ANNOUNCE_ID, AnomalySystem.COUNTDOWN_ID, AnomalySystem.EXTRA_ID } do
+		for _, id in {
+			AnomalySystem.ANNOUNCE_ID,
+			AnomalySystem.COUNTDOWN_ID,
+			AnomalySystem.EXTRA_ID,
+			AnomalySystem.STICKER_ID,
+			AnomalySystem.MAP_ID,
+			AnomalySystem.NEARWORD_ID,
+			AnomalySystem.LIGHT_ID,
+			AnomalySystem.EMPTY_ID,
+			AnomalySystem.MOVED_ID,
+			AnomalySystem.FACETURN_ID,
+			AnomalySystem.MOMFACE_ID,
+		} do
 			local model = car.passengers:FindFirstChild(id)
 			if
 				model ~= nil
@@ -774,9 +787,219 @@ function Ride.start(car: CarBuilder.BuiltCar)
 		end
 	end
 
+	local lighttempStrip: BasePart? = nil
+	local lighttempOriginal: Color3? = nil
+	local movedHome: CFrame? = nil
+	local emptyHidden: { string } = {}
+	local faceturnRest: { [BasePart]: CFrame } = {}
+	local momfaceRest: { [BasePart]: Color3 } = {}
+
+	local function setPlateText(id: string, text: string)
+		local model = car.passengers:FindFirstChild(id)
+		if model == nil then
+			return
+		end
+		for _, desc in model:GetDescendants() do
+			if desc:IsA("TextLabel") and desc.Name == "Text" then
+				desc.Text = text
+				return
+			end
+		end
+	end
+
+	local function setCatalogHidden(id: string, active: boolean, color: Color3?)
+		local model = car.passengers:FindFirstChild(id)
+		if model == nil or not model:IsA("Model") then
+			return
+		end
+		model:SetAttribute("Anomaly", active)
+		model:SetAttribute("Hidden", not active)
+		for _, desc in model:GetDescendants() do
+			if desc:IsA("BasePart") and desc.Name ~= "Root" then
+				desc.Transparency = if active then 0 else 1
+				desc.CanQuery = active
+				if color ~= nil and active then
+					desc.Color = color
+				elseif not active then
+					desc.Color = Constants.COLOR.dark
+				end
+			end
+		end
+	end
+
+	local function setCatalogVisible(id: string, active: boolean)
+		local model = car.passengers:FindFirstChild(id)
+		if model == nil or not model:IsA("Model") then
+			return
+		end
+		model:SetAttribute("Anomaly", active)
+		model:SetAttribute("Hidden", false)
+		for _, desc in model:GetDescendants() do
+			if desc:IsA("BasePart") and desc.Name ~= "Root" then
+				desc.CanQuery = true
+			end
+		end
+	end
+
+	local function clearCatalog()
+		setCatalogHidden(AnomalySystem.STICKER_ID, false, nil)
+		setCatalogHidden(AnomalySystem.LIGHT_ID, false, nil)
+		setCatalogHidden(AnomalySystem.EMPTY_ID, false, nil)
+		setCatalogVisible(AnomalySystem.MAP_ID, false)
+		setPlateText(AnomalySystem.MAP_ID, Lines.MAP_NORMAL)
+		setCatalogVisible(AnomalySystem.NEARWORD_ID, false)
+		setPlateText(AnomalySystem.NEARWORD_ID, Lines.AD_NORMAL)
+		if lighttempStrip ~= nil and lighttempOriginal ~= nil then
+			lighttempStrip.Color = lighttempOriginal
+			stripHold[lighttempStrip] = nil
+		end
+		lighttempStrip = nil
+		lighttempOriginal = nil
+		local moved = car.passengers:FindFirstChild(AnomalySystem.MOVED_ID)
+		if moved ~= nil and moved:IsA("Model") then
+			moved:SetAttribute("Anomaly", false)
+			if movedHome ~= nil then
+				moved:PivotTo(movedHome)
+			end
+		end
+		movedHome = nil
+		for _, id in emptyHidden do
+			CarBuilder.setPassengerShown(car.passengers, id, true)
+		end
+		table.clear(emptyHidden)
+		local s2 = car.passengers:FindFirstChild(AnomalySystem.FACETURN_ID)
+		if s2 ~= nil and s2:IsA("Model") then
+			s2:SetAttribute("Anomaly", false)
+			for part, cf in faceturnRest do
+				part.CFrame = cf
+			end
+		end
+		table.clear(faceturnRest)
+		local mom = car.passengers:FindFirstChild(AnomalySystem.MOMFACE_ID)
+		if mom ~= nil and mom:IsA("Model") then
+			mom:SetAttribute("Anomaly", false)
+			for part, color in momfaceRest do
+				part.Color = color
+			end
+		end
+		table.clear(momfaceRest)
+	end
+
+	local function applyLighttemp()
+		local stripName = "LightStrip_02"
+		local lightModel = car.passengers:FindFirstChild(AnomalySystem.LIGHT_ID)
+		if lightModel ~= nil then
+			local named = lightModel:GetAttribute("StripName")
+			if typeof(named) == "string" then
+				stripName = named
+			end
+		end
+		for _, lamp in car.lamps do
+			if lamp.part.Name == stripName then
+				lighttempStrip = lamp.part
+				lighttempOriginal = lamp.part.Color
+				stripHold[lamp.part] = true
+				lamp.part.Color = Constants.LIGHTTEMP_COLOR
+				break
+			end
+		end
+		setCatalogHidden(AnomalySystem.LIGHT_ID, true, Constants.LIGHTTEMP_COLOR)
+	end
+
+	local function applySticker()
+		setCatalogHidden(AnomalySystem.STICKER_ID, true, Color3.fromRGB(240, 210, 40))
+	end
+
+	local function applyNearword()
+		setCatalogVisible(AnomalySystem.NEARWORD_ID, true)
+		setPlateText(AnomalySystem.NEARWORD_ID, Lines.AD_WARP)
+	end
+
+	local function applyMapstop()
+		setCatalogVisible(AnomalySystem.MAP_ID, true)
+		setPlateText(AnomalySystem.MAP_ID, Lines.MAP_HOLLOW)
+	end
+
+	local function applyMoved()
+		local model = car.passengers:FindFirstChild(AnomalySystem.MOVED_ID)
+		if model == nil or not model:IsA("Model") then
+			return
+		end
+		movedHome = model:GetPivot()
+		model:SetAttribute("Anomaly", true)
+		local pivot = model:GetPivot()
+		local at = pivot.Position
+		-- Keep facing; only slide along the car X (web s3 → far doors).
+		model:PivotTo(CFrame.new(Constants.meters(Constants.MOVED_FAR_X), at.Y, at.Z) * (pivot - pivot.Position))
+	end
+
+	local function applyEmpty()
+		for _, id in { "s1", "s2", "s3", AnomalySystem.EXTRA_ID, "c1", "c2", "c3", "c4", "c5" } do
+			local model = car.passengers:FindFirstChild(id)
+			if model ~= nil and model:GetAttribute("Hidden") ~= true then
+				table.insert(emptyHidden, id)
+				CarBuilder.setPassengerShown(car.passengers, id, false)
+			end
+		end
+		setCatalogHidden(AnomalySystem.EMPTY_ID, true, Constants.COLOR.warn)
+	end
+
+	local function applyFaceturn()
+		local model = car.passengers:FindFirstChild(AnomalySystem.FACETURN_ID)
+		if model == nil or not model:IsA("Model") then
+			return
+		end
+		model:SetAttribute("Anomaly", true)
+		for _, desc in model:GetDescendants() do
+			if desc:IsA("BasePart") and (desc.Name == "Head" or desc.Name == "Hair" or desc.Name == "Eye") then
+				faceturnRest[desc] = desc.CFrame
+				desc.CFrame = desc.CFrame * CFrame.Angles(0, 0, math.rad(55))
+			end
+		end
+	end
+
+	local function applyMomface()
+		local model = car.passengers:FindFirstChild(AnomalySystem.MOMFACE_ID)
+		if model == nil or not model:IsA("Model") then
+			return
+		end
+		model:SetAttribute("Anomaly", true)
+		for _, desc in model:GetDescendants() do
+			if desc:IsA("BasePart") and (desc.Name == "Head" or desc.Name == "Hair" or desc.Name == "Eye") then
+				momfaceRest[desc] = desc.Color
+				if desc.Name == "Eye" then
+					desc.Color = Color3.fromRGB(20, 20, 28)
+				else
+					desc.Color = Color3.fromRGB(223, 217, 206)
+				end
+			end
+		end
+	end
+
+	local function applyCatalog(kind: string)
+		if kind == "lighttemp" then
+			applyLighttemp()
+		elseif kind == "sticker" then
+			applySticker()
+		elseif kind == "nearword" then
+			applyNearword()
+		elseif kind == "mapstop" then
+			applyMapstop()
+		elseif kind == "moved" then
+			applyMoved()
+		elseif kind == "empty" then
+			applyEmpty()
+		elseif kind == "faceturn" then
+			applyFaceturn()
+		elseif kind == "momface" then
+			applyMomface()
+		end
+	end
+
 	local function clearTells()
 		setTell(AnomalySystem.ANNOUNCE_ID, false)
 		setTell(AnomalySystem.COUNTDOWN_ID, false)
+		clearCatalog()
 		ride:SetAttribute("BoardStop", "")
 		ride:SetAttribute("BoardMinutes", 0)
 	end
@@ -785,7 +1008,19 @@ function Ride.start(car: CarBuilder.BuiltCar)
 		if posterLive then
 			return true
 		end
-		for _, id in { AnomalySystem.ANNOUNCE_ID, AnomalySystem.COUNTDOWN_ID, AnomalySystem.EXTRA_ID } do
+		for _, id in {
+			AnomalySystem.ANNOUNCE_ID,
+			AnomalySystem.COUNTDOWN_ID,
+			AnomalySystem.EXTRA_ID,
+			AnomalySystem.STICKER_ID,
+			AnomalySystem.MAP_ID,
+			AnomalySystem.NEARWORD_ID,
+			AnomalySystem.LIGHT_ID,
+			AnomalySystem.EMPTY_ID,
+			AnomalySystem.MOVED_ID,
+			AnomalySystem.FACETURN_ID,
+			AnomalySystem.MOMFACE_ID,
+		} do
 			local model = car.passengers:FindFirstChild(id)
 			if model ~= nil and model:GetAttribute("Anomaly") == true and model:GetAttribute("Hidden") ~= true then
 				return true
@@ -1202,11 +1437,20 @@ function Ride.start(car: CarBuilder.BuiltCar)
 			extraStop = Constants.ANOMALY_EXTRA_STOP,
 			announceStop = Constants.ANOMALY_ANNOUNCE_STOP,
 			countdownStop = Constants.ANOMALY_COUNTDOWN_STOP,
+			lighttempStop = Constants.ANOMALY_LIGHTTEMP_STOP,
+			stickerStop = Constants.ANOMALY_STICKER_STOP,
+			nearwordStop = Constants.ANOMALY_NEARWORD_STOP,
+			mapstopStop = Constants.ANOMALY_MAPSTOP_STOP,
+			movedStop = Constants.ANOMALY_MOVED_STOP,
+			emptyStop = Constants.ANOMALY_EMPTY_STOP,
+			faceturnStop = if Constants.ANOMALY_FACETURN_STOP > 0 then Constants.ANOMALY_FACETURN_STOP else nil,
+			momfaceStop = if Constants.ANOMALY_MOMFACE_STOP > 0 then Constants.ANOMALY_MOMFACE_STOP else nil,
 		})
 		stopHadAnomaly = picked ~= nil
 		stopNoticed = false
 		stopFalseAlarm = false
 		posterLive = false
+		clearCatalog()
 		local wrongCountdown = picked == "wrong_countdown"
 		setTell(AnomalySystem.COUNTDOWN_ID, wrongCountdown)
 		setTell(AnomalySystem.ANNOUNCE_ID, false)
@@ -1318,6 +1562,23 @@ function Ride.start(car: CarBuilder.BuiltCar)
 					return
 				end
 				CarBuilder.setPassengerShown(car.passengers, AnomalySystem.EXTRA_ID, true)
+			end)
+		end
+		if
+			picked == "lighttemp"
+			or picked == "sticker"
+			or picked == "nearword"
+			or picked == "mapstop"
+			or picked == "moved"
+			or picked == "empty"
+			or picked == "faceturn"
+			or picked == "momface"
+		then
+			task.delay(Constants.CATALOG_APPEAR_AT, function()
+				if token ~= segToken then
+					return
+				end
+				applyCatalog(picked)
 			end)
 		end
 		if not seg.b and seg.stop == 5 then

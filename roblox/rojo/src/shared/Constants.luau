@@ -138,6 +138,23 @@ Constants.ANOMALY_POSTER_STOP = 3
 Constants.ANOMALY_EXTRA_STOP = 5
 Constants.ANOMALY_ANNOUNCE_STOP = 7
 Constants.ANOMALY_COUNTDOWN_STOP = 10
+-- Expanded catalog (PR12). Quiet / false-approach stretches; NEAR_X props stay close.
+Constants.ANOMALY_LIGHTTEMP_STOP = 2
+Constants.ANOMALY_STICKER_STOP = 4
+Constants.ANOMALY_NEARWORD_STOP = 8
+Constants.ANOMALY_MAPSTOP_STOP = 9
+Constants.ANOMALY_MOVED_STOP = 11
+Constants.ANOMALY_EMPTY_STOP = 13
+-- Character-swap tells (Part fallback; optional FBX later).
+Constants.ANOMALY_FACETURN_STOP = 0 -- unused this slice; apply path exists
+Constants.ANOMALY_MOMFACE_STOP = 0
+-- Mid-stretch appear times (seconds into the ride stretch).
+Constants.CATALOG_APPEAR_AT = 7
+-- Moved passenger home vs far-door X (metres), matching web s3 / moved.
+Constants.MOVED_HOME_X = 5.0
+Constants.MOVED_FAR_X = -5.0
+-- Cold light for lighttemp (web 0x8cc2ff).
+Constants.LIGHTTEMP_COLOR = Color3.fromRGB(140, 194, 255)
 
 -- Seconds into the stretch when seat6 appears (after accel, during cruise).
 -- Web waits until you look away; this slice reveals on a fixed timer.

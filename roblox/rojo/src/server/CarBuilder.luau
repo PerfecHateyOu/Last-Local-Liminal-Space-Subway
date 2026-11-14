@@ -10,6 +10,7 @@ local Constants = require(ReplicatedStorage.Shared.Constants)
 local KeepOut = require(ReplicatedStorage.Shared.KeepOut)
 local Passengers = require(ReplicatedStorage.Shared.Passengers)
 local Consist = require(script.Parent.Consist)
+local AnomalySystem = require(script.Parent.AnomalySystem)
 
 local CarBuilder = {}
 
@@ -1047,6 +1048,156 @@ function CarBuilder.addTells(folder: Folder, announceId: string, announceLabel: 
 	end
 	plate(announceId, announceLabel, "wrong_announcement", 0.2)
 	plate(boardId, boardLabel, "wrong_countdown", 1.15)
+end
+
+local function catalogPlate(
+	folder: Folder,
+	id: string,
+	label: string,
+	kind: string,
+	x: number,
+	y: number,
+	z: number,
+	size: Vector3,
+	color: Color3,
+	hidden: boolean
+): Model
+	local model = Instance.new("Model")
+	model.Name = id
+	model:SetAttribute("PassengerId", id)
+	model:SetAttribute("Label", label)
+	model:SetAttribute("Anomaly", false)
+	model:SetAttribute("Hidden", hidden)
+	model:SetAttribute("Tell", kind)
+	model:SetAttribute("Crowd", false)
+	local part = Instance.new("Part")
+	part.Name = "Sign"
+	part.Anchored = true
+	part.Size = size
+	part.CFrame = CFrame.new(metres(x, y, z))
+	part.Color = color
+	part.Material = Enum.Material.SmoothPlastic
+	part.TopSurface = Enum.SurfaceType.Smooth
+	part.BottomSurface = Enum.SurfaceType.Smooth
+	part.CanCollide = false
+	part.CanTouch = false
+	part.CanQuery = not hidden
+	part.Transparency = if hidden then 1 else 0
+	part:SetAttribute("PassengerId", id)
+	part.Parent = model
+	model.PrimaryPart = part
+	model:PivotTo(part.CFrame)
+	model.Parent = folder
+	return model
+end
+
+local function surfaceLabel(part: BasePart, text: string, textSize: number)
+	local gui = Instance.new("SurfaceGui")
+	gui.Name = "Label"
+	gui.Face = Enum.NormalId.Front
+	gui.LightInfluence = 0
+	gui.MaxDistance = 80
+	gui.CanvasSize = Vector2.new(256, 64)
+	gui.Parent = part
+	local label = Instance.new("TextLabel")
+	label.Name = "Text"
+	label.BackgroundTransparency = 1
+	label.Size = UDim2.fromScale(1, 1)
+	label.Font = Enum.Font.GothamBold
+	label.TextColor3 = Constants.COLOR.cream
+	label.TextScaled = false
+	label.TextSize = textSize
+	label.Text = text
+	label.TextWrapped = true
+	label.Parent = gui
+end
+
+-- Props for the expanded catalog. Close-look ones sit within NEAR_X of the seat.
+function CarBuilder.addCatalogProps(folder: Folder)
+	local nearX = AnomalySystem.pickNearSlot(2)
+
+	-- Window sticker / stain (hidden until active).
+	local sticker = catalogPlate(
+		folder,
+		AnomalySystem.STICKER_ID,
+		"the window sticker",
+		"sticker",
+		nearX,
+		1.35,
+		-1.48,
+		sizeM(0.28, 0.28, 0.02),
+		Color3.fromRGB(240, 210, 40),
+		true
+	)
+	sticker:SetAttribute("Catalog", "sticker")
+
+	-- Route map (always visible; text swaps when mapstop is live).
+	local map = catalogPlate(
+		folder,
+		AnomalySystem.MAP_ID,
+		"the route map",
+		"mapstop",
+		-1.2,
+		1.7,
+		-1.4,
+		sizeM(1.1, 0.55, 0.04),
+		Color3.fromRGB(20, 28, 24),
+		false
+	)
+	map:SetAttribute("Catalog", "mapstop")
+	local mapPart = map.PrimaryPart
+	if mapPart ~= nil then
+		surfaceLabel(mapPart, "G · Hoyt–Schermerhorn → Court Sq", 14)
+	end
+
+	-- Ad that can warp (near only). Visible always; text swaps on nearword.
+	local ad = catalogPlate(
+		folder,
+		AnomalySystem.NEARWORD_ID,
+		"the warped ad",
+		"nearword",
+		nearX,
+		2.02,
+		-1.4,
+		sizeM(1.0, 0.36, 0.04),
+		Color3.fromRGB(20, 60, 43),
+		false
+	)
+	ad:SetAttribute("Catalog", "nearword")
+	local adPart = ad.PrimaryPart
+	if adPart ~= nil then
+		surfaceLabel(adPart, "GREENPOINT SAVINGS", 16)
+	end
+
+	-- Empty-car tell plate (hidden until empty is live).
+	catalogPlate(
+		folder,
+		AnomalySystem.EMPTY_ID,
+		"the empty car",
+		"empty",
+		0,
+		1.2,
+		0,
+		sizeM(0.4, 0.4, 0.4),
+		Constants.COLOR.dark,
+		true
+	)
+
+	-- Cold-light tell: ties to a near LightStrip by name attribute for Ride.
+	local light = catalogPlate(
+		folder,
+		AnomalySystem.LIGHT_ID,
+		"the cold light",
+		"lighttemp",
+		2.0,
+		2.35,
+		-0.62,
+		sizeM(0.5, 0.08, 0.2),
+		Constants.COLOR.dark,
+		true
+	)
+	light:SetAttribute("Catalog", "lighttemp")
+	light:SetAttribute("StripName", "LightStrip_02")
 end
 
 return CarBuilder

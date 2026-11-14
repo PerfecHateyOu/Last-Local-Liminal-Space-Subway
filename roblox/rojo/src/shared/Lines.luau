@@ -117,6 +117,15 @@ end
 -- Flag labels for the two tells. Not spoken lines.
 Lines.ANNOUNCEMENT = "the announcement"
 Lines.COUNTDOWN = "the countdown"
+Lines.STICKER = "the window sticker"
+Lines.MAPSTOP = "the route map"
+Lines.NEARWORD = "the warped ad"
+Lines.LIGHTTEMP = "the cold light"
+Lines.EMPTY = "the empty car"
+Lines.MAP_NORMAL = "G · Hoyt–Schermerhorn → Court Sq"
+Lines.MAP_HOLLOW = "G · Hollow St (impossible)"
+Lines.AD_NORMAL = "GREENPOINT SAVINGS"
+Lines.AD_WARP = "DONT LOOK BACK"
 
 -- Suspicion HUD. The number is Ride.Suspicion; the word is Ride.Band
 -- (calm / uneasy / watched / hunted from Shared.Band). Display only.

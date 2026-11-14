@@ -208,6 +208,35 @@ Constants.FALSE_STOP_STEP_OFF_SUSPICION = 15
 -- Choice window after doors open. Timeout counts as Stay on.
 Constants.DOOR_CHOICE_SECONDS = 5
 
+-- False Stop Trial exit (web SUS.falsePos / SAN.trial).
+Constants.TRIAL_EXIT_SUSPICION = 20
+Constants.TRIAL_SANITY = 20
+Constants.TRIAL_CYCLE = 3.6
+Constants.TRIAL_FLICK_SECONDS = 0.14
+Constants.TRIAL_HINT_SECONDS = 6
+
+-- Parent chats during cruise (web CHAT_AT / CHAT_LINE_S). Slice times sit
+-- after the next-stop PA (7 + 4.5) on the shortened stretch.
+Constants.CHAT_AT_1 = 12.0
+Constants.CHAT_AT_2 = 14.2
+Constants.CHAT_LINE_SECONDS = 2.6
+
+-- Mask checks (web MASK_CHECK_S / presentChoice). First dialogue tier only.
+Constants.MASK_CHOICE_SECONDS = 4
+Constants.MASK_PROMPT_SECONDS = 6
+Constants.MASK_FAIL_SUSPICION = 15
+Constants.MASK_TIMEOUT_SUSPICION = 8
+-- Sanity is a Ride attribute stub until restraint / intervention (PR13).
+-- Safe Haven restores SAN.haven (15). Mask fail/timeout still nudge it down.
+Constants.SANITY_START = 100
+Constants.SANITY_MIN = 0
+Constants.SANITY_MAX = 100
+Constants.SANITY_HAVEN = 15
+Constants.MASK_FAIL_SANITY = 4
+Constants.MASK_TIMEOUT_SANITY = 2
+-- needsSus mask lines only appear at or above this suspicion.
+Constants.MASK_NEED_SUSPICION = 10
+
 -- Bands from the suspicion number. 0–24 calm, 25–49 uneasy, 50–74 watched,
 -- 75–100 hunted.
 Constants.BAND_CALM_MAX = 24
@@ -241,6 +270,23 @@ Constants.ANOMALY_POSTER_STOP = 3
 Constants.ANOMALY_EXTRA_STOP = 5
 Constants.ANOMALY_ANNOUNCE_STOP = 7
 Constants.ANOMALY_COUNTDOWN_STOP = 10
+-- Expanded catalog (PR12). Quiet / false-approach stretches; NEAR_X props stay close.
+Constants.ANOMALY_LIGHTTEMP_STOP = 2
+Constants.ANOMALY_STICKER_STOP = 4
+Constants.ANOMALY_NEARWORD_STOP = 8
+Constants.ANOMALY_MAPSTOP_STOP = 9
+Constants.ANOMALY_MOVED_STOP = 11
+Constants.ANOMALY_EMPTY_STOP = 13
+-- Character-swap tells (Part fallback; optional FBX later).
+Constants.ANOMALY_FACETURN_STOP = 0 -- unused this slice; apply path exists
+Constants.ANOMALY_MOMFACE_STOP = 0
+-- Mid-stretch appear times (seconds into the ride stretch).
+Constants.CATALOG_APPEAR_AT = 7
+-- Moved passenger home vs far-door X (metres), matching web s3 / moved.
+Constants.MOVED_HOME_X = 5.0
+Constants.MOVED_FAR_X = -5.0
+-- Cold light for lighttemp (web 0x8cc2ff).
+Constants.LIGHTTEMP_COLOR = Color3.fromRGB(140, 194, 255)
 
 -- Seconds into the stretch when seat6 appears (after accel, during cruise).
 -- Web waits until you look away; this slice reveals on a fixed timer.
@@ -285,8 +331,23 @@ Constants.FINAL_DIM = 0.62
 -- https://create.roblox.com/docs/art/modeling/specifications
 Constants.MESH_TRIANGLE_LIMIT = 20000
 
--- How far a flag ray reaches, in metres. Long enough to cover one car.
-Constants.FLAG_RANGE_M = 20
+-- How far a flag ray reaches, in metres. Long enough for one car of the
+-- three-car consist (A / B / C) from inside that car.
+Constants.FLAG_RANGE_M = 22
+
+-- Polaroid (web STARTING_FILM / SHUTTER_COOLDOWN / SUS.visible).
+Constants.POLAROID_STARTING_FILM = 8
+Constants.POLAROID_MAX_FILM = 10
+Constants.POLAROID_SHUTTER_COOLDOWN = 0.9
+Constants.POLAROID_FLASH_WATCH_SUSPICION = 10
+Constants.POLAROID_FLASH_GLANCE_CHANCE = 0.5
+-- Shutter click (reuse short switch; Studio can swap later).
+Constants.SOUND_POLAROID = "rbxasset://sounds/switch.wav"
+Constants.SOUND_POLAROID_VOLUME = 0.4
+-- Open-air trestle wind/rain bed (web audioEngine.setOpenAir).
+Constants.SOUND_OPEN_AIR = "rbxasset://sounds/swoosh.wav"
+Constants.SOUND_OPEN_AIR_MAX = 0.12
+Constants.SOUND_OPEN_AIR_PLAYBACK = 0.55
 
 -- Sound bed (client). Built-in engine assets so the place needs no uploads.
 -- Swap these IDs when custom MTA-style clips are imported.
@@ -359,10 +420,239 @@ return Constants
       </Item>
       <Item class="ModuleScript" referent="6">
         <Properties>
+          <string name="Name">Dialogue</string>
+          <string name="Source"><![CDATA[--!strict
+-- Parent chats and mask lines from src/constants.ts (CHATS, CALM_CHATS,
+-- MASK_DIALOGUES high/calm tier). Critical-tier glitch copy stays out.
+
+local Dialogue = {}
+
+export type ChatLine = { who: number, line: string }
+export type ChatExchange = { ChatLine }
+
+export type MaskLine = {
+	who: number,
+	line: string,
+	calm: string,
+	off: { string },
+	needsSus: boolean,
+}
+
+-- who: 0 Mom, 1 Dad. Indices match web SEGS.chat.
+local CHATS: { ChatExchange } = {
+	{
+		{ who = 1, line = "Did you ever call your sister back?" },
+		{ who = 0, line = "Tonight. Remind me." },
+	},
+	{
+		{ who = 0, line = "Your cousin’s gonna be so tall now." },
+		{ who = 1, line = "Everybody’s tall now." },
+	},
+	{
+		{ who = 1, line = "We should’ve taken the bus." },
+		{ who = 0, line = "The bus takes forever." },
+	},
+	{
+		{ who = 0, line = "Did you ever call your sister back?" },
+		{ who = 1, line = "Did you ever call your sister back?" },
+	},
+	{
+		{ who = 1, line = "Is it always this empty?" },
+		{ who = 0, line = "It’s always this empty." },
+	},
+}
+
+local CALM_CHATS: { ChatExchange } = {
+	{
+		{ who = 0, line = "Don’t lean against the doors." },
+		{ who = 1, line = "Should be in Queens in twenty minutes." },
+	},
+	{
+		{ who = 0, line = "Did they change the schedule?" },
+		{ who = 1, line = "It feels slower today." },
+	},
+	{
+		{ who = 0, line = "I always hated this curve." },
+		{ who = 1, line = "Check your bag." },
+	},
+}
+
+-- First tier only (High / Calm set). needsSus lines need Suspicion >= 10.
+local MASK_TIER0: { MaskLine } = {
+	{
+		who = 0,
+		line = "You've been quiet. You okay, hon?",
+		calm = "Yeah, just tired.",
+		off = { "Why? Do I look weird?", "Did the lights just change?" },
+		needsSus = false,
+	},
+	{
+		who = 1,
+		line = "How many more stops, you think?",
+		calm = "A few. We’re fine.",
+		off = { "Why are you asking me?", "Wait, which train is this?" },
+		needsSus = false,
+	},
+	{
+		who = 0,
+		line = "Did you eat anything today?",
+		calm = "Had a bagel earlier.",
+		off = { "Why does everyone keep asking that?", "Sorry, what?" },
+		needsSus = false,
+	},
+	{
+		who = 0,
+		line = "You look warm. Are you warm?",
+		calm = "Just stuffy in here.",
+		off = { "Is it hot to you?", "Stop looking at me like that." },
+		needsSus = false,
+	},
+	{
+		who = 1,
+		line = "You’re staring at something.",
+		calm = "Just zoning out.",
+		off = { "No I’m not.", "Don’t you see it?" },
+		needsSus = true,
+	},
+	{
+		who = 0,
+		line = "Did you drop something on the floor?",
+		calm = "No, just adjusting my bag.",
+		off = { "Why are you staring?", "Leave me alone." },
+		needsSus = false,
+	},
+	{
+		who = 1,
+		line = "You want the window seat?",
+		calm = "Nah, I’m good here.",
+		off = { "Why, what’s out there?", "Don’t make me move." },
+		needsSus = false,
+	},
+	{
+		who = 0,
+		line = "Text your aunt we’re on the train.",
+		calm = "Sending it now.",
+		off = { "There’s no signal down here.", "Which train do I tell her?" },
+		needsSus = false,
+	},
+}
+
+function Dialogue.parentName(who: number): string
+	if who == 1 then
+		return "Dad"
+	end
+	return "Mom"
+end
+
+function Dialogue.chatLine(who: number, line: string): string
+	return Dialogue.parentName(who) .. ": " .. line
+end
+
+function Dialogue.maskPrompt(who: number, line: string): string
+	return Dialogue.parentName(who) .. ": " .. line
+end
+
+function Dialogue.youAnswer(text: string, parentWho: number): string
+	return "You: " .. text .. " (" .. Dialogue.parentName(parentWho) .. " nods.)"
+end
+
+function Dialogue.maskHesitate(parentWho: number): string
+	return "You don’t answer fast enough. " .. Dialogue.parentName(parentWho) .. ": Hon?"
+end
+
+function Dialogue.maskOdd(parentWho: number): string
+	return Dialogue.parentName(parentWho) .. " keeps looking at you."
+end
+
+-- Swap some of chat indices 0–2 for calm small talk (web chatSwap).
+function Dialogue.buildChatPlan(rng: () -> number): { [number]: ChatExchange }
+	local plan: { [number]: ChatExchange } = {}
+	local extras = table.clone(CALM_CHATS)
+	for i = 0, 2 do
+		if #extras > 0 and rng() < 0.5 then
+			local index = math.clamp(math.floor(rng() * #extras) + 1, 1, #extras)
+			plan[i] = extras[index]
+			table.remove(extras, index)
+		else
+			plan[i] = CHATS[i + 1]
+		end
+	end
+	for i = 3, #CHATS - 1 do
+		plan[i] = CHATS[i + 1]
+	end
+	return plan
+end
+
+function Dialogue.chatFor(plan: { [number]: ChatExchange }, chatIndex: number): ChatExchange?
+	return plan[chatIndex]
+end
+
+function Dialogue.maskPool(suspicion: number, needSusAt: number): { MaskLine }
+	local pool = {}
+	for _, entry in MASK_TIER0 do
+		if not entry.needsSus or suspicion >= needSusAt then
+			table.insert(pool, entry)
+		end
+	end
+	return pool
+end
+
+function Dialogue.pickMask(
+	pool: { MaskLine },
+	used: { [string]: boolean },
+	lastLine: string?,
+	rng: () -> number
+): MaskLine?
+	if #pool == 0 then
+		return nil
+	end
+	local fresh = {}
+	for _, entry in pool do
+		if used[entry.line] ~= true then
+			table.insert(fresh, entry)
+		end
+	end
+	if #fresh == 0 then
+		table.clear(used)
+		fresh = table.clone(pool)
+	end
+	local candidates = {}
+	for _, entry in fresh do
+		if entry.line ~= lastLine then
+			table.insert(candidates, entry)
+		end
+	end
+	if #candidates == 0 then
+		candidates = fresh
+	end
+	local index = math.clamp(math.floor(rng() * #candidates) + 1, 1, #candidates)
+	return candidates[index]
+end
+
+function Dialogue.shuffleAnswers(calm: string, offA: string, offB: string, rng: () -> number): { { text: string, val: string } }
+	local items = {
+		{ text = calm, val = "calm" },
+		{ text = offA, val = "off" },
+		{ text = offB, val = "off" },
+	}
+	for i = #items, 2, -1 do
+		local j = math.clamp(math.floor(rng() * i) + 1, 1, i)
+		items[i], items[j] = items[j], items[i]
+	end
+	return items
+end
+
+return Dialogue
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="7">
+        <Properties>
           <string name="Name">Doors</string>
           <string name="Source"><![CDATA[--!strict
 -- Stay / step-off outcomes. Mirrors web resolveDoors (gameState.ts).
--- Haven cinematic and the False Stop Trial are stubs until later PRs.
+-- Haven runs Shared.Haven + Ride.executeHaven.
+-- Non-forgiving false step-off runs Shared.Trial + TrialSpace.
 
 local Doors = {}
 
@@ -373,8 +663,9 @@ export type Outcome = {
 	choice: Choice,
 	correct: boolean,
 	suspicionDelta: number,
-	-- "depart" continues the ride. Stubs still depart after a beat.
-	mode: "depart" | "haven_stub" | "trial_stub",
+	-- "depart" continues the ride. "haven" runs the platform linger.
+	-- "trial" runs the False Stop Trial room.
+	mode: "depart" | "haven" | "trial",
 	line: string,
 	holdSeconds: number,
 }
@@ -401,8 +692,8 @@ function Doors.resolve(
 	lineRealOff: string,
 	lineRefuseHaven: string,
 	lineFalseForgiving: string,
-	lineHavenStub: string,
-	lineTrialStub: string
+	_lineHavenUnused: string,
+	_lineTrialUnused: string
 ): Outcome
 	local choice = Doors.normalize(rawChoice)
 	if kind == "real" then
@@ -427,14 +718,14 @@ function Doors.resolve(
 	end
 	if kind == "haven" then
 		if choice == "off" then
-			-- Full Safe Haven is PR6. Step off, subtitle, get back on.
+			-- Ride runs the Safe Haven linger; holdSeconds stays 0 here.
 			return {
 				choice = choice,
 				correct = true,
 				suspicionDelta = 0,
-				mode = "haven_stub",
-				line = lineHavenStub,
-				holdSeconds = 3.4,
+				mode = "haven",
+				line = "",
+				holdSeconds = 0,
 			}
 		end
 		return {
@@ -467,14 +758,14 @@ function Doors.resolve(
 			holdSeconds = 3.8,
 		}
 	end
-	-- Non-forgiving: trial is PR7. Soft-fail — pull back + suspicion.
+	-- Non-forgiving: enter the False Stop Trial. Suspicion applies on exit.
 	return {
 		choice = choice,
 		correct = false,
-		suspicionDelta = amounts.falseOff,
-		mode = "trial_stub",
-		line = lineTrialStub,
-		holdSeconds = 3.8,
+		suspicionDelta = 0,
+		mode = "trial",
+		line = "",
+		holdSeconds = 0,
 	}
 end
 
@@ -482,7 +773,7 @@ return Doors
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="7">
+      <Item class="ModuleScript" referent="8">
         <Properties>
           <string name="Name">Dwell</string>
           <string name="Source"><![CDATA[--!strict
@@ -523,7 +814,462 @@ return Dwell
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="8">
+      <Item class="ModuleScript" referent="9">
+        <Properties>
+          <string name="Name">Evp</string>
+          <string name="Source"><![CDATA[--!strict
+-- Tape recorder / EVP from src/game/evpManager.ts.
+-- Frequencies shuffle per ride; meter treats signals and decoys the same.
+-- Case Files archive persistence stays out.
+
+local Evp = {}
+
+Evp.MIN_KHZ = 70
+Evp.MAX_KHZ = 180
+Evp.LOCK_KHZ = 1.0
+Evp.METER_WIDTH = 4
+Evp.RECORD_HOLD = 1.5
+Evp.REVEAL_SECONDS = 3
+Evp.DECOYS_PER_SEGMENT = 2
+Evp.SIGNAL_GAP = 8
+Evp.DECOY_GAP = 5
+Evp.TAPE_GLANCE_CHANCE = 0.5
+
+export type SignalDef = {
+	id: string,
+	title: string,
+	stops: { number },
+	transcript: string,
+}
+
+export type Carrier = {
+	kind: "signal" | "decoy",
+	khz: number,
+	signalId: string?,
+}
+
+export type Tape = {
+	signalId: string,
+	title: string,
+	stop: string,
+	freq: string,
+	transcript: string,
+}
+
+export type State = {
+	raised: boolean,
+	recording: boolean,
+	khz: number,
+	meter: number,
+	lockedKind: string, -- "" | "signal" | "decoy"
+	lockedId: string,
+	reveal: number,
+	recordT: number,
+	tapes: { Tape },
+	signalKhz: { [string]: number },
+	decoyKhz: { [number]: { number } },
+	heard: { [string]: number },
+}
+
+-- G-route copy with tokens already filled (fillRoute for the G).
+local SIGNALS: { SignalDef } = {
+	{
+		id = "dispatch-hold",
+		title = "Dispatch, track 2",
+		stops = { 6, 7 },
+		transcript = "…G four-forty, hold at Nassau. Hold. Do not open the doors at Nassau…",
+	},
+	{
+		id = "passenger-hoyt",
+		title = "A passenger",
+		stops = { 7, 8, 9 },
+		transcript = "…I got on at Hoyt too. I always get on at Hoyt. I always get on at Hoyt…",
+	},
+	{
+		id = "dispatch-empty",
+		title = "Dispatch, no train number",
+		stops = { 9, 10 },
+		transcript = "…there is no train scheduled on this track. Repeat: nothing is scheduled on this track…",
+	},
+	{
+		id = "passenger-greenpoint",
+		title = "Someone at the far end",
+		stops = { 10, 11 },
+		transcript = "…first time? It gets easier after Greenpoint. Don’t let them see you looking…",
+	},
+	{
+		id = "warning-time",
+		title = "Static, then a time",
+		stops = { 11, 12 },
+		transcript = "…6:52… 6:52 a.m.… it was 6:52 the last time, too…",
+	},
+	{
+		id = "conductor",
+		title = "The conductor",
+		stops = { 12, 13 },
+		transcript = "…this is your conductor. We are above ground. This train does not go above ground…",
+	},
+	{
+		id = "mom-voice",
+		title = "A voice like Mom’s",
+		stops = { 12, 13 },
+		transcript = "…honey, don’t look at the window. Look at me. Look at me…",
+	},
+	{
+		id = "station-bedford",
+		title = "Bedford–Nostrand dispatch static",
+		stops = { 6, 7 },
+		transcript = "…Dispatch 44 to all units on G… relay failure at Bedford–Nostrand. Unauthorized personnel on track bed… repeat: do not look at track bed…",
+	},
+	{
+		id = "station-classon",
+		title = "Classon Av phantom PA echo",
+		stops = { 6, 7, 8 },
+		transcript = "…Please stand clear of the closing doors… the train following this one does not exist… return to your seat immediately…",
+	},
+	{
+		id = "station-flushing",
+		title = "Flushing Av night wiretap",
+		stops = { 7, 8, 9 },
+		transcript = "…Station log 02:14. Platform empty, but footsteps continue down the south stairs. Someone is whistling the wrong chime…",
+	},
+	{
+		id = "station-newtown",
+		title = "Newtown Creek emergency channel",
+		stops = { 10, 11, 12 },
+		transcript = "…Maritime security channel 16. Bridge clearance confirmed. Unscheduled train visible on upper trestle. Who authorized that train…",
+	},
+}
+
+Evp.SIGNALS = SIGNALS
+
+function Evp.signalById(id: string): SignalDef?
+	for _, sig in SIGNALS do
+		if sig.id == id then
+			return sig
+		end
+	end
+	return nil
+end
+
+local function share(a: SignalDef, b: SignalDef): boolean
+	for _, stop in a.stops do
+		for _, other in b.stops do
+			if stop == other then
+				return true
+			end
+		end
+	end
+	return false
+end
+
+function Evp.newState(rng: () -> number): State
+	local state: State = {
+		raised = false,
+		recording = false,
+		khz = 120,
+		meter = 0,
+		lockedKind = "",
+		lockedId = "",
+		reveal = 0,
+		recordT = 0,
+		tapes = {},
+		signalKhz = {},
+		decoyKhz = {},
+		heard = {},
+	}
+
+	local function rnd(): number
+		return math.round((Evp.MIN_KHZ + 4 + rng() * (Evp.MAX_KHZ - Evp.MIN_KHZ - 8)) * 10) / 10
+	end
+
+	local function pick(minGap: number, against: { number }): number?
+		for _ = 1, 300 do
+			local f = rnd()
+			local ok = true
+			for _, o in against do
+				if math.abs(o - f) < minGap then
+					ok = false
+					break
+				end
+			end
+			if ok then
+				return f
+			end
+		end
+		return nil
+	end
+
+	local function layout(): boolean
+		state.signalKhz = {}
+		local order = table.clone(SIGNALS)
+		table.sort(order, function(a, b)
+			local ca, cb = 0, 0
+			for _, x in SIGNALS do
+				if share(x, a) then
+					ca += 1
+				end
+				if share(x, b) then
+					cb += 1
+				end
+			end
+			return cb < ca
+		end)
+		for _, sig in order do
+			local against = {}
+			for _, o in order do
+				if o ~= sig and state.signalKhz[o.id] ~= nil and share(o, sig) then
+					table.insert(against, state.signalKhz[o.id])
+				end
+			end
+			local f = pick(Evp.SIGNAL_GAP, against)
+			if f == nil then
+				return false
+			end
+			state.signalKhz[sig.id] = f
+		end
+		state.decoyKhz = {}
+		for stop = 6, 13 do
+			local near = {}
+			for _, sig in SIGNALS do
+				for _, s in sig.stops do
+					if s == stop then
+						table.insert(near, state.signalKhz[sig.id])
+						break
+					end
+				end
+			end
+			local ds = {}
+			for _ = 1, Evp.DECOYS_PER_SEGMENT do
+				local against = table.clone(near)
+				for _, d in ds do
+					table.insert(against, d)
+				end
+				local f = pick(Evp.DECOY_GAP, against)
+				if f == nil then
+					return false
+				end
+				table.insert(ds, f)
+			end
+			state.decoyKhz[stop] = ds
+		end
+		return true
+	end
+
+	for _ = 1, 50 do
+		if layout() then
+			break
+		end
+	end
+	return state
+end
+
+function Evp.carriers(state: State, stop: number?): { Carrier }
+	if stop == nil then
+		return {}
+	end
+	local out: { Carrier } = {}
+	for _, sig in SIGNALS do
+		for _, s in sig.stops do
+			if s == stop then
+				table.insert(out, {
+					kind = "signal",
+					khz = state.signalKhz[sig.id] or 0,
+					signalId = sig.id,
+				})
+				break
+			end
+		end
+	end
+	for _, f in state.decoyKhz[stop] or {} do
+		table.insert(out, { kind = "decoy", khz = f, signalId = nil })
+	end
+	return out
+end
+
+function Evp.setKhz(state: State, khz: number)
+	local v = math.round(khz * 10) / 10
+	state.khz = math.clamp(v, Evp.MIN_KHZ, Evp.MAX_KHZ)
+end
+
+function Evp.tune(state: State, delta: number)
+	Evp.setKhz(state, state.khz + delta)
+end
+
+function Evp.raise(state: State): boolean
+	if state.raised then
+		return false
+	end
+	state.raised = true
+	return true
+end
+
+function Evp.lower(state: State)
+	state.raised = false
+	state.recording = false
+	state.recordT = 0
+	state.lockedKind = ""
+	state.lockedId = ""
+	state.meter = 0
+	state.reveal = 0
+end
+
+function Evp.setRecording(state: State, on: boolean)
+	local nextOn = on and state.raised
+	if nextOn == state.recording then
+		return
+	end
+	state.recording = nextOn
+	if not nextOn then
+		state.recordT = 0
+	end
+end
+
+function Evp.hasTape(state: State, signalId: string): boolean
+	for _, tape in state.tapes do
+		if tape.signalId == signalId then
+			return true
+		end
+	end
+	return false
+end
+
+-- Returns a new tape when one is saved this frame; otherwise nil.
+function Evp.update(state: State, dt: number, stop: number?, stopLabel: string): Tape?
+	if not state.raised then
+		state.meter = 0
+		state.lockedKind = ""
+		state.lockedId = ""
+		state.reveal = 0
+		return nil
+	end
+	local cs = Evp.carriers(state, stop)
+	local best: Carrier? = nil
+	local bestD = math.huge
+	for _, c in cs do
+		local d = math.abs(c.khz - state.khz)
+		if d < bestD then
+			bestD = d
+			best = c
+		end
+	end
+	state.meter = if best then math.exp(-((bestD / Evp.METER_WIDTH) ^ 2)) else 0
+	if best and bestD <= Evp.LOCK_KHZ then
+		state.lockedKind = best.kind
+		state.lockedId = best.signalId or ""
+	else
+		state.lockedKind = ""
+		state.lockedId = ""
+	end
+
+	local sig = if state.lockedKind == "signal" then Evp.signalById(state.lockedId) else nil
+	if sig ~= nil then
+		state.heard[sig.id] = math.min(1, (state.heard[sig.id] or 0) + dt / Evp.REVEAL_SECONDS)
+		state.reveal = state.heard[sig.id]
+	else
+		state.reveal = 0
+	end
+
+	if state.recording and sig ~= nil and not Evp.hasTape(state, sig.id) then
+		state.recordT += dt
+		if state.recordT >= Evp.RECORD_HOLD then
+			state.recordT = 0
+			local tape: Tape = {
+				signalId = sig.id,
+				title = sig.title,
+				stop = stopLabel,
+				freq = string.format("%.1f kHz", state.khz),
+				transcript = sig.transcript,
+			}
+			table.insert(state.tapes, tape)
+			return tape
+		end
+	else
+		state.recordT = 0
+	end
+	return nil
+end
+
+function Evp.tapesJson(state: State): string
+	-- Compact hand-rolled JSON for the HUD (no HttpService dependency in specs).
+	local parts = {}
+	for _, tape in state.tapes do
+		local entry = string.format(
+			'{"signalId":%q,"title":%q,"stop":%q,"freq":%q,"transcript":%q}',
+			tape.signalId,
+			tape.title,
+			tape.stop,
+			tape.freq,
+			tape.transcript
+		)
+		table.insert(parts, entry)
+	end
+	return "[" .. table.concat(parts, ",") .. "]"
+end
+
+function Evp.statusLine(state: State, riding: boolean): string
+	if state.lockedKind == "signal" then
+		local sig = Evp.signalById(state.lockedId)
+		if sig ~= nil then
+			local n = math.max(1, math.round(#sig.transcript * state.reveal))
+			return string.sub(sig.transcript, 1, n)
+		end
+	end
+	if state.lockedKind == "decoy" then
+		return "— a carrier tone, no voice —"
+	end
+	if state.recording then
+		return "Recording hiss…"
+	end
+	if riding then
+		return "Tune slowly. Something is out there."
+	end
+	return "Nothing comes through at a standstill."
+end
+
+return Evp
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="10">
+        <Properties>
+          <string name="Name">Haven</string>
+          <string name="Source"><![CDATA[--!strict
+-- Safe Haven helpers from gameState.executeSafeHaven / giveRecorder.
+-- Unlocks HasRecorder for the EVP UI (PR8) and restores sanity.
+
+local Haven = {}
+
+-- Relative to haven phase start (doors already open, player stepped off).
+Haven.MOM_STAND_AT = 0.8
+Haven.DAD_STOPS_AT = 3.5
+Haven.RECORDER_AT = 6.4
+Haven.SANITY_AT = 10.4
+Haven.BOARD_AT = 10.4
+Haven.DEPART_AT = 11.4
+
+-- Seconds before stretch end for Mom's "stretch our legs" cue (calm tier).
+Haven.APPROACH_LEAD = 6.5
+
+-- Train handoff if the player refused the platform (web startSegment).
+Haven.TRAIN_HANDOFF_AT = 6.0
+
+function Haven.shouldTrainHandoff(hasRecorder: boolean, stop: number, b: boolean): boolean
+	if hasRecorder then
+		return false
+	end
+	return stop > 6 or (stop == 6 and b)
+end
+
+function Haven.restoreSanity(current: number, amount: number, minValue: number, maxValue: number): number
+	return math.clamp(current + amount, minValue, maxValue)
+end
+
+return Haven
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="11">
         <Properties>
           <string name="Name">Hold</string>
           <string name="Source"><![CDATA[--!strict
@@ -621,7 +1367,7 @@ return Hold
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="9">
+      <Item class="ModuleScript" referent="12">
         <Properties>
           <string name="Name">KeepOut</string>
           <string name="Source"><![CDATA[--!strict
@@ -683,12 +1429,12 @@ return KeepOut
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="10">
+      <Item class="ModuleScript" referent="13">
         <Properties>
           <string name="Name">Lines</string>
           <string name="Source"><![CDATA[--!strict
 -- On-screen strings copied from the web game, plus the dwell banner,
--- the minute board, and the two tell labels. Do not add new dialogue.
+-- the minute board, tell labels, door choice, and Safe Haven lines.
 -- The dwell banner and the board are labels and numbers.
 -- Sources: src/constants.ts (STOPS, the Stop 9 paLie), src/game/gameState.ts
 -- (PA, boarding, the Court Sq line), src/components/HUD.tsx ("Next:"),
@@ -737,9 +1483,31 @@ Lines.DOOR_PROMPT = "The doors are open."
 Lines.MOM_REAL_OFF = "Mom: Hey! Where are you going? Get back in here."
 Lines.MOM_REFUSE_HAVEN = "Mom: You don’t want to stretch your legs? …Okay."
 Lines.MOM_FALSE_FORGIVING = "Mom: Not this one, hon. The doors opened funny."
--- Stubs until Safe Haven (PR6) and False Stop Trial (PR7).
-Lines.HAVEN_STUB = "You step onto the platform. (Safe Haven comes later.) You get back on."
-Lines.TRIAL_STUB = "The platform feels wrong. Mom pulls you back. (The False Stop Trial comes later.)"
+-- Safe Haven (Myrtle–Willoughby). Web executeSafeHaven / giveRecorder.
+Lines.MOM_HAVEN_CUE = "Mom: I think this is our transfer. Let’s stretch our legs."
+Lines.MOM_HAVEN_STAND = "Mom: Feels good to stand up, right?"
+Lines.DAD_HAVEN_STOPS = "Dad: Couple more stops after this. Then Court Square."
+Lines.DAD_RECORDER_HAVEN =
+	"Dad: Here. Your grandfather’s. He used it on the night shift. Never could get it to stop picking up the radio."
+Lines.DAD_RECORDER_TRAIN =
+	"Dad: Here, hold onto this. Your grandfather’s old recorder. Never could get it to stop picking up the radio."
+Lines.RECORDER_HINT = "Dad gave you a tape recorder. Press R to raise it. Tab opens Evidence."
+Lines.RECORDER_NONE = "You don’t have anything to record with."
+Lines.RECORDER_BUSY = "Your hands are full."
+-- Polaroid (web camera / film hints).
+Lines.CAMERA_BUSY = "Answer first."
+Lines.CAMERA_OUT_OF_FILM = "Out of film."
+Lines.CAMERA_HINT = "Press C for the Polaroid. Space snaps. P opens the album strip."
+Lines.CAMERA_FLASH_WATCH = "The flash caught a parent's eye."
+Lines.HAVEN_BOARD = "You get back on with them."
+-- Kept for Doors.resolve signature / older call sites; unused once haven runs.
+Lines.HAVEN_STUB = ""
+Lines.TRIAL_STUB = ""
+-- False Stop Trial (engineTrial.ts).
+Lines.TRIAL_HINT = "Find the way back. The signs lie. Watch the lights when the chime plays."
+Lines.MOM_TRIAL_CLEAN = "Mom: Where did you go?! You can’t just walk off like that!"
+Lines.MOM_TRIAL_ROUGH = "You don’t remember getting back on. Mom: Oh my god. Where were you?"
+Lines.DAD_TRIAL_SIT = "Dad: Sit. Stay where we can see you."
 
 -- ReportScreen: "False flag: {name}"
 function Lines.falseFlag(label: string): string
@@ -783,6 +1551,15 @@ end
 -- Flag labels for the two tells. Not spoken lines.
 Lines.ANNOUNCEMENT = "the announcement"
 Lines.COUNTDOWN = "the countdown"
+Lines.STICKER = "the window sticker"
+Lines.MAPSTOP = "the route map"
+Lines.NEARWORD = "the warped ad"
+Lines.LIGHTTEMP = "the cold light"
+Lines.EMPTY = "the empty car"
+Lines.MAP_NORMAL = "G · Hoyt–Schermerhorn → Court Sq"
+Lines.MAP_HOLLOW = "G · Hollow St (impossible)"
+Lines.AD_NORMAL = "GREENPOINT SAVINGS"
+Lines.AD_WARP = "DONT LOOK BACK"
 
 -- Suspicion HUD. The number is Ride.Suspicion; the word is Ride.Band
 -- (calm / uneasy / watched / hunted from Shared.Band). Display only.
@@ -819,7 +1596,7 @@ return Lines
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="11">
+      <Item class="ModuleScript" referent="14">
         <Properties>
           <string name="Name">Motion</string>
           <string name="Source"><![CDATA[--!strict
@@ -881,7 +1658,7 @@ return Motion
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="12">
+      <Item class="ModuleScript" referent="15">
         <Properties>
           <string name="Name">Passengers</string>
           <string name="Source"><![CDATA[--!strict
@@ -1089,6 +1866,73 @@ local LIST: { PassengerDef } = {
 
 Passengers.LIST = LIST
 
+-- Sparse riders in Cars A and C (web subwayCarBuilder carA/carC). Part
+-- fallback only; optional GLB names reuse existing archetypes when imported.
+local ADJACENT: { PassengerDef } = {
+	{
+		id = "pa1",
+		label = "the commuter reading in Car A",
+		modelName = "passenger_office_standing",
+		x = -18.5,
+		z = -1.3,
+		ry = 0,
+		standing = false,
+		anomaly = false,
+		crowd = false,
+		skin = Color3.fromRGB(210, 166, 121),
+		shirt = Color3.fromRGB(74, 93, 78),
+		pants = Color3.fromRGB(34, 38, 41),
+		hair = Color3.fromRGB(28, 26, 23),
+	},
+	{
+		id = "pa2",
+		label = "the commuter staring ahead in Car A",
+		modelName = "passenger_overcoat",
+		x = -22.0,
+		z = 1.3,
+		ry = math.pi,
+		standing = false,
+		anomaly = false,
+		crowd = false,
+		skin = Color3.fromRGB(166, 116, 88),
+		shirt = Color3.fromRGB(140, 94, 56),
+		pants = Color3.fromRGB(51, 51, 51),
+		hair = Color3.fromRGB(9, 9, 9),
+	},
+	{
+		id = "pc1",
+		label = "the passenger holding the pole in Car C",
+		modelName = "passenger_texter_standing",
+		x = 17.0,
+		z = 0.55,
+		ry = -math.pi / 2,
+		standing = true,
+		anomaly = false,
+		crowd = false,
+		skin = Color3.fromRGB(191, 128, 80),
+		shirt = Color3.fromRGB(46, 59, 82),
+		pants = Color3.fromRGB(31, 32, 34),
+		hair = Color3.fromRGB(24, 21, 18),
+	},
+	{
+		id = "pc2",
+		label = "the hooded passenger in Car C",
+		modelName = "passenger_hoodie_standing",
+		x = 23.5,
+		z = -1.3,
+		ry = 0,
+		standing = false,
+		anomaly = false,
+		crowd = false,
+		skin = Color3.fromRGB(230, 194, 165),
+		shirt = Color3.fromRGB(31, 31, 36),
+		pants = Color3.fromRGB(45, 45, 51),
+		hair = Color3.fromRGB(10, 10, 12),
+	},
+}
+
+Passengers.ADJACENT = ADJACENT
+
 -- Names to try under ReplicatedStorage.Models. Seated riders prefer the
 -- seated NPC export from Bill's blend; standing riders prefer the standing one.
 -- The older manifest file name still works.
@@ -1133,15 +1977,88 @@ return Passengers
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="13">
+      <Item class="ModuleScript" referent="16">
+        <Properties>
+          <string name="Name">Polaroid</string>
+          <string name="Source"><![CDATA[--!strict
+-- Polaroid 600 rules from polaroidManager.ts / engineTools.ts.
+-- A shot privately records framed anomalies; the stop scores them like a flag.
+-- Flash may raise suspicion when parents are alert, or make one glance.
+
+local Polaroid = {}
+
+Polaroid.STARTING_FILM = 8
+Polaroid.MAX_FILM = 10
+Polaroid.SHUTTER_COOLDOWN = 0.9
+Polaroid.FLASH_GLANCE_CHANCE = 0.5
+-- Web frustum cone (~0.65 rad) and max distance (18 m).
+Polaroid.CONE_RAD = 0.65
+Polaroid.MAX_RANGE_M = 18
+-- SUS.visible in constants.ts
+Polaroid.FLASH_WATCH_SUSPICION = 10
+
+export type Photo = {
+	id: string,
+	stop: string,
+	framed: { string },
+	developed: boolean,
+}
+
+function Polaroid.inFrame(camPos: Vector3, lookDir: Vector3, targetPos: Vector3, studsPerMeter: number): boolean
+	local ox = targetPos.X - camPos.X
+	local oy = targetPos.Y - camPos.Y
+	local oz = targetPos.Z - camPos.Z
+	local dist = math.sqrt(ox * ox + oy * oy + oz * oz)
+	if dist > Polaroid.MAX_RANGE_M * studsPerMeter or dist < 0.05 then
+		return false
+	end
+	local lookLen = math.sqrt(lookDir.X * lookDir.X + lookDir.Y * lookDir.Y + lookDir.Z * lookDir.Z)
+	if lookLen < 0.05 then
+		return false
+	end
+	local lx = lookDir.X / lookLen
+	local ly = lookDir.Y / lookLen
+	local lz = lookDir.Z / lookLen
+	local tx = ox / dist
+	local ty = oy / dist
+	local tz = oz / dist
+	local cosAngle = lx * tx + ly * ty + lz * tz
+	-- angle < CONE_RAD ⇔ cos > cos(CONE_RAD)
+	return cosAngle >= math.cos(Polaroid.CONE_RAD)
+end
+
+function Polaroid.photoCatches(framed: { string }, liveIds: { string }): boolean
+	for _, framedId in framed do
+		for _, liveId in liveIds do
+			if framedId == liveId then
+				return true
+			end
+		end
+	end
+	return false
+end
+
+-- Watched/hunted bands: parents are alert enough that a flash counts as visible.
+function Polaroid.flashWatched(band: string): boolean
+	return band == "watched" or band == "hunted"
+end
+
+function Polaroid.clampFilm(n: number): number
+	return math.clamp(math.floor(n + 0.5), 0, Polaroid.MAX_FILM)
+end
+
+return Polaroid
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="17">
         <Properties>
           <string name="Name">Route</string>
           <string name="Source"><![CDATA[--!strict
 -- G train stops and the stretch table from src/constants.ts (STOPS, SEGS,
--- CHAPTERS). Only the fields this slice plays are kept: the name, whether the
--- stretch is real / false / haven, which arrival tick it uses, and whether
--- the PA stays quiet. Parent chats, mask checks, the haven, and the trial
--- are not in this slice.
+-- CHAPTERS). Fields this slice plays: name, real / false / haven, arrival
+-- tick, quiet PA, parent chat index, and mask check times (seconds into the
+-- stretch, fitted to sliceCruise). Safe Haven runs at kind "haven"; the trial stays out.
 
 local Route = {}
 
@@ -1159,6 +2076,10 @@ export type Segment = {
 	-- Classon Av only. Mom pulls you back; no trial.
 	forgiving: boolean,
 	paLie: string?,
+	-- Web SEGS.chat index into CHATS / calm swaps. Nil = no chat on this stretch.
+	chat: number?,
+	-- Seconds into the stretch when a mask check starts (slice-scaled).
+	masks: { number }?,
 	-- Web cruise is 26 unless noted. The slice uses a shorter cruise.
 	sliceCruise: number,
 }
@@ -1189,15 +2110,15 @@ local CHAPTERS = {
 -- Same order as SEGS. sliceCruise is the shortened stand-in for the web cruise
 -- (26, or the override on 6b and the last stretch).
 local SEGMENTS: { Segment } = {
-	{ stop = 2, b = false, kind = "real", tick = nil, silent = false, crowd = false, final = false, forgiving = false, paLie = nil, sliceCruise = 12 },
-	{ stop = 3, b = false, kind = "real", tick = nil, silent = false, crowd = false, final = false, forgiving = false, paLie = nil, sliceCruise = 12 },
-	{ stop = 4, b = false, kind = "false", tick = "doors", silent = false, crowd = false, final = false, forgiving = true, paLie = nil, sliceCruise = 12 },
-	{ stop = 5, b = false, kind = "real", tick = nil, silent = false, crowd = false, final = false, forgiving = false, paLie = nil, sliceCruise = 12 },
-	{ stop = 6, b = false, kind = "haven", tick = nil, silent = false, crowd = false, final = false, forgiving = false, paLie = nil, sliceCruise = 12 },
+	{ stop = 2, b = false, kind = "real", tick = nil, silent = false, crowd = false, final = false, forgiving = false, paLie = nil, chat = nil, masks = nil, sliceCruise = 12 },
+	{ stop = 3, b = false, kind = "real", tick = nil, silent = false, crowd = false, final = false, forgiving = false, paLie = nil, chat = 0, masks = { 12 }, sliceCruise = 12 },
+	{ stop = 4, b = false, kind = "false", tick = "doors", silent = false, crowd = false, final = false, forgiving = true, paLie = nil, chat = nil, masks = nil, sliceCruise = 12 },
+	{ stop = 5, b = false, kind = "real", tick = nil, silent = false, crowd = false, final = false, forgiving = false, paLie = nil, chat = 1, masks = { 12 }, sliceCruise = 12 },
+	{ stop = 6, b = false, kind = "haven", tick = nil, silent = false, crowd = false, final = false, forgiving = false, paLie = nil, chat = nil, masks = nil, sliceCruise = 12 },
 	-- 6b. No announcement. The arrival flicker is the whole-car blackout.
-	{ stop = 6, b = true, kind = "false", tick = "flicker", silent = true, crowd = false, final = false, forgiving = false, paLie = nil, sliceCruise = 8 },
-	{ stop = 7, b = false, kind = "real", tick = nil, silent = false, crowd = true, final = false, forgiving = false, paLie = nil, sliceCruise = 12 },
-	{ stop = 8, b = false, kind = "real", tick = nil, silent = false, crowd = true, final = false, forgiving = false, paLie = nil, sliceCruise = 12 },
+	{ stop = 6, b = true, kind = "false", tick = "flicker", silent = true, crowd = false, final = false, forgiving = false, paLie = nil, chat = nil, masks = nil, sliceCruise = 8 },
+	{ stop = 7, b = false, kind = "real", tick = nil, silent = false, crowd = true, final = false, forgiving = false, paLie = nil, chat = 2, masks = { 12 }, sliceCruise = 12 },
+	{ stop = 8, b = false, kind = "real", tick = nil, silent = false, crowd = true, final = false, forgiving = false, paLie = nil, chat = 3, masks = { 8, 13 }, sliceCruise = 12 },
 	{
 		stop = 9,
 		b = false,
@@ -1208,13 +2129,15 @@ local SEGMENTS: { Segment } = {
 		final = false,
 		forgiving = false,
 		paLie = "This is Court Square. Last stop. Everybody off the train.",
+		chat = nil,
+		masks = nil,
 		sliceCruise = 12,
 	},
-	{ stop = 10, b = false, kind = "real", tick = nil, silent = false, crowd = false, final = false, forgiving = false, paLie = nil, sliceCruise = 12 },
-	{ stop = 11, b = false, kind = "real", tick = nil, silent = false, crowd = false, final = false, forgiving = false, paLie = nil, sliceCruise = 12 },
+	{ stop = 10, b = false, kind = "real", tick = nil, silent = false, crowd = false, final = false, forgiving = false, paLie = nil, chat = 4, masks = { 12 }, sliceCruise = 12 },
+	{ stop = 11, b = false, kind = "real", tick = nil, silent = false, crowd = false, final = false, forgiving = false, paLie = nil, chat = nil, masks = nil, sliceCruise = 12 },
 	-- 21 St. False stop. Flicker tick: the lights go out for 0.16 s. No "This is".
-	{ stop = 12, b = false, kind = "false", tick = "flicker", silent = false, crowd = false, final = false, forgiving = false, paLie = nil, sliceCruise = 12 },
-	{ stop = 13, b = false, kind = "real", tick = nil, silent = false, crowd = false, final = true, forgiving = false, paLie = nil, sliceCruise = 10 },
+	{ stop = 12, b = false, kind = "false", tick = "flicker", silent = false, crowd = false, final = false, forgiving = false, paLie = nil, chat = nil, masks = { 12 }, sliceCruise = 12 },
+	{ stop = 13, b = false, kind = "real", tick = nil, silent = false, crowd = false, final = true, forgiving = false, paLie = nil, chat = nil, masks = nil, sliceCruise = 10 },
 }
 
 Route.SEGMENTS = SEGMENTS
@@ -1223,8 +2146,22 @@ function Route.stopName(stop: number): string
 	return STOPS[stop] or ""
 end
 
--- HUD chapter line. "CAR B (MID)" is the only car in this slice.
-function Route.chapterLine(stop: number): string
+-- Web gameState currentCarIndex thresholds (metres along the consist).
+Route.CAR_A_MAX_X = -10.2
+Route.CAR_C_MIN_X = 10.2
+
+function Route.carLabel(xMetres: number): string
+	if xMetres < Route.CAR_A_MAX_X then
+		return "CAR A (LEAD)"
+	elseif xMetres > Route.CAR_C_MIN_X then
+		return "CAR C (REAR)"
+	end
+	return "CAR B (MID)"
+end
+
+-- HUD chapter line. Car letter defaults to mid until the client swaps it
+-- from the player's position.
+function Route.chapterLine(stop: number, carLabel: string?): string
 	local numeral = "I"
 	local title = "THE DESCENT"
 	for _, chapter in CHAPTERS do
@@ -1234,7 +2171,16 @@ function Route.chapterLine(stop: number): string
 			break
 		end
 	end
-	return "CH. " .. numeral .. " · " .. title .. " · CAR B (MID)"
+	return "CH. " .. numeral .. " · " .. title .. " · " .. (carLabel or "CAR B (MID)")
+end
+
+-- Replace the trailing car tag on a chapter line (server still ships MID).
+function Route.withCarLabel(chapterLine: string, carLabel: string): string
+	local replaced, count = string.gsub(chapterLine, "CAR [ABC] %([^%)]+%)", carLabel, 1)
+	if count > 0 then
+		return replaced
+	end
+	return chapterLine .. " · " .. carLabel
 end
 
 function Route.segmentLength(segment: Segment, accel: number, brake: number): number
@@ -1245,7 +2191,7 @@ return Route
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="14">
+      <Item class="ModuleScript" referent="18">
         <Properties>
           <string name="Name">Score</string>
           <string name="Source"><![CDATA[--!strict
@@ -1313,13 +2259,330 @@ return Score
 ]]></string>
         </Properties>
       </Item>
+      <Item class="ModuleScript" referent="19">
+        <Properties>
+          <string name="Name">Trestle</string>
+          <string name="Source"><![CDATA[--!strict
+-- Newtown Creek trestle timing from gameState.ts (G route only).
+-- Exit mouth ~25% of the way to 21 St; re-enter ~60% of the way to Court Sq.
+
+local Trestle = {}
+
+-- Web TRESTLE_FOG #322018 — sodium dusk haze outside (RGB for WorldLight).
+Trestle.FOG_RGB = { 50, 32, 24 }
+Trestle.TUNNEL_FOG_RGB = { 4, 5, 4 }
+-- Tunnel fog stays near WorldLight defaults (near/far in studs at 3 studs/m).
+Trestle.TUNNEL_FOG_START = 27
+Trestle.TUNNEL_FOG_END = 90
+-- Open air pushes fog farther (web +5 near / +55 far metres).
+Trestle.OPEN_FOG_START = 27 + 5 * 3
+Trestle.OPEN_FOG_END = 90 + 55 * 3
+
+-- How many metres of odo to blend tunnel ↔ open after a mouth.
+Trestle.BLEND_M = 40
+
+export type Plan = {
+	-- Odo where the train leaves the tunnel (Infinity = never this stretch).
+	exitAt: number,
+	-- Odo where the train re-enters (nil = not this stretch).
+	enterAt: number?,
+}
+
+function Trestle.plan(stop: number, b: boolean, origin: number, segDist: number): Plan
+	if stop == 12 and not b then
+		return {
+			exitAt = origin + 0.25 * segDist,
+			enterAt = nil,
+		}
+	end
+	if stop == 13 then
+		return {
+			exitAt = -math.huge,
+			enterAt = origin + 0.6 * segDist,
+		}
+	end
+	return {
+		exitAt = math.huge,
+		enterAt = nil,
+	}
+end
+
+-- 0 = fully in tunnel, 1 = fully outside (car middle).
+function Trestle.outsideLevel(odo: number, plan: Plan): number
+	local exitAt = plan.exitAt
+	local enterAt = plan.enterAt
+	if enterAt == nil then
+		if exitAt >= math.huge then
+			return 0
+		end
+		if odo < exitAt then
+			return 0
+		end
+		return math.clamp((odo - exitAt) / Trestle.BLEND_M, 0, 1)
+	end
+	-- Already outside at the start of the Court Sq stretch.
+	if odo < enterAt then
+		return 1
+	end
+	return math.clamp(1 - (odo - enterAt) / Trestle.BLEND_M, 0, 1)
+end
+
+function Trestle.show(level: number): boolean
+	return level > 0.05
+end
+
+-- Arriving platform is open-air on the 21 St approach; leaving is open when
+-- departing 21 St toward Court Sq.
+function Trestle.arrivingOpenAir(stop: number, b: boolean): boolean
+	return stop == 12 and not b
+end
+
+function Trestle.leavingOpenAir(stop: number): boolean
+	return stop == 13
+end
+
+return Trestle
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="20">
+        <Properties>
+          <string name="Name">Trial</string>
+          <string name="Source"><![CDATA[--!strict
+-- False Stop Trial loop from src/game/engineTrial.ts.
+-- Signs lie; the chime marks the honest light / door. Visuals live in TrialSpace.
+
+local Trial = {}
+
+export type Mode = "paths" | "board"
+
+export type State = {
+	depth: number,
+	need: number,
+	mode: Mode,
+	correct: number,
+	stopName: string,
+}
+
+export type ChoiceItem = {
+	text: string,
+	val: number,
+}
+
+export type RoundView = {
+	signs: { string },
+	items: { ChoiceItem },
+	windowSeconds: number, -- 0 = no timeout
+	boardDoors: boolean,
+}
+
+export type PickResult = {
+	kind: "continue" | "exit",
+	clean: boolean?,
+	subtitle: string,
+	state: State,
+}
+
+local TERMINUS_SIGN = "Court Sq"
+local TERMINUS = "Court Square"
+local OPPOSITE = "Church Av"
+local ORIGIN = "Hoyt–Schermerhorn"
+local LINE = "G"
+
+local function shuffle(list: { string }, rng: () -> number): { string }
+	local out = table.clone(list)
+	for i = #out, 2, -1 do
+		local j = math.clamp(math.floor(rng() * i) + 1, 1, i)
+		out[i], out[j] = out[j], out[i]
+	end
+	return out
+end
+
+function Trial.start(stopName: string): State
+	return {
+		depth = 0,
+		need = 2,
+		mode = "paths",
+		correct = 0,
+		stopName = stopName,
+	}
+end
+
+function Trial.windowSeconds(depth: number): number
+	if depth == 0 then
+		return 0
+	end
+	return math.max(7, 14 - depth * 2)
+end
+
+function Trial.round(state: State, rng: () -> number): (State, RoundView)
+	local d = state.depth
+	local correct = if state.mode == "paths"
+		then math.clamp(math.floor(rng() * 3), 0, 2)
+		else (if rng() < 0.5 then 0 else 2)
+	state.correct = correct
+
+	local toward = "To " .. TERMINUS_SIGN .. " trains"
+	local pools = {
+		{ toward, "Exit", "To " .. OPPOSITE .. " trains" },
+		{ toward, toward, toward },
+		{
+			toward:gsub("^To (%S)(%S)", "To %2%1"):gsub("trains$", "trians"),
+			"Ext",
+			"To You",
+		},
+		{ ORIGIN, ORIGIN, ORIGIN },
+	}
+	local pool = pools[math.min(d, 3) + 1]
+	local signs = shuffle(pool, rng)
+
+	local boardDoors = state.mode == "board"
+	if boardDoors then
+		signs = {
+			TERMINUS_SIGN .. "-bound " .. LINE,
+			"—",
+			TERMINUS_SIGN .. "-bound " .. LINE,
+		}
+	end
+
+	local items: { ChoiceItem }
+	if state.mode == "paths" then
+		local pathLabels = {
+			{ "Left stairs", "Turnstiles", "Right stairs" },
+			{ "Left stairs", "Middle stairs", "Right stairs" },
+			{ "Down", "Down", "Down" },
+		}
+		local labels = pathLabels[math.min(d, 2) + 1]
+		items = {
+			{ text = labels[1], val = 0 },
+			{ text = labels[2], val = 1 },
+			{ text = labels[3], val = 2 },
+		}
+	else
+		items = {
+			{ text = "Board the left train", val = 0 },
+			{ text = "Board the right train", val = 2 },
+		}
+	end
+
+	return state, {
+		signs = signs,
+		items = items,
+		windowSeconds = Trial.windowSeconds(d),
+		boardDoors = boardDoors,
+	}
+end
+
+function Trial.applyPick(state: State, val: number?): PickResult
+	local ok = val ~= nil and val == state.correct
+	if state.mode == "paths" then
+		if ok then
+			state.need -= 1
+			local sub = if state.need > 0
+				then "The stairs go down to another platform."
+				else "You come out at the platform edge. Two trains are coming."
+			if state.need <= 0 then
+				state.mode = "board"
+			end
+			return { kind = "continue", subtitle = sub, state = state }
+		end
+		state.depth += 1
+		state.need = math.min(state.need + 1, 3)
+		if state.depth >= 4 then
+			return {
+				kind = "exit",
+				clean = false,
+				subtitle = "The stairs bring you back up onto the same platform. It’s quieter now.",
+				state = state,
+			}
+		end
+		return {
+			kind = "continue",
+			subtitle = "The stairs bring you back up onto the same platform. It’s quieter now.",
+			state = state,
+		}
+	end
+
+	-- board
+	if ok then
+		return { kind = "exit", clean = true, subtitle = "", state = state }
+	end
+	state.depth += 1
+	state.mode = "paths"
+	state.need = 1
+	if state.depth >= 4 then
+		return {
+			kind = "exit",
+			clean = false,
+			subtitle = "The doors close on nothing. You’re back on the stairs.",
+			state = state,
+		}
+	end
+	return {
+		kind = "continue",
+		subtitle = "The doors close on nothing. You’re back on the stairs.",
+		state = state,
+	}
+end
+
+-- Chime cycle events for paths (flick correct first) or board (open/close).
+export type CycleEvent = {
+	at: number,
+	index: number,
+	kind: "flick" | "open" | "close",
+}
+
+function Trial.cycleEvents(state: State, rng: () -> number): { CycleEvent }
+	local events: { CycleEvent } = {}
+	if state.mode == "paths" then
+		table.insert(events, { at = 0, index = state.correct, kind = "flick" })
+		for i = 0, 2 do
+			if i ~= state.correct then
+				table.insert(events, {
+					at = 0.8 + rng() * 2.2,
+					index = i,
+					kind = "flick",
+				})
+			end
+		end
+		if state.depth >= 1 then
+			local decoys = {}
+			for i = 0, 2 do
+				if i ~= state.correct then
+					table.insert(decoys, i)
+				end
+			end
+			local decoy = decoys[math.clamp(math.floor(rng() * #decoys) + 1, 1, #decoys)]
+			table.insert(events, {
+				at = 0.22 + rng() * 0.13,
+				index = decoy,
+				kind = "flick",
+			})
+		end
+	else
+		local fake = if state.correct == 0 then 2 else 0
+		table.insert(events, { at = 1.95, index = state.correct, kind = "open" })
+		table.insert(events, { at = 1.15, index = fake, kind = "open" })
+		table.insert(events, { at = 3.2, index = 0, kind = "close" })
+		table.insert(events, { at = 3.2, index = 2, kind = "close" })
+	end
+	return events
+end
+
+Trial.CYCLE = 3.6
+Trial.TERMINUS = TERMINUS
+
+return Trial
+]]></string>
+        </Properties>
+      </Item>
     </Item>
   </Item>
-  <Item class="ServerScriptService" referent="15">
+  <Item class="ServerScriptService" referent="21">
     <Properties>
       <string name="Name">ServerScriptService</string>
     </Properties>
-    <Item class="Script" referent="16">
+    <Item class="Script" referent="22">
       <Properties>
         <string name="Name">Server</string>
         <token name="RunContext">0</token>
@@ -1378,7 +2641,7 @@ for _, player in Players:GetPlayers() do
 end
 ]]></string>
       </Properties>
-      <Item class="ModuleScript" referent="17">
+      <Item class="ModuleScript" referent="23">
         <Properties>
           <string name="Name">AnomalySystem</string>
           <string name="Source"><![CDATA[--!strict
@@ -1386,26 +2649,75 @@ end
 -- stop gets, applies it, and validates flags with verdict(). The arrival
 -- PA lie in Route is a separate scripted line. It is not this catalog.
 -- "extra" is the far-seat passenger (seat6): hidden at boarding, shown
--- mid-stretch, cleared on arrival. It is not a wall plate.
+-- mid-stretch, cleared on arrival. New types (lighttemp, sticker, mapstop,
+-- moved, empty, nearword, faceturn, momface) follow web anomalyManager.ts
+-- with NEAR_X fair-reach for close-look tells.
 
 local AnomalySystem = {}
+
+-- Web NEAR_X: small / readable tells only within this many metres of the seat.
+AnomalySystem.NEAR_X = 5
 
 AnomalySystem.ANNOUNCE_ID = "announcement"
 AnomalySystem.COUNTDOWN_ID = "countdown"
 AnomalySystem.EXTRA_ID = "seat6"
+AnomalySystem.STICKER_ID = "sticker"
+AnomalySystem.MAP_ID = "mapstop"
+AnomalySystem.NEARWORD_ID = "nearword"
+AnomalySystem.LIGHT_ID = "lighttemp"
+AnomalySystem.EMPTY_ID = "empty"
+AnomalySystem.MOVED_ID = "s3"
+AnomalySystem.FACETURN_ID = "s2"
+AnomalySystem.MOMFACE_ID = "mom"
 
 export type Schedule = {
 	posterStop: number,
 	extraStop: number,
 	announceStop: number,
 	countdownStop: number,
+	lighttempStop: number?,
+	stickerStop: number?,
+	nearwordStop: number?,
+	mapstopStop: number?,
+	movedStop: number?,
+	emptyStop: number?,
+	faceturnStop: number?,
+	momfaceStop: number?,
 }
 
 function AnomalySystem.types(): { string }
-	return { "poster_changed", "extra", "wrong_announcement", "wrong_countdown" }
+	return {
+		"poster_changed",
+		"extra",
+		"wrong_announcement",
+		"wrong_countdown",
+		"lighttemp",
+		"sticker",
+		"nearword",
+		"mapstop",
+		"moved",
+		"empty",
+		"faceturn",
+		"momface",
+	}
 end
 
--- At most one tell. A repeated stop number keeps the earlier entry.
+function AnomalySystem.isNear(xMetres: number): boolean
+	return math.abs(xMetres) <= AnomalySystem.NEAR_X
+end
+
+-- Candidate X positions for close-look props (must pass isNear).
+function AnomalySystem.nearSlots(): { number }
+	return { -4.5, -3.0, -1.5, 0, 1.5, 3.0, 4.5 }
+end
+
+function AnomalySystem.pickNearSlot(seed: number): number
+	local slots = AnomalySystem.nearSlots()
+	local index = (math.floor(math.abs(seed)) % #slots) + 1
+	return slots[index]
+end
+
+-- At most one tell. Earlier schedule entries win when stops collide.
 -- b stretches (the silent 6b blackout) get none.
 function AnomalySystem.pick(stop: number, b: boolean, schedule: Schedule): string?
 	if b then
@@ -1422,6 +2734,30 @@ function AnomalySystem.pick(stop: number, b: boolean, schedule: Schedule): strin
 	end
 	if stop == schedule.countdownStop then
 		return "wrong_countdown"
+	end
+	if schedule.lighttempStop ~= nil and stop == schedule.lighttempStop then
+		return "lighttemp"
+	end
+	if schedule.stickerStop ~= nil and stop == schedule.stickerStop then
+		return "sticker"
+	end
+	if schedule.nearwordStop ~= nil and stop == schedule.nearwordStop then
+		return "nearword"
+	end
+	if schedule.mapstopStop ~= nil and stop == schedule.mapstopStop then
+		return "mapstop"
+	end
+	if schedule.movedStop ~= nil and stop == schedule.movedStop then
+		return "moved"
+	end
+	if schedule.emptyStop ~= nil and stop == schedule.emptyStop then
+		return "empty"
+	end
+	if schedule.faceturnStop ~= nil and stop == schedule.faceturnStop then
+		return "faceturn"
+	end
+	if schedule.momfaceStop ~= nil and stop == schedule.momfaceStop then
+		return "momface"
 	end
 	return nil
 end
@@ -1458,7 +2794,7 @@ return AnomalySystem
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="18">
+      <Item class="ModuleScript" referent="24">
         <Properties>
           <string name="Name">CarBuilder</string>
           <string name="Source"><![CDATA[--!strict
@@ -1472,6 +2808,8 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Constants = require(ReplicatedStorage.Shared.Constants)
 local KeepOut = require(ReplicatedStorage.Shared.KeepOut)
 local Passengers = require(ReplicatedStorage.Shared.Passengers)
+local Consist = require(script.Parent.Consist)
+local AnomalySystem = require(script.Parent.AnomalySystem)
 
 local CarBuilder = {}
 
@@ -2104,6 +3442,8 @@ local function hidePartCarVisuals(car: Model)
 		ShellWall = true,
 		Bulkhead = true,
 		GangwayDoor = true,
+		FrontGangwayDoor = true,
+		RearGangwayDoor = true,
 		Lintel = true,
 		Ceiling = true,
 	}
@@ -2358,8 +3698,9 @@ function CarBuilder.build(): BuiltCar
 			color = Constants.COLOR.wall,
 			material = Enum.Material.Concrete,
 		})
+		-- Consist wires ProximityPrompt open/close. Closed until the player opens.
 		makePart({
-			name = "GangwayDoor",
+			name = if x < 0 then "FrontGangwayDoor" else "RearGangwayDoor",
 			parent = shell,
 			size = sizeM(0.12, 2.15, 0.96),
 			cframe = CFrame.new(metres(x, 1.08, 0)),
@@ -2453,13 +3794,23 @@ function CarBuilder.build(): BuiltCar
 		warn(string.format("[Last Local] Only %d passengers are in the car; the fallback figures did not all spawn.", riding))
 	end
 
-	return {
+	local built: BuiltCar = {
 		model = car,
 		doors = doors,
 		lamps = lamps,
 		passengers = passengers,
 		board = board,
 	}
+	Consist.attach({
+		model = car,
+		passengers = passengers,
+		spawnPassenger = buildPassenger,
+	})
+	return built
+end
+
+function CarBuilder.spawnPassenger(def: Passengers.PassengerDef, folder: Folder): string
+	return buildPassenger(def, folder)
 end
 
 -- Two plates on the wall. Hidden until a tell is active. The player flags
@@ -2498,11 +3849,643 @@ function CarBuilder.addTells(folder: Folder, announceId: string, announceLabel: 
 	plate(boardId, boardLabel, "wrong_countdown", 1.15)
 end
 
+local function catalogPlate(
+	folder: Folder,
+	id: string,
+	label: string,
+	kind: string,
+	x: number,
+	y: number,
+	z: number,
+	size: Vector3,
+	color: Color3,
+	hidden: boolean
+): Model
+	local model = Instance.new("Model")
+	model.Name = id
+	model:SetAttribute("PassengerId", id)
+	model:SetAttribute("Label", label)
+	model:SetAttribute("Anomaly", false)
+	model:SetAttribute("Hidden", hidden)
+	model:SetAttribute("Tell", kind)
+	model:SetAttribute("Crowd", false)
+	local part = Instance.new("Part")
+	part.Name = "Sign"
+	part.Anchored = true
+	part.Size = size
+	part.CFrame = CFrame.new(metres(x, y, z))
+	part.Color = color
+	part.Material = Enum.Material.SmoothPlastic
+	part.TopSurface = Enum.SurfaceType.Smooth
+	part.BottomSurface = Enum.SurfaceType.Smooth
+	part.CanCollide = false
+	part.CanTouch = false
+	part.CanQuery = not hidden
+	part.Transparency = if hidden then 1 else 0
+	part:SetAttribute("PassengerId", id)
+	part.Parent = model
+	model.PrimaryPart = part
+	model:PivotTo(part.CFrame)
+	model.Parent = folder
+	return model
+end
+
+local function surfaceLabel(part: BasePart, text: string, textSize: number)
+	local gui = Instance.new("SurfaceGui")
+	gui.Name = "Label"
+	gui.Face = Enum.NormalId.Front
+	gui.LightInfluence = 0
+	gui.MaxDistance = 80
+	gui.CanvasSize = Vector2.new(256, 64)
+	gui.Parent = part
+	local label = Instance.new("TextLabel")
+	label.Name = "Text"
+	label.BackgroundTransparency = 1
+	label.Size = UDim2.fromScale(1, 1)
+	label.Font = Enum.Font.GothamBold
+	label.TextColor3 = Constants.COLOR.cream
+	label.TextScaled = false
+	label.TextSize = textSize
+	label.Text = text
+	label.TextWrapped = true
+	label.Parent = gui
+end
+
+-- Props for the expanded catalog. Close-look ones sit within NEAR_X of the seat.
+function CarBuilder.addCatalogProps(folder: Folder)
+	local nearX = AnomalySystem.pickNearSlot(2)
+
+	-- Window sticker / stain (hidden until active).
+	local sticker = catalogPlate(
+		folder,
+		AnomalySystem.STICKER_ID,
+		"the window sticker",
+		"sticker",
+		nearX,
+		1.35,
+		-1.48,
+		sizeM(0.28, 0.28, 0.02),
+		Color3.fromRGB(240, 210, 40),
+		true
+	)
+	sticker:SetAttribute("Catalog", "sticker")
+
+	-- Route map (always visible; text swaps when mapstop is live).
+	local map = catalogPlate(
+		folder,
+		AnomalySystem.MAP_ID,
+		"the route map",
+		"mapstop",
+		-1.2,
+		1.7,
+		-1.4,
+		sizeM(1.1, 0.55, 0.04),
+		Color3.fromRGB(20, 28, 24),
+		false
+	)
+	map:SetAttribute("Catalog", "mapstop")
+	local mapPart = map.PrimaryPart
+	if mapPart ~= nil then
+		surfaceLabel(mapPart, "G · Hoyt–Schermerhorn → Court Sq", 14)
+	end
+
+	-- Ad that can warp (near only). Visible always; text swaps on nearword.
+	local ad = catalogPlate(
+		folder,
+		AnomalySystem.NEARWORD_ID,
+		"the warped ad",
+		"nearword",
+		nearX,
+		2.02,
+		-1.4,
+		sizeM(1.0, 0.36, 0.04),
+		Color3.fromRGB(20, 60, 43),
+		false
+	)
+	ad:SetAttribute("Catalog", "nearword")
+	local adPart = ad.PrimaryPart
+	if adPart ~= nil then
+		surfaceLabel(adPart, "GREENPOINT SAVINGS", 16)
+	end
+
+	-- Empty-car tell plate (hidden until empty is live).
+	catalogPlate(
+		folder,
+		AnomalySystem.EMPTY_ID,
+		"the empty car",
+		"empty",
+		0,
+		1.2,
+		0,
+		sizeM(0.4, 0.4, 0.4),
+		Constants.COLOR.dark,
+		true
+	)
+
+	-- Cold-light tell: ties to a near LightStrip by name attribute for Ride.
+	local light = catalogPlate(
+		folder,
+		AnomalySystem.LIGHT_ID,
+		"the cold light",
+		"lighttemp",
+		2.0,
+		2.35,
+		-0.62,
+		sizeM(0.5, 0.08, 0.2),
+		Constants.COLOR.dark,
+		true
+	)
+	light:SetAttribute("Catalog", "lighttemp")
+	light:SetAttribute("StripName", "LightStrip_02")
+end
+
 return CarBuilder
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="19">
+      <Item class="ModuleScript" referent="25">
+        <Properties>
+          <string name="Name">Consist</string>
+          <string name="Source"><![CDATA[--!strict
+-- Cars A (lead) and C (rear) plus walkable gangways. Layout matches
+-- subwayCarBuilder.buildAdjacentCars / buildGangways (centres ±19.5 m).
+-- Part shells are the default; Models.Car_A / Car_C are optional visuals.
+-- Anomalies stay on Car B. Trestle stays out.
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Constants = require(ReplicatedStorage.Shared.Constants)
+local Passengers = require(ReplicatedStorage.Shared.Passengers)
+
+local Consist = {}
+
+type BuiltCar = {
+	model: Model,
+	passengers: Folder,
+	spawnPassenger: (Passengers.PassengerDef, Folder) -> string,
+}
+
+local function metres(x: number, y: number, z: number): Vector3
+	local s = Constants.STUDS_PER_METER
+	return Vector3.new(x * s, y * s, z * s)
+end
+
+local function sizeM(x: number, y: number, z: number): Vector3
+	return metres(x, y, z)
+end
+
+local function makePart(opts: {
+	name: string,
+	parent: Instance,
+	size: Vector3,
+	cframe: CFrame,
+	color: Color3?,
+	material: Enum.Material?,
+	transparency: number?,
+	collide: boolean?,
+	shape: Enum.PartType?,
+}): Part
+	local part = Instance.new("Part")
+	part.Name = opts.name
+	part.Anchored = true
+	part.Size = opts.size
+	part.CFrame = opts.cframe
+	part.Color = opts.color or Constants.COLOR.wall
+	part.Material = opts.material or Enum.Material.SmoothPlastic
+	part.Transparency = opts.transparency or 0
+	part.CanCollide = if opts.collide == nil then true else opts.collide
+	part.CanTouch = false
+	part.CanQuery = true
+	part.TopSurface = Enum.SurfaceType.Smooth
+	part.BottomSurface = Enum.SurfaceType.Smooth
+	if opts.shape ~= nil then
+		part.Shape = opts.shape
+	end
+	part.Parent = opts.parent
+	return part
+end
+
+local function tryVisualCar(name: string, parent: Model, centerX: number): boolean
+	local models = ReplicatedStorage:FindFirstChild("Models")
+	if models == nil then
+		return false
+	end
+	local template = models:FindFirstChild(name) or models:FindFirstChild(string.lower(name))
+	if template == nil or not template:IsA("Model") then
+		return false
+	end
+	local clone = template:Clone()
+	clone.Name = name .. "_Mesh"
+	for _, desc in clone:GetDescendants() do
+		if desc:IsA("BasePart") then
+			desc.Anchored = true
+			desc.CanCollide = false
+			desc.CanTouch = false
+			desc.Massless = true
+		elseif desc:IsA("BaseScript") or desc:IsA("Humanoid") then
+			desc:Destroy()
+		end
+	end
+	clone.Parent = parent
+	local ok = pcall(function()
+		clone:PivotTo(CFrame.new(metres(centerX, 0, 0)))
+	end)
+	if not ok then
+		clone:Destroy()
+		return false
+	end
+	return true
+end
+
+local function buildShell(name: string, centerX: number, benchSpans: { { number } }, poleXs: { number }, lightXs: { number }, gangwayX: number, cabX: number): Model
+	local car = Instance.new("Model")
+	car.Name = name
+
+	local shell = Instance.new("Folder")
+	shell.Name = "Shell"
+	shell.Parent = car
+	local seats = Instance.new("Folder")
+	seats.Name = "Seats"
+	seats.Parent = car
+	local poleFolder = Instance.new("Folder")
+	poleFolder.Name = "Poles"
+	poleFolder.Parent = car
+	local lightFolder = Instance.new("Folder")
+	lightFolder.Name = "Lights"
+	lightFolder.Parent = car
+
+	makePart({
+		name = "Floor",
+		parent = shell,
+		size = sizeM(18, 0.4, 3.06),
+		cframe = CFrame.new(metres(centerX, -0.2, 0)),
+		color = Constants.COLOR.floor,
+		material = Enum.Material.Concrete,
+	})
+	for _, side in { -1, 1 } do
+		makePart({
+			name = "ShellWall",
+			parent = shell,
+			size = sizeM(18.2, 2.5, 0.08),
+			cframe = CFrame.new(metres(centerX, 1.25, side * 1.58)),
+			transparency = 1,
+		})
+	end
+	makePart({
+		name = "Ceiling",
+		parent = shell,
+		size = sizeM(18, 0.08, 3.06),
+		cframe = CFrame.new(metres(centerX, 2.46, 0)),
+		color = Constants.COLOR.ceiling,
+		material = Enum.Material.Concrete,
+	})
+
+	for _, side in { -1, 1 } do
+		local z = side * 1.53
+		makePart({
+			name = "Kickboard",
+			parent = shell,
+			size = sizeM(18, 0.9, 0.08),
+			cframe = CFrame.new(metres(centerX, 0.45, z)),
+			color = Constants.COLOR.lowWall,
+			material = Enum.Material.Concrete,
+		})
+		makePart({
+			name = "UpperWall",
+			parent = shell,
+			size = sizeM(18, 0.7, 0.08),
+			cframe = CFrame.new(metres(centerX, 2.05, z)),
+			color = Constants.COLOR.wall,
+			material = Enum.Material.Concrete,
+		})
+		makePart({
+			name = "Glass",
+			parent = shell,
+			size = sizeM(18, 0.85, 0.02),
+			cframe = CFrame.new(metres(centerX, 1.325, z - side * 0.03)),
+			color = Constants.COLOR.glass,
+			transparency = 0.86,
+			collide = false,
+		})
+
+		for index, span in benchSpans do
+			local a = span[1]
+			local b = span[2]
+			local length = b - a
+			local cx = (a + b) / 2
+			local color = if index % 2 == 1 then Constants.COLOR.seatOrange else Constants.COLOR.seatYellow
+			makePart({
+				name = "Cushion",
+				parent = seats,
+				size = sizeM(length, 0.09, 0.46),
+				cframe = CFrame.new(metres(cx, 0.455, side * 1.25)),
+				color = color,
+			})
+			makePart({
+				name = "Back",
+				parent = seats,
+				size = sizeM(length, 0.5, 0.08),
+				cframe = CFrame.new(metres(cx, 0.76, side * 1.47)),
+				color = color,
+			})
+			makePart({
+				name = "Riser",
+				parent = seats,
+				size = sizeM(length, 0.41, 0.36),
+				cframe = CFrame.new(metres(cx, 0.205, side * 1.3)),
+				color = Constants.COLOR.underSeat,
+			})
+			makePart({
+				name = "SeatLip",
+				parent = seats,
+				size = sizeM(length, 2.2, 0.06),
+				cframe = CFrame.new(metres(cx, 1.1, side * 1.02)),
+				color = Constants.COLOR.underSeat,
+				transparency = 1,
+			})
+		end
+
+		makePart({
+			name = "GrabBar",
+			parent = poleFolder,
+			size = sizeM(17.6, 0.04, 0.04),
+			cframe = CFrame.new(metres(centerX, 2.02, side * 0.98)),
+			color = Constants.COLOR.steel,
+			material = Enum.Material.Metal,
+			shape = Enum.PartType.Cylinder,
+			collide = false,
+		})
+		for _, x in poleXs do
+			makePart({
+				name = "Pole",
+				parent = poleFolder,
+				size = Vector3.new(Constants.meters(2.42), Constants.meters(0.045), Constants.meters(0.045)),
+				cframe = CFrame.new(metres(x, 1.21, side * 0.98)) * CFrame.Angles(0, 0, math.rad(90)),
+				color = Constants.COLOR.steel,
+				material = Enum.Material.Metal,
+				shape = Enum.PartType.Cylinder,
+				collide = false,
+			})
+		end
+	end
+
+	-- Gangway doorway bulkheads (opening in the aisle).
+	makePart({
+		name = "Bulkhead",
+		parent = shell,
+		size = sizeM(0.1, 2.46, 1.05),
+		cframe = CFrame.new(metres(gangwayX, 1.23, -0.98)),
+		color = Constants.COLOR.wall,
+		material = Enum.Material.Concrete,
+	})
+	makePart({
+		name = "Bulkhead",
+		parent = shell,
+		size = sizeM(0.1, 2.46, 1.05),
+		cframe = CFrame.new(metres(gangwayX, 1.23, 0.98)),
+		color = Constants.COLOR.wall,
+		material = Enum.Material.Concrete,
+	})
+	makePart({
+		name = "Lintel",
+		parent = shell,
+		size = sizeM(0.1, 0.42, 1),
+		cframe = CFrame.new(metres(gangwayX, 2.25, 0)),
+		color = Constants.COLOR.wall,
+		material = Enum.Material.Concrete,
+	})
+
+	-- Cab bulkhead (closed end).
+	makePart({
+		name = "CabWall",
+		parent = shell,
+		size = sizeM(0.1, 2.46, 3.06),
+		cframe = CFrame.new(metres(cabX, 1.23, 0)),
+		color = Constants.COLOR.wall,
+		material = Enum.Material.Concrete,
+	})
+	makePart({
+		name = "CabDoor",
+		parent = shell,
+		size = sizeM(0.12, 1.8, 0.8),
+		cframe = CFrame.new(metres(cabX, 1.0, 0)),
+		color = Constants.COLOR.dark,
+		collide = false,
+	})
+
+	for _, x in lightXs do
+		local anchor = makePart({
+			name = "CeilingLight",
+			parent = lightFolder,
+			size = Vector3.new(0.3, 0.3, 0.3),
+			cframe = CFrame.new(metres(x, 2.2, 0)),
+			color = Constants.COLOR.lightOn,
+			transparency = 1,
+			collide = false,
+		})
+		local point = Instance.new("PointLight")
+		point.Name = "Glow"
+		point.Color = Constants.COLOR.lamp
+		point.Brightness = Constants.LAMP_BRIGHTNESS
+		point.Range = Constants.meters(Constants.LAMP_RANGE_M)
+		point.Shadows = true
+		point.Parent = anchor
+	end
+
+	car.Parent = workspace
+	return car
+end
+
+local function buildGangway(parent: Folder, centerX: number)
+	local bellows = Color3.fromRGB(22, 24, 26)
+	local tread = Color3.fromRGB(68, 70, 72)
+	local chain = Color3.fromRGB(150, 152, 154)
+
+	makePart({
+		name = "Plate",
+		parent = parent,
+		size = sizeM(1.5, 0.08, 1.02),
+		cframe = CFrame.new(metres(centerX, -0.02, 0)),
+		color = tread,
+		material = Enum.Material.Metal,
+	})
+	makePart({
+		name = "Roof",
+		parent = parent,
+		size = sizeM(1.5, 0.08, 1.08),
+		cframe = CFrame.new(metres(centerX, 2.22, 0)),
+		color = bellows,
+		collide = false,
+	})
+	for _, z in { -0.54, 0.54 } do
+		for i = 0, 6 do
+			makePart({
+				name = "Pleat",
+				parent = parent,
+				size = sizeM(0.12, 2.2, 0.05),
+				cframe = CFrame.new(metres(centerX - 0.6 + i * 0.2, 1.1, z)),
+				color = bellows,
+			})
+		end
+		makePart({
+			name = "Rail",
+			parent = parent,
+			size = sizeM(1.48, 0.03, 0.03),
+			cframe = CFrame.new(metres(centerX, 1.0, z * 0.9)),
+			color = chain,
+			material = Enum.Material.Metal,
+			shape = Enum.PartType.Cylinder,
+			collide = false,
+		})
+		makePart({
+			name = "Rail",
+			parent = parent,
+			size = sizeM(1.48, 0.025, 0.025),
+			cframe = CFrame.new(metres(centerX, 0.55, z * 0.9)),
+			color = chain,
+			material = Enum.Material.Metal,
+			shape = Enum.PartType.Cylinder,
+			collide = false,
+		})
+	end
+end
+
+local closedFrames: { [BasePart]: CFrame } = {}
+
+local function setDoorOpen(part: BasePart, open: boolean, isFront: boolean)
+	local closed = closedFrames[part]
+	if closed == nil then
+		return
+	end
+	part:SetAttribute("Open", open)
+	if open then
+		local yaw = if isFront then 1.35 else -1.35
+		-- Hinge at the −Z edge of the leaf (web pivot).
+		local hinge = closed * CFrame.new(0, 0, -part.Size.Z / 2)
+		part.CFrame = hinge * CFrame.Angles(0, yaw, 0) * CFrame.new(0, 0, part.Size.Z / 2)
+		part.CanCollide = false
+	else
+		part.CFrame = closed
+		part.CanCollide = true
+	end
+	local prompt = part:FindFirstChildOfClass("ProximityPrompt")
+	if prompt ~= nil then
+		prompt.ActionText = if open then "Close" else "Open"
+	end
+end
+
+local function wireGangwayDoor(part: BasePart, isFront: boolean)
+	if part:GetAttribute("GangwayWired") == true then
+		return
+	end
+	closedFrames[part] = part.CFrame
+	part.Name = if isFront then "FrontGangwayDoor" else "RearGangwayDoor"
+	part:SetAttribute("Gangway", if isFront then "front" else "rear")
+	part:SetAttribute("Open", false)
+	part:SetAttribute("GangwayWired", true)
+	part.CanCollide = true
+
+	local prompt = Instance.new("ProximityPrompt")
+	prompt.Name = "GangwayPrompt"
+	prompt.ActionText = "Open"
+	prompt.ObjectText = "Gangway door"
+	prompt.HoldDuration = 0
+	prompt.MaxActivationDistance = Constants.meters(2.8)
+	prompt.RequiresLineOfSight = false
+	prompt.Parent = part
+
+	prompt.Triggered:Connect(function()
+		local open = part:GetAttribute("Open") == true
+		setDoorOpen(part, not open, isFront)
+	end)
+end
+
+local function wireCarBDoors(carModel: Model)
+	-- Prefer named Part shell doors; fall back to legacy GangwayDoor meshes.
+	local front: BasePart? = nil
+	local rear: BasePart? = nil
+	for _, desc in carModel:GetDescendants() do
+		if desc:IsA("BasePart") then
+			if desc.Name == "FrontGangwayDoor" then
+				front = desc
+			elseif desc.Name == "RearGangwayDoor" then
+				rear = desc
+			end
+		end
+	end
+	if front == nil or rear == nil then
+		for _, desc in carModel:GetDescendants() do
+			if desc:IsA("BasePart") and desc.Name == "GangwayDoor" then
+				local x = desc.Position.X / Constants.STUDS_PER_METER
+				if x < 0 and front == nil then
+					front = desc
+				elseif x >= 0 and rear == nil then
+					rear = desc
+				end
+			end
+		end
+	end
+	if front ~= nil then
+		wireGangwayDoor(front, true)
+	end
+	if rear ~= nil then
+		wireGangwayDoor(rear, false)
+	end
+end
+
+function Consist.attach(car: BuiltCar)
+	local carA = buildShell(
+		"Car_A",
+		-19.5,
+		{ { -27.5, -23.5 }, { -22.5, -16.5 }, { -15.5, -11.5 } },
+		{ -24.0, -15.0 },
+		{ -25.5, -21.5, -17.5, -13.5 },
+		-10.5,
+		-28.5
+	)
+	local carC = buildShell(
+		"Car_C",
+		19.5,
+		{ { 11.5, 15.5 }, { 16.5, 22.5 }, { 23.5, 27.5 } },
+		{ 15.0, 24.0 },
+		{ 13.5, 17.5, 21.5, 25.5 },
+		10.5,
+		28.5
+	)
+
+	local importedA = tryVisualCar("Car_A", carA, -19.5)
+	local importedC = tryVisualCar("Car_C", carC, 19.5)
+	if importedA then
+		print("[Last Local] Using modeled Car_A over Part shell.")
+	else
+		print("[Last Local] Car_A Part fallback (no Models.Car_A).")
+	end
+	if importedC then
+		print("[Last Local] Using modeled Car_C over Part shell.")
+	else
+		print("[Last Local] Car_C Part fallback (no Models.Car_C).")
+	end
+
+	local gangways = Instance.new("Folder")
+	gangways.Name = "Gangways"
+	gangways.Parent = workspace
+	buildGangway(gangways, -9.75)
+	buildGangway(gangways, 9.75)
+
+	wireCarBDoors(car.model)
+
+	local notes: { string } = {}
+	for _, def in Passengers.ADJACENT do
+		table.insert(notes, car.spawnPassenger(def, car.passengers))
+	end
+	print(string.format("[Last Local] Adjacent passengers: %s", if #notes > 0 then table.concat(notes, ", ") else "none"))
+end
+
+return Consist
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="26">
         <Properties>
           <string name="Name">Ride</string>
           <string name="Source"><![CDATA[--!strict
@@ -2518,16 +4501,25 @@ return CarBuilder
 -- The last stretch may dim in a straight line. Tunnel lamps are outside and
 -- never write these interior lights.
 
+local HttpService = game:GetService("HttpService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
 local AnomalySystem = require(script.Parent.AnomalySystem)
 local CarBuilder = require(script.Parent.CarBuilder)
 local Scenery = require(script.Parent.Scenery)
+local TrialSpace = require(script.Parent.TrialSpace)
+local WorldLight = require(script.Parent.WorldLight)
 local Constants = require(ReplicatedStorage.Shared.Constants)
+local Trestle = require(ReplicatedStorage.Shared.Trestle)
 local Doors = require(ReplicatedStorage.Shared.Doors)
 local Dwell = require(ReplicatedStorage.Shared.Dwell)
 local Hold = require(ReplicatedStorage.Shared.Hold)
+local Dialogue = require(ReplicatedStorage.Shared.Dialogue)
+local Haven = require(ReplicatedStorage.Shared.Haven)
+local Trial = require(ReplicatedStorage.Shared.Trial)
+local Evp = require(ReplicatedStorage.Shared.Evp)
+local Polaroid = require(ReplicatedStorage.Shared.Polaroid)
 local Lines = require(ReplicatedStorage.Shared.Lines)
 local Score = require(ReplicatedStorage.Shared.Score)
 local Band = require(ReplicatedStorage.Shared.Band)
@@ -2550,6 +4542,33 @@ function Ride.start(car: CarBuilder.BuiltCar)
 	local doorsRemote = Instance.new("RemoteEvent")
 	doorsRemote.Name = "Doors"
 	doorsRemote.Parent = remotes
+	local maskRemote = Instance.new("RemoteEvent")
+	maskRemote.Name = "Mask"
+	maskRemote.Parent = remotes
+	local trialRemote = Instance.new("RemoteEvent")
+	trialRemote.Name = "Trial"
+	trialRemote.Parent = remotes
+	local evpToggleRemote = Instance.new("RemoteEvent")
+	evpToggleRemote.Name = "EvpToggle"
+	evpToggleRemote.Parent = remotes
+	local evpTuneRemote = Instance.new("RemoteEvent")
+	evpTuneRemote.Name = "EvpTune"
+	evpTuneRemote.Parent = remotes
+	local evpRecordRemote = Instance.new("RemoteEvent")
+	evpRecordRemote.Name = "EvpRecord"
+	evpRecordRemote.Parent = remotes
+	local evpPlayRemote = Instance.new("RemoteEvent")
+	evpPlayRemote.Name = "EvpPlay"
+	evpPlayRemote.Parent = remotes
+	local polaroidToggleRemote = Instance.new("RemoteEvent")
+	polaroidToggleRemote.Name = "PolaroidToggle"
+	polaroidToggleRemote.Parent = remotes
+	local polaroidSnapRemote = Instance.new("RemoteEvent")
+	polaroidSnapRemote.Name = "PolaroidSnap"
+	polaroidSnapRemote.Parent = remotes
+	local polaroidAlbumRemote = Instance.new("RemoteEvent")
+	polaroidAlbumRemote.Name = "PolaroidAlbum"
+	polaroidAlbumRemote.Parent = remotes
 
 	ride:SetAttribute("Phase", "intro")
 	ride:SetAttribute("PaText", "")
@@ -2561,6 +4580,26 @@ function Ride.start(car: CarBuilder.BuiltCar)
 	ride:SetAttribute("ChapterLine", Route.chapterLine(1))
 	ride:SetAttribute("DwellUntil", 0)
 	ride:SetAttribute("Suspicion", 0)
+	ride:SetAttribute("Sanity", Constants.SANITY_START)
+	ride:SetAttribute("HasRecorder", false)
+	ride:SetAttribute("SegStop", 0)
+	ride:SetAttribute("EvpRaised", false)
+	ride:SetAttribute("EvpKhz", 120)
+	ride:SetAttribute("EvpMeter", 0)
+	ride:SetAttribute("EvpLocked", "")
+	ride:SetAttribute("EvpStatus", "")
+	ride:SetAttribute("EvpRecordT", 0)
+	ride:SetAttribute("EvpTapes", "[]")
+	ride:SetAttribute("EvpSaved", "")
+	ride:SetAttribute("EvpPlayId", "")
+	ride:SetAttribute("TapeGlance", 0)
+	ride:SetAttribute("FlashGlance", 0)
+	ride:SetAttribute("CameraRaised", false)
+	ride:SetAttribute("AlbumOpen", false)
+	ride:SetAttribute("FilmLeft", Polaroid.STARTING_FILM)
+	ride:SetAttribute("PolaroidFlash", 0)
+	ride:SetAttribute("PolaroidAlbum", "[]")
+	ride:SetAttribute("OpenAir", 0)
 	ride:SetAttribute("Band", "calm")
 	ride:SetAttribute("FalseStopBonus", 0)
 	ride:SetAttribute("BoardStop", "")
@@ -2573,6 +4612,21 @@ function Ride.start(car: CarBuilder.BuiltCar)
 	ride:SetAttribute("DoorTarget", 1)
 	ride:SetAttribute("ChoiceActive", false)
 	ride:SetAttribute("ChoiceUntil", 0)
+	ride:SetAttribute("MaskActive", false)
+	ride:SetAttribute("MaskUntil", 0)
+	ride:SetAttribute("MaskA", "")
+	ride:SetAttribute("MaskB", "")
+	ride:SetAttribute("MaskC", "")
+	ride:SetAttribute("TrialActive", false)
+	ride:SetAttribute("TrialUntil", 0)
+	ride:SetAttribute("TrialA", "")
+	ride:SetAttribute("TrialB", "")
+	ride:SetAttribute("TrialC", "")
+	ride:SetAttribute("TrialSlots", 0)
+	ride:SetAttribute("TrialChime", 0)
+
+	local trialSpace = TrialSpace.build()
+	local carReturn = car.board.CFrame * CFrame.new(0, 3, 0)
 
 	CarBuilder.addTells(
 		car.passengers,
@@ -2581,6 +4635,7 @@ function Ride.start(car: CarBuilder.BuiltCar)
 		AnomalySystem.COUNTDOWN_ID,
 		Lines.COUNTDOWN
 	)
+	CarBuilder.addCatalogProps(car.passengers)
 
 	local paToken = 0
 	local subToken = 0
@@ -2693,6 +4748,8 @@ function Ride.start(car: CarBuilder.BuiltCar)
 	local odo = 0
 	local leaving, arriving = Scenery.build()
 	Scenery.setName(leaving, Route.stopName(1))
+	local trestlePlan: Trestle.Plan = Trestle.plan(0, false, 0, 1)
+	local lastOpenAir = -1
 
 	type Stretch = {
 		start: number,
@@ -2704,6 +4761,16 @@ function Ride.start(car: CarBuilder.BuiltCar)
 		holdFor: number,
 	}
 	local stretch: Stretch? = nil
+
+	local function publishOpenAir(level: number)
+		if math.abs(level - lastOpenAir) < 0.03 then
+			return
+		end
+		lastOpenAir = level
+		ride:SetAttribute("OpenAir", level)
+		Scenery.setOpenAirLevel(level)
+		WorldLight.setOpenAir(level)
+	end
 
 	local function beginStretch(seg: Route.Segment, holdAt: number, holdFor: number)
 		local accel = Constants.ACCEL
@@ -2719,6 +4786,10 @@ function Ride.start(car: CarBuilder.BuiltCar)
 		local dist = Motion.segmentDistance(accel, cruise, brake, Constants.TOP_SPEED_MPS)
 		arriving.base = odo + dist
 		Scenery.setName(arriving, Route.stopName(seg.stop))
+		-- Newtown Creek: open-air 21 St approach / departure (web gameState trestle).
+		trestlePlan = Trestle.plan(seg.stop, seg.b, odo, dist)
+		Scenery.setOpenAir(leaving, Trestle.leavingOpenAir(seg.stop))
+		Scenery.setOpenAir(arriving, Trestle.arrivingOpenAir(seg.stop, seg.b))
 		local now = workspace:GetServerTimeNow()
 		stretch = {
 			start = now,
@@ -2747,6 +4818,8 @@ function Ride.start(car: CarBuilder.BuiltCar)
 			local motionT = Hold.motionTime(elapsed, current.holdAt, current.holdFor)
 			odo = current.origin + Motion.distance(motionT, current.accel, current.cruise, current.brake, Constants.TOP_SPEED_MPS)
 		end
+		local openLevel = if ride:GetAttribute("Phase") == "trial" then 0 else Trestle.outsideLevel(odo, trestlePlan)
+		publishOpenAir(openLevel)
 		Scenery.place(odo)
 		doorOpen += (doorTarget - doorOpen) * (1 - math.exp(-7 * dt))
 		for _, leaf in car.doors do
@@ -2767,12 +4840,226 @@ function Ride.start(car: CarBuilder.BuiltCar)
 	local falseFlags = 0
 	local caught = false
 	local suspicion = 0
+	local sanity = Constants.SANITY_START
 	local stopHadAnomaly = false
 	local stopNoticed = false
 	local stopFalseAlarm = false
 	local posterLive = false
 	local inFinal = false
 	local huntedDim = false
+	local maskUsed: { [string]: boolean } = {}
+	local maskLast: string? = nil
+	local maskBusy = false
+	local chatPlan = Dialogue.buildChatPlan(function()
+		return math.random()
+	end)
+
+	local hasRecorder = false
+	local evpState = Evp.newState(function()
+		return math.random()
+	end)
+	local currentSegStop: number? = nil
+	local cameraRaised = false
+	local albumOpen = false
+	local filmLeft = Polaroid.STARTING_FILM
+	local nextShotAt = 0
+	local polaroidPhotos: { Polaroid.Photo } = {}
+	local photoSeq = 0
+
+	local function applySanity(delta: number)
+		sanity = Haven.restoreSanity(sanity, delta, Constants.SANITY_MIN, Constants.SANITY_MAX)
+		ride:SetAttribute("Sanity", sanity)
+	end
+
+	local function publishEvp()
+		ride:SetAttribute("EvpRaised", evpState.raised)
+		ride:SetAttribute("EvpKhz", evpState.khz)
+		ride:SetAttribute("EvpMeter", evpState.meter)
+		ride:SetAttribute("EvpLocked", evpState.lockedKind)
+		ride:SetAttribute("EvpRecordT", evpState.recordT)
+		ride:SetAttribute("EvpTapes", HttpService:JSONEncode(evpState.tapes))
+		local riding = ride:GetAttribute("Phase") == "ride"
+		ride:SetAttribute("EvpStatus", Evp.statusLine(evpState, riding == true))
+	end
+
+	local function publishCamera()
+		ride:SetAttribute("CameraRaised", cameraRaised)
+		ride:SetAttribute("AlbumOpen", albumOpen)
+		ride:SetAttribute("FilmLeft", filmLeft)
+		local slim = {}
+		for _, photo in polaroidPhotos do
+			table.insert(slim, { id = photo.id, stop = photo.stop })
+		end
+		ride:SetAttribute("PolaroidAlbum", HttpService:JSONEncode(slim))
+	end
+
+	local function handsBusy(): boolean
+		return ride:GetAttribute("ChoiceActive") == true
+			or ride:GetAttribute("MaskActive") == true
+			or ride:GetAttribute("TrialActive") == true
+			or ride:GetAttribute("Phase") == "trial"
+	end
+
+	local function lowerCamera()
+		cameraRaised = false
+		publishCamera()
+	end
+
+	local function giveRecorder(where: string)
+		if hasRecorder or ride:GetAttribute("Phase") == "end" then
+			return
+		end
+		hasRecorder = true
+		ride:SetAttribute("HasRecorder", true)
+		if where == "haven" then
+			showSub(Lines.DAD_RECORDER_HAVEN, 4.2)
+		else
+			showSub(Lines.DAD_RECORDER_TRAIN, 4.2)
+		end
+		showHint(Lines.RECORDER_HINT, 5)
+	end
+
+	publishEvp()
+	publishCamera()
+
+	evpToggleRemote.OnServerEvent:Connect(function(_player: Player)
+		if not hasRecorder then
+			showHint(Lines.RECORDER_NONE, 2.5)
+			return
+		end
+		if evpState.raised then
+			Evp.lower(evpState)
+			publishEvp()
+			return
+		end
+		local phase = ride:GetAttribute("Phase")
+		if phase ~= "ride" and phase ~= "stop" and phase ~= "haven" and phase ~= "intro" then
+			return
+		end
+		if handsBusy() then
+			showHint(Lines.RECORDER_BUSY, 2)
+			return
+		end
+		lowerCamera()
+		albumOpen = false
+		Evp.raise(evpState)
+		publishEvp()
+		publishCamera()
+	end)
+
+	evpTuneRemote.OnServerEvent:Connect(function(_player: Player, delta: any)
+		if not evpState.raised then
+			return
+		end
+		if typeof(delta) ~= "number" then
+			return
+		end
+		Evp.tune(evpState, math.clamp(delta, -5, 5))
+		publishEvp()
+	end)
+
+	evpRecordRemote.OnServerEvent:Connect(function(_player: Player, on: any)
+		if not evpState.raised then
+			return
+		end
+		if typeof(on) ~= "boolean" then
+			return
+		end
+		Evp.setRecording(evpState, on)
+		publishEvp()
+	end)
+
+	evpPlayRemote.OnServerEvent:Connect(function(_player: Player, signalId: any)
+		if typeof(signalId) ~= "string" then
+			return
+		end
+		if not Evp.hasTape(evpState, signalId) then
+			return
+		end
+		local sig = Evp.signalById(signalId)
+		if sig == nil then
+			return
+		end
+		ride:SetAttribute("EvpPlayId", signalId)
+		showSub("Tape: " .. sig.title, 3.5)
+		local phase = ride:GetAttribute("Phase")
+		if (phase == "ride" or phase == "stop") and math.random() < Evp.TAPE_GLANCE_CHANCE then
+			task.delay(0.8, function()
+				ride:SetAttribute("TapeGlance", workspace:GetServerTimeNow())
+			end)
+		end
+		task.delay(4, function()
+			if ride:GetAttribute("EvpPlayId") == signalId then
+				ride:SetAttribute("EvpPlayId", "")
+			end
+		end)
+	end)
+
+	polaroidToggleRemote.OnServerEvent:Connect(function(_player: Player)
+		local phase = ride:GetAttribute("Phase")
+		if phase ~= "ride" and phase ~= "stop" and phase ~= "haven" and phase ~= "intro" then
+			return
+		end
+		if cameraRaised then
+			lowerCamera()
+			return
+		end
+		if handsBusy() then
+			showHint(Lines.CAMERA_BUSY, 2)
+			return
+		end
+		if evpState.raised then
+			Evp.lower(evpState)
+			publishEvp()
+		end
+		albumOpen = false
+		cameraRaised = true
+		publishCamera()
+	end)
+
+	polaroidAlbumRemote.OnServerEvent:Connect(function(_player: Player)
+		albumOpen = not albumOpen
+		if albumOpen then
+			lowerCamera()
+		end
+		publishCamera()
+	end)
+
+	RunService.Heartbeat:Connect(function(dt: number)
+		if handsBusy() then
+			if cameraRaised then
+				lowerCamera()
+			end
+			if evpState.raised then
+				Evp.lower(evpState)
+				publishEvp()
+			end
+			return
+		end
+		if not evpState.raised then
+			return
+		end
+		local stopLabel = ""
+		local stopAttr = ride:GetAttribute("NextStop")
+		if typeof(stopAttr) == "string" then
+			stopLabel = stopAttr
+		end
+		local ridingStop: number? = nil
+		if ride:GetAttribute("Phase") == "ride" then
+			ridingStop = currentSegStop
+		end
+		local tape = Evp.update(evpState, dt, ridingStop, stopLabel)
+		publishEvp()
+		if tape ~= nil then
+			ride:SetAttribute("EvpSaved", tape.title)
+			showSub("Saved to tape: " .. tape.title, 2.6)
+			task.delay(2.8, function()
+				if ride:GetAttribute("EvpSaved") == tape.title then
+					ride:SetAttribute("EvpSaved", "")
+				end
+			end)
+		end
+	end)
 
 	local function blinkBandTube()
 		for _, lamp in car.lamps do
@@ -2810,6 +5097,121 @@ function Ride.start(car: CarBuilder.BuiltCar)
 		ride:SetAttribute("Suspicion", suspicion)
 		publishBand()
 	end
+
+	polaroidSnapRemote.OnServerEvent:Connect(function(
+		_player: Player,
+		px: any,
+		py: any,
+		pz: any,
+		lx: any,
+		ly: any,
+		lz: any
+	)
+		if not cameraRaised then
+			return
+		end
+		if typeof(px) ~= "number" or typeof(py) ~= "number" or typeof(pz) ~= "number" then
+			return
+		end
+		if typeof(lx) ~= "number" or typeof(ly) ~= "number" or typeof(lz) ~= "number" then
+			return
+		end
+		local phase = ride:GetAttribute("Phase")
+		if phase ~= "ride" and phase ~= "stop" and phase ~= "haven" and phase ~= "intro" then
+			return
+		end
+		if handsBusy() then
+			showHint(Lines.CAMERA_BUSY, 2)
+			return
+		end
+		local now = os.clock()
+		if now < nextShotAt then
+			return
+		end
+		if filmLeft <= 0 then
+			showHint(Lines.CAMERA_OUT_OF_FILM, 2.5)
+			return
+		end
+
+		filmLeft = Polaroid.clampFilm(filmLeft - 1)
+		nextShotAt = now + Polaroid.SHUTTER_COOLDOWN
+		ride:SetAttribute("PolaroidFlash", workspace:GetServerTimeNow())
+
+		local camPos = Vector3.new(px, py, pz)
+		local lookDir = Vector3.new(lx, ly, lz)
+		local framed: { string } = {}
+		local liveIds: { string } = {}
+
+		-- Poster tell has no mesh: any shot while it is live frames it.
+		if posterLive then
+			table.insert(liveIds, "poster_changed")
+			table.insert(framed, "poster_changed")
+		end
+		for _, id in {
+			AnomalySystem.ANNOUNCE_ID,
+			AnomalySystem.COUNTDOWN_ID,
+			AnomalySystem.EXTRA_ID,
+			AnomalySystem.STICKER_ID,
+			AnomalySystem.MAP_ID,
+			AnomalySystem.NEARWORD_ID,
+			AnomalySystem.LIGHT_ID,
+			AnomalySystem.EMPTY_ID,
+			AnomalySystem.MOVED_ID,
+			AnomalySystem.FACETURN_ID,
+			AnomalySystem.MOMFACE_ID,
+		} do
+			local model = car.passengers:FindFirstChild(id)
+			if
+				model ~= nil
+				and model:IsA("Model")
+				and model:GetAttribute("Anomaly") == true
+				and model:GetAttribute("Hidden") ~= true
+			then
+				table.insert(liveIds, id)
+				local at = model:GetPivot().Position
+				if Polaroid.inFrame(camPos, lookDir, at, Constants.STUDS_PER_METER) then
+					table.insert(framed, id)
+				end
+			end
+		end
+
+		photoSeq += 1
+		local stopLabel = ""
+		local stopAttr = ride:GetAttribute("NextStop")
+		if typeof(stopAttr) == "string" then
+			stopLabel = stopAttr
+		end
+		local photo: Polaroid.Photo = {
+			id = string.format("p%d", photoSeq),
+			stop = stopLabel,
+			framed = framed,
+			developed = false,
+		}
+		table.insert(polaroidPhotos, 1, photo)
+		while #polaroidPhotos > 16 do
+			table.remove(polaroidPhotos)
+		end
+
+		-- Privately marks the stop as noticed; no on-screen Caught (web photo path).
+		if phase == "ride" and Polaroid.photoCatches(framed, liveIds) then
+			caught = true
+			stopNoticed = true
+			applySuspicion(Score.flagDelta(true, true, Constants.FALSE_ALARM_SUSPICION, Constants.CORRECT_FLAG_SUSPICION))
+		end
+
+		if phase == "ride" or phase == "stop" then
+			local bandAttr = ride:GetAttribute("Band")
+			local band = if typeof(bandAttr) == "string" then bandAttr else "calm"
+			if Polaroid.flashWatched(band) then
+				applySuspicion(Polaroid.FLASH_WATCH_SUSPICION)
+				showHint(Lines.CAMERA_FLASH_WATCH, 2.5)
+			elseif math.random() < Polaroid.FLASH_GLANCE_CHANCE then
+				ride:SetAttribute("FlashGlance", workspace:GetServerTimeNow())
+			end
+		end
+
+		publishCamera()
+	end)
 
 	publishBand()
 
@@ -2875,9 +5277,219 @@ function Ride.start(car: CarBuilder.BuiltCar)
 		end
 	end
 
+	local lighttempStrip: BasePart? = nil
+	local lighttempOriginal: Color3? = nil
+	local movedHome: CFrame? = nil
+	local emptyHidden: { string } = {}
+	local faceturnRest: { [BasePart]: CFrame } = {}
+	local momfaceRest: { [BasePart]: Color3 } = {}
+
+	local function setPlateText(id: string, text: string)
+		local model = car.passengers:FindFirstChild(id)
+		if model == nil then
+			return
+		end
+		for _, desc in model:GetDescendants() do
+			if desc:IsA("TextLabel") and desc.Name == "Text" then
+				desc.Text = text
+				return
+			end
+		end
+	end
+
+	local function setCatalogHidden(id: string, active: boolean, color: Color3?)
+		local model = car.passengers:FindFirstChild(id)
+		if model == nil or not model:IsA("Model") then
+			return
+		end
+		model:SetAttribute("Anomaly", active)
+		model:SetAttribute("Hidden", not active)
+		for _, desc in model:GetDescendants() do
+			if desc:IsA("BasePart") and desc.Name ~= "Root" then
+				desc.Transparency = if active then 0 else 1
+				desc.CanQuery = active
+				if color ~= nil and active then
+					desc.Color = color
+				elseif not active then
+					desc.Color = Constants.COLOR.dark
+				end
+			end
+		end
+	end
+
+	local function setCatalogVisible(id: string, active: boolean)
+		local model = car.passengers:FindFirstChild(id)
+		if model == nil or not model:IsA("Model") then
+			return
+		end
+		model:SetAttribute("Anomaly", active)
+		model:SetAttribute("Hidden", false)
+		for _, desc in model:GetDescendants() do
+			if desc:IsA("BasePart") and desc.Name ~= "Root" then
+				desc.CanQuery = true
+			end
+		end
+	end
+
+	local function clearCatalog()
+		setCatalogHidden(AnomalySystem.STICKER_ID, false, nil)
+		setCatalogHidden(AnomalySystem.LIGHT_ID, false, nil)
+		setCatalogHidden(AnomalySystem.EMPTY_ID, false, nil)
+		setCatalogVisible(AnomalySystem.MAP_ID, false)
+		setPlateText(AnomalySystem.MAP_ID, Lines.MAP_NORMAL)
+		setCatalogVisible(AnomalySystem.NEARWORD_ID, false)
+		setPlateText(AnomalySystem.NEARWORD_ID, Lines.AD_NORMAL)
+		if lighttempStrip ~= nil and lighttempOriginal ~= nil then
+			lighttempStrip.Color = lighttempOriginal
+			stripHold[lighttempStrip] = nil
+		end
+		lighttempStrip = nil
+		lighttempOriginal = nil
+		local moved = car.passengers:FindFirstChild(AnomalySystem.MOVED_ID)
+		if moved ~= nil and moved:IsA("Model") then
+			moved:SetAttribute("Anomaly", false)
+			if movedHome ~= nil then
+				moved:PivotTo(movedHome)
+			end
+		end
+		movedHome = nil
+		for _, id in emptyHidden do
+			CarBuilder.setPassengerShown(car.passengers, id, true)
+		end
+		table.clear(emptyHidden)
+		local s2 = car.passengers:FindFirstChild(AnomalySystem.FACETURN_ID)
+		if s2 ~= nil and s2:IsA("Model") then
+			s2:SetAttribute("Anomaly", false)
+			for part, cf in faceturnRest do
+				part.CFrame = cf
+			end
+		end
+		table.clear(faceturnRest)
+		local mom = car.passengers:FindFirstChild(AnomalySystem.MOMFACE_ID)
+		if mom ~= nil and mom:IsA("Model") then
+			mom:SetAttribute("Anomaly", false)
+			for part, color in momfaceRest do
+				part.Color = color
+			end
+		end
+		table.clear(momfaceRest)
+	end
+
+	local function applyLighttemp()
+		local stripName = "LightStrip_02"
+		local lightModel = car.passengers:FindFirstChild(AnomalySystem.LIGHT_ID)
+		if lightModel ~= nil then
+			local named = lightModel:GetAttribute("StripName")
+			if typeof(named) == "string" then
+				stripName = named
+			end
+		end
+		for _, lamp in car.lamps do
+			if lamp.part.Name == stripName then
+				lighttempStrip = lamp.part
+				lighttempOriginal = lamp.part.Color
+				stripHold[lamp.part] = true
+				lamp.part.Color = Constants.LIGHTTEMP_COLOR
+				break
+			end
+		end
+		setCatalogHidden(AnomalySystem.LIGHT_ID, true, Constants.LIGHTTEMP_COLOR)
+	end
+
+	local function applySticker()
+		setCatalogHidden(AnomalySystem.STICKER_ID, true, Color3.fromRGB(240, 210, 40))
+	end
+
+	local function applyNearword()
+		setCatalogVisible(AnomalySystem.NEARWORD_ID, true)
+		setPlateText(AnomalySystem.NEARWORD_ID, Lines.AD_WARP)
+	end
+
+	local function applyMapstop()
+		setCatalogVisible(AnomalySystem.MAP_ID, true)
+		setPlateText(AnomalySystem.MAP_ID, Lines.MAP_HOLLOW)
+	end
+
+	local function applyMoved()
+		local model = car.passengers:FindFirstChild(AnomalySystem.MOVED_ID)
+		if model == nil or not model:IsA("Model") then
+			return
+		end
+		movedHome = model:GetPivot()
+		model:SetAttribute("Anomaly", true)
+		local pivot = model:GetPivot()
+		local at = pivot.Position
+		-- Keep facing; only slide along the car X (web s3 → far doors).
+		model:PivotTo(CFrame.new(Constants.meters(Constants.MOVED_FAR_X), at.Y, at.Z) * (pivot - pivot.Position))
+	end
+
+	local function applyEmpty()
+		for _, id in { "s1", "s2", "s3", AnomalySystem.EXTRA_ID, "c1", "c2", "c3", "c4", "c5" } do
+			local model = car.passengers:FindFirstChild(id)
+			if model ~= nil and model:GetAttribute("Hidden") ~= true then
+				table.insert(emptyHidden, id)
+				CarBuilder.setPassengerShown(car.passengers, id, false)
+			end
+		end
+		setCatalogHidden(AnomalySystem.EMPTY_ID, true, Constants.COLOR.warn)
+	end
+
+	local function applyFaceturn()
+		local model = car.passengers:FindFirstChild(AnomalySystem.FACETURN_ID)
+		if model == nil or not model:IsA("Model") then
+			return
+		end
+		model:SetAttribute("Anomaly", true)
+		for _, desc in model:GetDescendants() do
+			if desc:IsA("BasePart") and (desc.Name == "Head" or desc.Name == "Hair" or desc.Name == "Eye") then
+				faceturnRest[desc] = desc.CFrame
+				desc.CFrame = desc.CFrame * CFrame.Angles(0, 0, math.rad(55))
+			end
+		end
+	end
+
+	local function applyMomface()
+		local model = car.passengers:FindFirstChild(AnomalySystem.MOMFACE_ID)
+		if model == nil or not model:IsA("Model") then
+			return
+		end
+		model:SetAttribute("Anomaly", true)
+		for _, desc in model:GetDescendants() do
+			if desc:IsA("BasePart") and (desc.Name == "Head" or desc.Name == "Hair" or desc.Name == "Eye") then
+				momfaceRest[desc] = desc.Color
+				if desc.Name == "Eye" then
+					desc.Color = Color3.fromRGB(20, 20, 28)
+				else
+					desc.Color = Color3.fromRGB(223, 217, 206)
+				end
+			end
+		end
+	end
+
+	local function applyCatalog(kind: string)
+		if kind == "lighttemp" then
+			applyLighttemp()
+		elseif kind == "sticker" then
+			applySticker()
+		elseif kind == "nearword" then
+			applyNearword()
+		elseif kind == "mapstop" then
+			applyMapstop()
+		elseif kind == "moved" then
+			applyMoved()
+		elseif kind == "empty" then
+			applyEmpty()
+		elseif kind == "faceturn" then
+			applyFaceturn()
+		elseif kind == "momface" then
+			applyMomface()
+		end
+	end
+
 	local function clearTells()
 		setTell(AnomalySystem.ANNOUNCE_ID, false)
 		setTell(AnomalySystem.COUNTDOWN_ID, false)
+		clearCatalog()
 		ride:SetAttribute("BoardStop", "")
 		ride:SetAttribute("BoardMinutes", 0)
 	end
@@ -2886,7 +5498,19 @@ function Ride.start(car: CarBuilder.BuiltCar)
 		if posterLive then
 			return true
 		end
-		for _, id in { AnomalySystem.ANNOUNCE_ID, AnomalySystem.COUNTDOWN_ID, AnomalySystem.EXTRA_ID } do
+		for _, id in {
+			AnomalySystem.ANNOUNCE_ID,
+			AnomalySystem.COUNTDOWN_ID,
+			AnomalySystem.EXTRA_ID,
+			AnomalySystem.STICKER_ID,
+			AnomalySystem.MAP_ID,
+			AnomalySystem.NEARWORD_ID,
+			AnomalySystem.LIGHT_ID,
+			AnomalySystem.EMPTY_ID,
+			AnomalySystem.MOVED_ID,
+			AnomalySystem.FACETURN_ID,
+			AnomalySystem.MOMFACE_ID,
+		} do
 			local model = car.passengers:FindFirstChild(id)
 			if model ~= nil and model:GetAttribute("Anomaly") == true and model:GetAttribute("Hidden") ~= true then
 				return true
@@ -2914,6 +5538,10 @@ function Ride.start(car: CarBuilder.BuiltCar)
 
 	local pendingDoorChoice: string? = nil
 	local choiceEpoch = 0
+	local pendingMaskChoice: string? = nil
+	local maskEpoch = 0
+	local pendingTrialChoice: number? = nil
+	local trialEpoch = 0
 
 	doorsRemote.OnServerEvent:Connect(function(_player: Player, choice: any)
 		if ride:GetAttribute("ChoiceActive") ~= true then
@@ -2926,6 +5554,32 @@ function Ride.start(car: CarBuilder.BuiltCar)
 			return
 		end
 		pendingDoorChoice = choice
+	end)
+
+	maskRemote.OnServerEvent:Connect(function(_player: Player, choice: any)
+		if ride:GetAttribute("MaskActive") ~= true then
+			return
+		end
+		if typeof(choice) ~= "string" then
+			return
+		end
+		if choice ~= "A" and choice ~= "B" and choice ~= "C" then
+			return
+		end
+		pendingMaskChoice = choice
+	end)
+
+	trialRemote.OnServerEvent:Connect(function(_player: Player, choice: any)
+		if ride:GetAttribute("TrialActive") ~= true then
+			return
+		end
+		if typeof(choice) ~= "number" then
+			return
+		end
+		if choice ~= 0 and choice ~= 1 and choice ~= 2 then
+			return
+		end
+		pendingTrialChoice = choice
 	end)
 
 	local function waitForDoorChoice(seconds: number): string
@@ -2941,6 +5595,214 @@ function Ride.start(car: CarBuilder.BuiltCar)
 		ride:SetAttribute("ChoiceActive", false)
 		ride:SetAttribute("ChoiceUntil", 0)
 		return Doors.normalize(pendingDoorChoice)
+	end
+
+	local function clearMaskUi()
+		ride:SetAttribute("MaskActive", false)
+		ride:SetAttribute("MaskUntil", 0)
+		ride:SetAttribute("MaskA", "")
+		ride:SetAttribute("MaskB", "")
+		ride:SetAttribute("MaskC", "")
+	end
+
+	local function waitForMaskChoice(seconds: number, answers: { { text: string, val: string } }): string?
+		maskEpoch += 1
+		local epoch = maskEpoch
+		pendingMaskChoice = nil
+		ride:SetAttribute("MaskA", answers[1].text)
+		ride:SetAttribute("MaskB", answers[2].text)
+		ride:SetAttribute("MaskC", answers[3].text)
+		ride:SetAttribute("MaskActive", true)
+		ride:SetAttribute("MaskUntil", workspace:GetServerTimeNow() + seconds)
+		local deadline = os.clock() + seconds
+		while os.clock() < deadline and pendingMaskChoice == nil and epoch == maskEpoch do
+			if ride:GetAttribute("Phase") ~= "ride" then
+				break
+			end
+			task.wait(0.05)
+		end
+		local picked = pendingMaskChoice
+		clearMaskUi()
+		if picked == nil then
+			return nil
+		end
+		local index = if picked == "A" then 1 elseif picked == "B" then 2 else 3
+		return answers[index].val
+	end
+
+	local function clearTrialUi()
+		ride:SetAttribute("TrialActive", false)
+		ride:SetAttribute("TrialUntil", 0)
+		ride:SetAttribute("TrialA", "")
+		ride:SetAttribute("TrialB", "")
+		ride:SetAttribute("TrialC", "")
+		ride:SetAttribute("TrialSlots", 0)
+	end
+
+	local function waitForTrialChoice(seconds: number, items: { Trial.ChoiceItem }): number?
+		trialEpoch += 1
+		local epoch = trialEpoch
+		pendingTrialChoice = nil
+		ride:SetAttribute("TrialA", items[1].text)
+		ride:SetAttribute("TrialB", if items[2] then items[2].text else "")
+		ride:SetAttribute("TrialC", if items[3] then items[3].text else "")
+		ride:SetAttribute("TrialSlots", #items)
+		ride:SetAttribute("TrialActive", true)
+		if seconds > 0 then
+			ride:SetAttribute("TrialUntil", workspace:GetServerTimeNow() + seconds)
+		else
+			ride:SetAttribute("TrialUntil", 0)
+		end
+		local deadline = if seconds > 0 then os.clock() + seconds else math.huge
+		while os.clock() < deadline and pendingTrialChoice == nil and epoch == trialEpoch do
+			if ride:GetAttribute("Phase") ~= "trial" then
+				break
+			end
+			task.wait(0.05)
+		end
+		local picked = pendingTrialChoice
+		clearTrialUi()
+		return picked
+	end
+
+	local segToken = 0
+
+	local function runTrial(token: number, stopName: string): boolean
+		ride:SetAttribute("Phase", "trial")
+		clearMaskUi()
+		TrialSpace.setVisible(trialSpace.model, true)
+		TrialSpace.teleportPlayers(trialSpace.spawn)
+		showHint(Lines.TRIAL_HINT, Constants.TRIAL_HINT_SECONDS)
+
+		local state = Trial.start(stopName)
+		local rng = function()
+			return math.random()
+		end
+		local clean = false
+
+		while token == segToken do
+			local roundState, view = Trial.round(state, rng)
+			state = roundState
+			TrialSpace.applyRound(trialSpace, view.signs, view.boardDoors)
+
+			local cycleAt = os.clock()
+			local events = Trial.cycleEvents(state, rng)
+			local eventDone: { [number]: boolean } = {}
+			ride:SetAttribute("TrialChime", workspace:GetServerTimeNow())
+
+			local conn = RunService.Heartbeat:Connect(function(dt: number)
+				if ride:GetAttribute("Phase") ~= "trial" then
+					return
+				end
+				local elapsed = os.clock() - cycleAt
+				if elapsed >= Constants.TRIAL_CYCLE then
+					cycleAt = os.clock()
+					events = Trial.cycleEvents(state, rng)
+					eventDone = {}
+					ride:SetAttribute("TrialChime", workspace:GetServerTimeNow())
+					elapsed = 0
+				end
+				for i, event in events do
+					if eventDone[i] ~= true and elapsed >= event.at then
+						eventDone[i] = true
+						local opening = trialSpace.openings[event.index + 1]
+						if opening ~= nil then
+							if event.kind == "flick" then
+								TrialSpace.flick(opening, os.clock() + Constants.TRIAL_FLICK_SECONDS)
+							elseif event.kind == "open" then
+								TrialSpace.setDoorTarget(opening, 1)
+							else
+								TrialSpace.setDoorTarget(opening, 0)
+							end
+						end
+					end
+				end
+				TrialSpace.step(trialSpace, dt, os.clock())
+			end)
+
+			local picked = waitForTrialChoice(view.windowSeconds, view.items)
+			conn:Disconnect()
+			if token ~= segToken then
+				break
+			end
+
+			task.wait(0.7)
+			if token ~= segToken then
+				break
+			end
+			local result = Trial.applyPick(state, picked)
+			state = result.state
+			if result.subtitle ~= "" then
+				showSub(result.subtitle, 3.0)
+				task.wait(1.2)
+			end
+			if result.kind == "exit" then
+				clean = result.clean == true
+				break
+			end
+		end
+
+		clearTrialUi()
+		TrialSpace.setVisible(trialSpace.model, false)
+		TrialSpace.teleportPlayers(carReturn)
+		applySuspicion(Constants.TRIAL_EXIT_SUSPICION)
+		applySanity(-Constants.TRIAL_SANITY)
+		ride:SetAttribute("Phase", "stop")
+		if clean then
+			showSub(Lines.MOM_TRIAL_CLEAN, 3.4)
+		else
+			showSub(Lines.MOM_TRIAL_ROUGH, 3.4)
+		end
+		task.wait(3.6)
+		if token ~= segToken then
+			return false
+		end
+		showSub(Lines.DAD_TRIAL_SIT, 2.6)
+		task.wait(2.8)
+		return token == segToken
+	end
+
+	local function runMaskCheck(token: number)
+		if maskBusy or token ~= segToken then
+			return
+		end
+		if ride:GetAttribute("Phase") ~= "ride" then
+			return
+		end
+		if ride:GetAttribute("ChoiceActive") == true then
+			return
+		end
+		local pool = Dialogue.maskPool(suspicion, Constants.MASK_NEED_SUSPICION)
+		local line = Dialogue.pickMask(pool, maskUsed, maskLast, function()
+			return math.random()
+		end)
+		if line == nil then
+			return
+		end
+		maskBusy = true
+		maskUsed[line.line] = true
+		maskLast = line.line
+		showSub(Dialogue.maskPrompt(line.who, line.line), Constants.MASK_PROMPT_SECONDS)
+		local answers = Dialogue.shuffleAnswers(line.calm, line.off[1], line.off[2], function()
+			return math.random()
+		end)
+		local val = waitForMaskChoice(Constants.MASK_CHOICE_SECONDS, answers)
+		if token ~= segToken then
+			maskBusy = false
+			return
+		end
+		if val == nil then
+			applySuspicion(Constants.MASK_TIMEOUT_SUSPICION)
+			applySanity(-Constants.MASK_TIMEOUT_SANITY)
+			showSub(Dialogue.maskHesitate(line.who), 2.6)
+		elseif val == "calm" then
+			showSub(Dialogue.youAnswer(line.calm, line.who), 2.4)
+		else
+			applySuspicion(Constants.MASK_FAIL_SUSPICION)
+			applySanity(-Constants.MASK_FAIL_SANITY)
+			showSub(Dialogue.maskOdd(line.who), 2.8)
+		end
+		maskBusy = false
 	end
 
 	flagRemote.OnServerEvent:Connect(function(player: Player, passengerId: any)
@@ -3004,8 +5866,6 @@ function Ride.start(car: CarBuilder.BuiltCar)
 		showSub(Lines.scoreLine(miss, falseFlags), 30)
 	end
 
-	local segToken = 0
-
 	-- One named tube, on and off. stripHold keeps applyLights from painting
 	-- that tube. No other lamp is touched, and forcedOff is not set.
 	local function blinkOneStrip(token: number, seconds: number)
@@ -3039,6 +5899,8 @@ function Ride.start(car: CarBuilder.BuiltCar)
 	local function runSegment(seg: Route.Segment)
 		segToken += 1
 		local token = segToken
+		currentSegStop = seg.stop
+		ride:SetAttribute("SegStop", seg.stop)
 		ride:SetAttribute("Phase", "ride")
 		ride:SetAttribute("NextStop", Route.stopName(seg.stop))
 		ride:SetAttribute("ChapterLine", Route.chapterLine(seg.stop))
@@ -3065,11 +5927,20 @@ function Ride.start(car: CarBuilder.BuiltCar)
 			extraStop = Constants.ANOMALY_EXTRA_STOP,
 			announceStop = Constants.ANOMALY_ANNOUNCE_STOP,
 			countdownStop = Constants.ANOMALY_COUNTDOWN_STOP,
+			lighttempStop = Constants.ANOMALY_LIGHTTEMP_STOP,
+			stickerStop = Constants.ANOMALY_STICKER_STOP,
+			nearwordStop = Constants.ANOMALY_NEARWORD_STOP,
+			mapstopStop = Constants.ANOMALY_MAPSTOP_STOP,
+			movedStop = Constants.ANOMALY_MOVED_STOP,
+			emptyStop = Constants.ANOMALY_EMPTY_STOP,
+			faceturnStop = if Constants.ANOMALY_FACETURN_STOP > 0 then Constants.ANOMALY_FACETURN_STOP else nil,
+			momfaceStop = if Constants.ANOMALY_MOMFACE_STOP > 0 then Constants.ANOMALY_MOMFACE_STOP else nil,
 		})
 		stopHadAnomaly = picked ~= nil
 		stopNoticed = false
 		stopFalseAlarm = false
 		posterLive = false
+		clearCatalog()
 		local wrongCountdown = picked == "wrong_countdown"
 		setTell(AnomalySystem.COUNTDOWN_ID, wrongCountdown)
 		setTell(AnomalySystem.ANNOUNCE_ID, false)
@@ -3103,6 +5974,63 @@ function Ride.start(car: CarBuilder.BuiltCar)
 				showPa(Lines.nextStop(announced), Constants.NEXT_STOP_FOR)
 			end)
 		end
+		if seg.kind == "haven" then
+			local cueAt = math.max(Constants.NEXT_STOP_AT + 0.5, length - Haven.APPROACH_LEAD)
+			task.delay(cueAt, function()
+				if token ~= segToken or ride:GetAttribute("Phase") ~= "ride" then
+					return
+				end
+				if ride:GetAttribute("MaskActive") == true then
+					return
+				end
+				showSub(Lines.MOM_HAVEN_CUE, 3.2)
+			end)
+		end
+		if Haven.shouldTrainHandoff(hasRecorder, seg.stop, seg.b) then
+			task.delay(Haven.TRAIN_HANDOFF_AT, function()
+				if token ~= segToken or ride:GetAttribute("Phase") ~= "ride" then
+					return
+				end
+				giveRecorder("train")
+			end)
+		end
+		local chatIndex = seg.chat
+		if chatIndex ~= nil then
+			local exchange = Dialogue.chatFor(chatPlan, chatIndex)
+			if exchange ~= nil then
+				local first = exchange[1]
+				local second = exchange[2]
+				task.delay(Constants.CHAT_AT_1, function()
+					if token ~= segToken or ride:GetAttribute("Phase") ~= "ride" then
+						return
+					end
+					if ride:GetAttribute("MaskActive") == true or ride:GetAttribute("ChoiceActive") == true then
+						return
+					end
+					showSub(Dialogue.chatLine(first.who, first.line), Constants.CHAT_LINE_SECONDS)
+				end)
+				task.delay(Constants.CHAT_AT_2, function()
+					if token ~= segToken or ride:GetAttribute("Phase") ~= "ride" then
+						return
+					end
+					if ride:GetAttribute("MaskActive") == true or ride:GetAttribute("ChoiceActive") == true then
+						return
+					end
+					showSub(Dialogue.chatLine(second.who, second.line), Constants.CHAT_LINE_SECONDS)
+				end)
+			end
+		end
+		local maskTimes = seg.masks
+		if maskTimes ~= nil then
+			for _, at in maskTimes do
+				task.delay(at, function()
+					if token ~= segToken then
+						return
+					end
+					runMaskCheck(token)
+				end)
+			end
+		end
 		if picked == "poster_changed" then
 			task.delay(8, function()
 				if token ~= segToken then
@@ -3124,6 +6052,23 @@ function Ride.start(car: CarBuilder.BuiltCar)
 					return
 				end
 				CarBuilder.setPassengerShown(car.passengers, AnomalySystem.EXTRA_ID, true)
+			end)
+		end
+		if
+			picked == "lighttemp"
+			or picked == "sticker"
+			or picked == "nearword"
+			or picked == "mapstop"
+			or picked == "moved"
+			or picked == "empty"
+			or picked == "faceturn"
+			or picked == "momface"
+		then
+			task.delay(Constants.CATALOG_APPEAR_AT, function()
+				if token ~= segToken then
+					return
+				end
+				applyCatalog(picked)
 			end)
 		end
 		if not seg.b and seg.stop == 5 then
@@ -3204,6 +6149,15 @@ function Ride.start(car: CarBuilder.BuiltCar)
 	local function arrive(seg: Route.Segment)
 		segToken += 1
 		local token = segToken
+		maskEpoch += 1
+		clearMaskUi()
+		maskBusy = false
+		currentSegStop = nil
+		ride:SetAttribute("SegStop", 0)
+		if evpState.raised then
+			-- Carriers only while moving; keep the recorder up but clear the lock.
+			publishEvp()
+		end
 		ride:SetAttribute("Phase", "stop")
 		local kind = Score.result(stopHadAnomaly, stopNoticed, stopFalseAlarm)
 		applySuspicion(Score.endDelta(kind, Constants.CLEAN_STOP_SUSPICION, Constants.DECAY_SUSPICION))
@@ -3294,11 +6248,47 @@ function Ride.start(car: CarBuilder.BuiltCar)
 		if outcome.suspicionDelta ~= 0 then
 			applySuspicion(outcome.suspicionDelta)
 		end
-		if outcome.line ~= "" then
-			showSub(outcome.line, math.max(2.5, outcome.holdSeconds))
-		end
-		if outcome.holdSeconds > 0 then
-			task.wait(outcome.holdSeconds)
+		if outcome.mode == "haven" then
+			ride:SetAttribute("Phase", "haven")
+			local h0 = os.clock()
+			at(h0, Haven.MOM_STAND_AT)
+			if token ~= segToken then
+				return
+			end
+			showSub(Lines.MOM_HAVEN_STAND, 2.6)
+			at(h0, Haven.DAD_STOPS_AT)
+			if token ~= segToken then
+				return
+			end
+			showSub(Lines.DAD_HAVEN_STOPS, 2.8)
+			at(h0, Haven.RECORDER_AT)
+			if token ~= segToken then
+				return
+			end
+			giveRecorder("haven")
+			at(h0, Haven.SANITY_AT)
+			if token ~= segToken then
+				return
+			end
+			applySanity(Constants.SANITY_HAVEN)
+			showSub(Lines.HAVEN_BOARD, 2.0)
+			at(h0, Haven.DEPART_AT)
+			if token ~= segToken then
+				return
+			end
+			ride:SetAttribute("Phase", "stop")
+		elseif outcome.mode == "trial" then
+			local ok = runTrial(token, Route.stopName(seg.stop))
+			if not ok or token ~= segToken then
+				return
+			end
+		else
+			if outcome.line ~= "" then
+				showSub(outcome.line, math.max(2.5, outcome.holdSeconds))
+			end
+			if outcome.holdSeconds > 0 then
+				task.wait(outcome.holdSeconds)
+			end
 		end
 		if token ~= segToken then
 			return
@@ -3356,7 +6346,7 @@ return Ride
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="20">
+      <Item class="ModuleScript" referent="27">
         <Properties>
           <string name="Name">Scenery</string>
           <string name="Source"><![CDATA[--!strict
@@ -3367,6 +6357,9 @@ return Ride
 -- Tunnel lamps are Neon parts with no PointLight. They cannot light the
 -- car, so a lamp passing a window does not flicker the interior. The only
 -- lights that fill the car are the ceiling lamps in CarBuilder.
+--
+-- Near 21 St the Newtown Creek trestle replaces the tunnel loop: steel
+-- bents, rain strips, dusk fog, open-air platforms (setOpenAir).
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -3378,6 +6371,8 @@ export type Station = {
 	model: Model,
 	base: number,
 	labels: { TextLabel },
+	wall: BasePart?,
+	trim: BasePart?,
 }
 
 type Piece = {
@@ -3387,10 +6382,15 @@ type Piece = {
 	z: number,
 	period: number,
 	rotation: CFrame,
+	tunnel: boolean?,
 }
 
 local pieces: { Piece } = {}
 local stations: { Station } = {}
+local trestleSteel: { Piece } = {}
+local trestleFolder: Folder? = nil
+local rainParts: { BasePart } = {}
+local openAirLevel = 0
 
 local WALL = Color3.fromRGB(24, 26, 24)
 local PIER = Color3.fromRGB(36, 39, 36)
@@ -3400,8 +6400,15 @@ local YELLOW = Color3.fromRGB(227, 195, 65)
 local COLUMN = Color3.fromRGB(45, 72, 56)
 local TRIM = Color3.fromRGB(63, 122, 82)
 local BED = Color3.fromRGB(18, 18, 16)
+local STEEL = Color3.fromRGB(42, 46, 51)
+local RUST = Color3.fromRGB(58, 42, 36)
+local WATER = Color3.fromRGB(7, 9, 18)
+local SKY = Color3.fromRGB(12, 16, 34)
+local HAZE = Color3.fromRGB(255, 153, 68)
 
 local LOOP = 84
+local BENT_SPACING = 9
+local BENT_WRAP = 90
 
 local function metres(x: number, y: number, z: number): Vector3
 	return Vector3.new(x, y, z) * Constants.STUDS_PER_METER
@@ -3458,6 +6465,7 @@ local function addLoop(
 			z = part.Position.Z,
 			period = period,
 			rotation = CFrame.identity,
+			tunnel = true,
 		})
 	end
 end
@@ -3490,8 +6498,8 @@ local function buildStation(): Station
 	model.Name = "Station"
 	local labels: { TextLabel } = {}
 
-	trackPart(model, "Wall", metres(44, 3.2, 0.16), CFrame.new(metres(0, 1.35, -2.55)), Color3.fromRGB(42, 48, 44))
-	trackPart(model, "Trim", metres(44, 0.16, 0.06), CFrame.new(metres(0, 2.35, -2.46)), TRIM)
+	local wall = trackPart(model, "Wall", metres(44, 3.2, 0.16), CFrame.new(metres(0, 1.35, -2.55)), Color3.fromRGB(42, 48, 44))
+	local trim = trackPart(model, "Trim", metres(44, 0.16, 0.06), CFrame.new(metres(0, 2.35, -2.46)), TRIM)
 	trackPart(model, "Floor", metres(44, 0.16, 0.9), CFrame.new(metres(0, -0.08, -2.05)), PLATFORM, Enum.Material.Concrete)
 	trackPart(model, "Edge", metres(44, 0.04, 0.14), CFrame.new(metres(0, 0.02, -1.68)), YELLOW)
 	for x = -20, 20, 5 do
@@ -3514,7 +6522,100 @@ local function buildStation(): Station
 		model = model,
 		base = 0,
 		labels = labels,
+		wall = wall,
+		trim = trim,
 	}
+end
+
+local function buildTrestle()
+	local folder = Instance.new("Folder")
+	folder.Name = "Trestle"
+	folder.Parent = workspace
+	trestleFolder = folder
+
+	-- Dusk dome stand-in: large inverted shell (Part), not a skybox art pass.
+	local dome = trackPart(folder, "Sky", metres(160, 80, 160), CFrame.new(metres(0, 20, 0)), SKY)
+	dome.Transparency = 0.35
+	dome.Material = Enum.Material.SmoothPlastic
+	dome.Shape = Enum.PartType.Ball
+	local haze = trackPart(folder, "Haze", metres(120, 4, 120), CFrame.new(metres(0, -2, 0)), HAZE)
+	haze.Transparency = 0.7
+
+	local water = trackPart(folder, "Water", metres(200, 0.2, 200), CFrame.new(metres(0, -12, 0)), WATER)
+	water.Material = Enum.Material.Glass
+	water.Transparency = 0.15
+
+	-- Simple skyline slabs (far silhouettes).
+	for i = 0, 11 do
+		local ang = i / 12 * math.pi * 2
+		local h = 8 + (i % 5) * 3
+		local slab = trackPart(
+			folder,
+			"Tower",
+			metres(4, h, 4),
+			CFrame.new(metres(math.sin(ang) * 55, h / 2 - 4, math.cos(ang) * 55)),
+			Color3.fromRGB(8, 9, 14)
+		)
+		slab.Transparency = 0.05
+	end
+
+	-- Continuous guard rails.
+	for _, z in { -2.45, 2.45 } do
+		trackPart(folder, "Guard", metres(80, 0.07, 0.07), CFrame.new(metres(0, 0.85, z)), STEEL, Enum.Material.Metal)
+	end
+
+	-- Rain strips just outside the windows (opacity driven by open-air level).
+	for _, z in { -1.6, 1.6 } do
+		local strip = trackPart(folder, "Rain", metres(40, 0.85, 0.02), CFrame.new(metres(0, 1.325, z)), Color3.fromRGB(180, 190, 210))
+		strip.Transparency = 1
+		strip.Material = Enum.Material.Glass
+		table.insert(rainParts, strip)
+	end
+
+	local bentCount = BENT_WRAP / BENT_SPACING
+	for i = 0, bentCount - 1 do
+		local base = i * BENT_SPACING
+		for _, z in { -2.6, 2.6 } do
+			local leg = trackPart(folder, "BentLeg", metres(0.35, 12, 0.35), CFrame.new(metres(0, -6.6, z)), STEEL, Enum.Material.Metal)
+			table.insert(trestleSteel, {
+				part = leg,
+				base = base,
+				y = leg.Position.Y,
+				z = leg.Position.Z,
+				period = BENT_WRAP,
+				rotation = CFrame.identity,
+			})
+			local brace = trackPart(folder, "BentBrace", metres(0.12, 7, 0.12), CFrame.new(metres(0, -4.5, z)), RUST, Enum.Material.Metal)
+			table.insert(trestleSteel, {
+				part = brace,
+				base = base,
+				y = brace.Position.Y,
+				z = brace.Position.Z,
+				period = BENT_WRAP,
+				rotation = CFrame.Angles(math.rad(if z < 0 then -28 else 28), 0, 0),
+			})
+			local post = trackPart(folder, "RailPost", metres(0.08, 1.3, 0.08), CFrame.new(metres(0, 0.2, z * 0.94)), STEEL, Enum.Material.Metal)
+			table.insert(trestleSteel, {
+				part = post,
+				base = base,
+				y = post.Position.Y,
+				z = post.Position.Z,
+				period = BENT_WRAP,
+				rotation = CFrame.identity,
+			})
+		end
+		local beam = trackPart(folder, "BentBeam", metres(0.4, 0.5, 5.6), CFrame.new(metres(0, -0.75, 0)), STEEL, Enum.Material.Metal)
+		table.insert(trestleSteel, {
+			part = beam,
+			base = base,
+			y = beam.Position.Y,
+			z = beam.Position.Z,
+			period = BENT_WRAP,
+			rotation = CFrame.identity,
+		})
+	end
+
+	folder.Parent = workspace
 end
 
 function Scenery.setName(station: Station, name: string)
@@ -3554,6 +6655,7 @@ function Scenery.build(): (Station, Station)
 				z = part.Position.Z,
 				period = LOOP,
 				rotation = CFrame.identity,
+				tunnel = true,
 			})
 		end
 	end
@@ -3571,6 +6673,7 @@ function Scenery.build(): (Station, Station)
 				z = part.Position.Z,
 				period = LOOP,
 				rotation = CFrame.identity,
+				tunnel = true,
 			})
 		end
 	end
@@ -3591,9 +6694,12 @@ function Scenery.build(): (Station, Station)
 				z = part.Position.Z,
 				period = LOOP,
 				rotation = CFrame.identity,
+				tunnel = true,
 			})
 		end
 	end
+
+	buildTrestle()
 
 	local leaving = buildStation()
 	leaving.model.Name = "StationLeaving"
@@ -3607,14 +6713,66 @@ function Scenery.build(): (Station, Station)
 	return leaving, arriving
 end
 
+-- Web setOpenAir: hide tiled back wall / trim on elevated platforms.
+function Scenery.setOpenAir(station: Station, on: boolean)
+	local wall = station.wall
+	local trim = station.trim
+	if wall ~= nil then
+		wall.Transparency = if on then 1 else 0
+	end
+	if trim ~= nil then
+		trim.Transparency = if on then 1 else 0
+	end
+end
+
+function Scenery.setOpenAirLevel(level: number)
+	openAirLevel = math.clamp(level, 0, 1)
+end
+
 function Scenery.place(odo: number)
+	local hideTunnel = openAirLevel > 0.35
+	local showTrestle = openAirLevel > 0.05
 	for _, piece in pieces do
 		local x = Constants.meters(loopX(piece.base, odo, piece.period))
 		piece.part.CFrame = CFrame.new(x, piece.y, piece.z) * piece.rotation
+		if piece.tunnel == true then
+			piece.part.Transparency = if hideTunnel then 1 else 0
+			if piece.part.Material == Enum.Material.Neon then
+				piece.part.Color = if hideTunnel then Color3.fromRGB(12, 10, 8) else LAMP
+			end
+		end
 	end
 	for _, station in stations do
 		local x = Constants.meters(-(station.base - odo))
 		station.model:PivotTo(CFrame.new(x, 0, 0))
+	end
+
+	local folder = trestleFolder
+	if folder ~= nil then
+		for _, child in folder:GetChildren() do
+			if child:IsA("BasePart") and child.Name ~= "Rain" and not string.find(child.Name, "Bent", 1, true) and child.Name ~= "RailPost" then
+				if not showTrestle then
+					child.Transparency = 1
+				elseif child.Name == "Sky" then
+					child.Transparency = 0.35
+				elseif child.Name == "Haze" then
+					child.Transparency = 0.7
+				elseif child.Name == "Water" then
+					child.Transparency = 0.15
+				else
+					child.Transparency = 0.05
+				end
+			end
+		end
+	end
+	for _, piece in trestleSteel do
+		local x = Constants.meters(loopX(piece.base, odo, piece.period))
+		piece.part.CFrame = CFrame.new(x, piece.y, piece.z) * piece.rotation
+		piece.part.Transparency = if showTrestle then 0 else 1
+	end
+	for _, rain in rainParts do
+		-- ~0.55 opacity * outside level (web rainMats).
+		rain.Transparency = if showTrestle then 1 - 0.55 * openAirLevel else 1
 	end
 end
 
@@ -3622,7 +6780,267 @@ return Scenery
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="21">
+      <Item class="ModuleScript" referent="28">
+        <Properties>
+          <string name="Name">TrialSpace</string>
+          <string name="Source"><![CDATA[--!strict
+-- Parts-built False Stop Trial room (trialBuilder.ts shaped for Rojo).
+-- Three openings with lying signs and lights that flick on the chime.
+
+local Constants = require(game:GetService("ReplicatedStorage").Shared.Constants)
+
+local TrialSpace = {}
+
+export type Opening = {
+	index: number,
+	lamp: BasePart,
+	light: PointLight,
+	signLabel: TextLabel,
+	interior: BasePart,
+	leaves: { { part: BasePart, x0: number, side: number } },
+	flickUntil: number,
+	openAmt: number,
+	target: number,
+}
+
+export type Built = {
+	model: Model,
+	spawn: CFrame,
+	openings: { Opening },
+	tileParts: { BasePart },
+}
+
+local ORIGIN = CFrame.new(0, 480, 0)
+local S = Constants.STUDS_PER_METER
+
+local function part(
+	name: string,
+	parent: Instance,
+	size: Vector3,
+	cf: CFrame,
+	color: Color3,
+	collide: boolean?
+): Part
+	local p = Instance.new("Part")
+	p.Name = name
+	p.Anchored = true
+	p.Size = size
+	p.CFrame = cf
+	p.Color = color
+	p.Material = Enum.Material.SmoothPlastic
+	p.TopSurface = Enum.SurfaceType.Smooth
+	p.BottomSurface = Enum.SurfaceType.Smooth
+	p.CanCollide = if collide == nil then true else collide
+	p.CanQuery = false
+	p.CanTouch = false
+	p.Parent = parent
+	return p
+end
+
+function TrialSpace.build(): Built
+	local model = Instance.new("Model")
+	model.Name = "TrialSpace"
+	model.Parent = workspace
+
+	local tile = Color3.fromRGB(210, 205, 190)
+	local floorC = Color3.fromRGB(106, 104, 96)
+	local ceilC = Color3.fromRGB(58, 60, 56)
+	local yellow = Color3.fromRGB(227, 195, 65)
+	local dark = Color3.fromRGB(5, 5, 5)
+
+	part("Floor", model, Vector3.new(12 * S, 0.3, 14 * S), ORIGIN * CFrame.new(0, -0.15, -3 * S), floorC)
+	part("Ceil", model, Vector3.new(12 * S, 0.3, 14 * S), ORIGIN * CFrame.new(0, 3.6 * S, -3 * S), ceilC)
+	part("LeftWall", model, Vector3.new(0.3, 3.7 * S, 14 * S), ORIGIN * CFrame.new(-6 * S, 1.8 * S, -3 * S), tile)
+	part("RightWall", model, Vector3.new(0.3, 3.7 * S, 14 * S), ORIGIN * CFrame.new(6 * S, 1.8 * S, -3 * S), tile)
+	part("BackWall", model, Vector3.new(12 * S, 3.7 * S, 0.3), ORIGIN * CFrame.new(0, 1.8 * S, 4 * S), tile)
+
+	for _, span in { { -6, -3.8 }, { -2.2, -0.8 }, { 0.8, 2.2 }, { 3.8, 6 } } do
+		local a, b = span[1], span[2]
+		part(
+			"Divider",
+			model,
+			Vector3.new((b - a) * S, 3.7 * S, 0.6),
+			ORIGIN * CFrame.new(((a + b) / 2) * S, 1.8 * S, -7 * S),
+			tile
+		)
+	end
+	part("Safety", model, Vector3.new(12 * S, 0.2, 0.6 * S), ORIGIN * CFrame.new(0, 0.1, -6.3 * S), yellow)
+
+	local openings: { Opening } = {}
+	local tileParts: { BasePart } = {}
+
+	for i, x in { -3, 0, 3 } do
+		local index = i - 1
+		part("Arch_" .. index, model, Vector3.new(1.6 * S, 1.3 * S, 0.6), ORIGIN * CFrame.new(x * S, 3.0 * S, -7 * S), tile)
+		part("Void_" .. index, model, Vector3.new(1.6 * S, 2.4 * S, 0.8 * S), ORIGIN * CFrame.new(x * S, 1.2 * S, -7.5 * S), dark, false)
+
+		local lamp = part(
+			"Lamp_" .. index,
+			model,
+			Vector3.new(1.2 * S, 0.12, 0.12),
+			ORIGIN * CFrame.new(x * S, 3.32 * S, -6.85 * S),
+			Color3.fromRGB(255, 242, 214),
+			false
+		)
+		lamp.Material = Enum.Material.Neon
+		local light = Instance.new("PointLight")
+		light.Brightness = 1.2
+		light.Range = 5.5 * S
+		light.Color = Color3.fromRGB(255, 240, 208)
+		light.Parent = lamp
+
+		local signBack = part(
+			"SignBack_" .. index,
+			model,
+			Vector3.new(2.3 * S, 0.58 * S, 0.08),
+			ORIGIN * CFrame.new(x * S, 2.92 * S, -6.8 * S),
+			Color3.fromRGB(17, 19, 17),
+			false
+		)
+		local gui = Instance.new("SurfaceGui")
+		gui.Face = Enum.NormalId.Back
+		gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+		gui.PixelsPerStud = 50
+		gui.Parent = signBack
+		local label = Instance.new("TextLabel")
+		label.Size = UDim2.fromScale(1, 1)
+		label.BackgroundTransparency = 1
+		label.Font = Enum.Font.GothamBold
+		label.TextColor3 = Color3.new(1, 1, 1)
+		label.TextScaled = true
+		label.Text = ""
+		label.Parent = gui
+
+		local interior = part(
+			"Interior_" .. index,
+			model,
+			Vector3.new(1.6 * S, 2.4 * S, 0.6 * S),
+			ORIGIN * CFrame.new(x * S, 1.2 * S, -7.6 * S),
+			Color3.fromRGB(216, 160, 96),
+			false
+		)
+		interior.Transparency = 1
+
+		local leaves = {}
+		for _, side in { -1, 1 } do
+			local leaf = part(
+				"Leaf_" .. index .. "_" .. side,
+				model,
+				Vector3.new(0.8 * S, 2.4 * S, 0.08),
+				ORIGIN * CFrame.new((x + side * 0.4) * S, 1.2 * S, -6.95 * S),
+				Color3.fromRGB(154, 160, 156),
+				false
+			)
+			leaf.Transparency = 1
+			table.insert(leaves, { part = leaf, x0 = (x + side * 0.4) * S, side = side })
+		end
+
+		table.insert(openings, {
+			index = index,
+			lamp = lamp,
+			light = light,
+			signLabel = label,
+			interior = interior,
+			leaves = leaves,
+			flickUntil = -1,
+			openAmt = 0,
+			target = 0,
+		})
+	end
+
+	local spawn = ORIGIN * CFrame.new(0, 1.2 * S, 1.5 * S) * CFrame.Angles(0, math.pi, 0)
+	model:SetAttribute("Active", false)
+	TrialSpace.setVisible(model, false)
+
+	return {
+		model = model,
+		spawn = spawn,
+		openings = openings,
+		tileParts = tileParts,
+	}
+end
+
+function TrialSpace.setVisible(model: Model, visible: boolean)
+	model:SetAttribute("Active", visible)
+	for _, desc in model:GetDescendants() do
+		if desc:IsA("BasePart") then
+			local isDoorish = desc.Name:find("Interior_", 1, true) ~= nil or desc.Name:find("Leaf_", 1, true) ~= nil
+			local isDecor = desc.Name:find("Lamp_", 1, true) ~= nil
+				or desc.Name:find("SignBack_", 1, true) ~= nil
+				or desc.Name:find("Void_", 1, true) ~= nil
+			if visible then
+				if not isDoorish then
+					desc.Transparency = 0
+				end
+				desc.CanCollide = not isDecor and not isDoorish
+			else
+				desc.Transparency = 1
+				desc.CanCollide = false
+			end
+		elseif desc:IsA("PointLight") or desc:IsA("SurfaceGui") then
+			desc.Enabled = visible
+		end
+	end
+end
+
+function TrialSpace.applyRound(built: Built, signs: { string }, boardDoors: boolean)
+	for _, opening in built.openings do
+		local text = signs[opening.index + 1] or ""
+		opening.signLabel.Text = text
+		opening.openAmt = 0
+		opening.target = 0
+		opening.flickUntil = -1
+		local showDoor = boardDoors and opening.index ~= 1
+		opening.interior.Transparency = if showDoor then 0 else 1
+		for _, leaf in opening.leaves do
+			leaf.part.Transparency = if showDoor then 0 else 1
+			leaf.part.CFrame = ORIGIN * CFrame.new(leaf.x0, 1.2 * S, -6.95 * S)
+		end
+		opening.lamp.Color = Color3.fromRGB(255, 242, 214)
+		opening.light.Brightness = 1.2
+		opening.light.Enabled = true
+	end
+end
+
+function TrialSpace.flick(opening: Opening, untilClock: number)
+	opening.flickUntil = untilClock
+end
+
+function TrialSpace.setDoorTarget(opening: Opening, target: number)
+	opening.target = target
+end
+
+function TrialSpace.step(built: Built, dt: number, now: number)
+	for _, opening in built.openings do
+		local off = now < opening.flickUntil
+		opening.lamp.Color = if off then Color3.fromRGB(17, 17, 17) else Color3.fromRGB(255, 242, 214)
+		opening.light.Brightness = if off then 0 else 1.2
+		opening.openAmt += (opening.target - opening.openAmt) * (1 - math.exp(-9 * dt))
+		for _, leaf in opening.leaves do
+			if leaf.part.Transparency < 1 then
+				leaf.part.CFrame = ORIGIN
+					* CFrame.new(leaf.x0 + leaf.side * 0.75 * S * opening.openAmt, 1.2 * S, -6.95 * S)
+			end
+		end
+	end
+end
+
+function TrialSpace.teleportPlayers(cf: CFrame)
+	local Players = game:GetService("Players")
+	for _, player in Players:GetPlayers() do
+		local character = player.Character
+		local root = character and character:FindFirstChild("HumanoidRootPart")
+		if root ~= nil and root:IsA("BasePart") then
+			root.CFrame = cf
+		end
+	end
+end
+
+return TrialSpace
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="29">
         <Properties>
           <string name="Name">WorldLight</string>
           <string name="Source"><![CDATA[--!strict
@@ -3642,10 +7060,14 @@ return Scenery
 -- car lamps, and this service never blacks the car out.
 
 local Lighting = game:GetService("Lighting")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Trestle = require(ReplicatedStorage.Shared.Trestle)
 
 local WorldLight = {}
 
 local applying = false
+local openAir = 0
 
 local function killDefaultSky()
 	for _, child in Lighting:GetChildren() do
@@ -3719,18 +7141,21 @@ function WorldLight.apply()
 	-- Web ambient is 0.15 white, which is a dim fill, not a white wash.
 	Lighting.Ambient = Color3.fromRGB(12, 11, 10)
 	Lighting.OutdoorAmbient = Color3.fromRGB(0, 0, 0)
-	-- App.tsx: fog 0x040504, near 9 m, far 30 m.
-	Lighting.FogColor = Color3.fromRGB(4, 5, 4)
-	Lighting.FogStart = 9 * 3
-	Lighting.FogEnd = 30 * 3
+	-- App.tsx: fog 0x040504, near 9 m, far 30 m. Trestle outside lerps to sodium dusk.
+	local k = openAir
+	local tunnelFog = Color3.fromRGB(Trestle.TUNNEL_FOG_RGB[1], Trestle.TUNNEL_FOG_RGB[2], Trestle.TUNNEL_FOG_RGB[3])
+	local trestleFog = Color3.fromRGB(Trestle.FOG_RGB[1], Trestle.FOG_RGB[2], Trestle.FOG_RGB[3])
+	Lighting.FogColor = tunnelFog:Lerp(trestleFog, k)
+	Lighting.FogStart = Trestle.TUNNEL_FOG_START + (Trestle.OPEN_FOG_START - Trestle.TUNNEL_FOG_START) * k
+	Lighting.FogEnd = Trestle.TUNNEL_FOG_END + (Trestle.OPEN_FOG_END - Trestle.TUNNEL_FOG_END) * k
 
 	local air = atmosphere()
-	air.Density = 0.45
+	air.Density = 0.45 - 0.12 * k
 	air.Offset = 0
-	air.Color = Color3.fromRGB(4, 5, 4)
-	air.Decay = Color3.fromRGB(3, 4, 3)
-	air.Glare = 0
-	air.Haze = 1.1
+	air.Color = tunnelFog:Lerp(trestleFog, k)
+	air.Decay = Color3.fromRGB(3, 4, 3):Lerp(Color3.fromRGB(40, 24, 16), k)
+	air.Glare = 0.05 * k
+	air.Haze = 1.1 + 0.4 * k
 
 	local correction = grade()
 	correction.Brightness = -0.05
@@ -3746,6 +7171,16 @@ function WorldLight.apply()
 	glow.Threshold = 1.45
 
 	applying = false
+end
+
+-- 0 = tunnel murk, 1 = Newtown Creek open air (web trestleOutside).
+function WorldLight.setOpenAir(level: number)
+	local nextLevel = math.clamp(level, 0, 1)
+	if math.abs(nextLevel - openAir) < 0.02 then
+		return
+	end
+	openAir = nextLevel
+	WorldLight.apply()
 end
 
 function WorldLight.bind()
@@ -3768,18 +7203,18 @@ return WorldLight
       </Item>
     </Item>
   </Item>
-  <Item class="StarterPlayer" referent="22">
+  <Item class="StarterPlayer" referent="30">
     <Properties>
       <string name="Name">StarterPlayer</string>
       <float name="CameraMaxZoomDistance">0.5</float>
       <float name="CameraMinZoomDistance">0.5</float>
       <token name="CameraMode">1</token>
     </Properties>
-    <Item class="StarterPlayerScripts" referent="23">
+    <Item class="StarterPlayerScripts" referent="31">
       <Properties>
         <string name="Name">StarterPlayerScripts</string>
       </Properties>
-      <Item class="LocalScript" referent="24">
+      <Item class="LocalScript" referent="32">
         <Properties>
           <string name="Name">Client</string>
           <string name="Source"><![CDATA[--!strict
@@ -3791,17 +7226,39 @@ local Sway = require(script.Sway)
 local Glance = require(script.Glance)
 local Audio = require(script.Audio)
 local Choice = require(script.Choice)
+local Mask = require(script.Mask)
+local TrialChoice = require(script.TrialChoice)
+local Evp = require(script.Evp)
+local Polaroid = require(script.Polaroid)
 
 Hud.start()
 Flag.start(Hud.flagButton())
 Audio.start(Hud.muteButton())
 Choice.start(Hud.stayButton(), Hud.offButton(), Hud.setChoiceVisible, Hud.setChoiceCountdown)
+Mask.start(
+	Hud.maskButtonA(),
+	Hud.maskButtonB(),
+	Hud.maskButtonC(),
+	Hud.setMaskVisible,
+	Hud.setMaskCountdown,
+	Hud.setMaskLabels
+)
+TrialChoice.start(
+	Hud.trialButtonA(),
+	Hud.trialButtonB(),
+	Hud.trialButtonC(),
+	Hud.setTrialVisible,
+	Hud.setTrialCountdown,
+	Hud.setTrialLabels
+)
+Evp.start(Hud.recorderButton(), Hud.evidenceButton())
+Polaroid.start(Hud.cameraButton(), Hud.albumButton())
 Walk.start()
 Sway.start()
 Glance.start()
 ]]></string>
         </Properties>
-        <Item class="ModuleScript" referent="25">
+        <Item class="ModuleScript" referent="33">
           <Properties>
             <string name="Name">Audio</string>
             <string name="Source"><![CDATA[--!strict
@@ -3809,6 +7266,7 @@ Glance.start()
 -- and PaText stay server-owned; this module listens and plays.
 -- Chime before PA, rumble from stretch speed, door open/close, track clacks.
 -- No ride-music decay, pause music, EVP, heartbeat, or intercom voice.
+-- OpenAir (0–1) fades a wind/rain bed on the Newtown Creek trestle.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
@@ -3825,11 +7283,13 @@ local Audio = {}
 local muted = false
 local group: SoundGroup? = nil
 local rumble: Sound? = nil
+local openAir: Sound? = nil
 local muteButton: TextButton? = nil
 local lastDoor: number? = nil
 local lastPa = ""
 local clackTravel = 0
 local lastSpeedSample = 0
+local openAirLevel = 0
 
 local function makeSound(name: string, id: string, volume: number, looped: boolean): Sound
 	local sound = Instance.new("Sound")
@@ -3934,6 +7394,10 @@ function Audio.setMute(value: boolean)
 	if loop ~= nil and muted then
 		loop.Volume = 0
 	end
+	local wind = openAir
+	if wind ~= nil and muted then
+		wind.Volume = 0
+	end
 	refreshMuteLabel()
 end
 
@@ -3960,7 +7424,14 @@ function Audio.start(button: TextButton)
 	loop:Play()
 	rumble = loop
 
+	local wind = makeSound("OpenAir", Constants.SOUND_OPEN_AIR, 0, true)
+	wind.PlaybackSpeed = Constants.SOUND_OPEN_AIR_PLAYBACK
+	wind:Play()
+	openAir = wind
+
 	local ride = ReplicatedStorage:WaitForChild("Ride")
+	local openAttr = ride:GetAttribute("OpenAir")
+	openAirLevel = if typeof(openAttr) == "number" then math.clamp(openAttr, 0, 1) else 0
 
 	local function onDoor(value: any)
 		if typeof(value) ~= "number" then
@@ -3989,11 +7460,47 @@ function Audio.start(button: TextButton)
 	onDoor(ride:GetAttribute("DoorTarget"))
 	onPa(ride:GetAttribute("PaText"))
 
+	local lastEvpRaised = false
+	local lastPlayId = ""
+
 	ride.AttributeChanged:Connect(function(name: string)
 		if name == "DoorTarget" then
 			onDoor(ride:GetAttribute("DoorTarget"))
 		elseif name == "PaText" then
 			onPa(ride:GetAttribute("PaText"))
+		elseif name == "TrialChime" then
+			local stamp = ride:GetAttribute("TrialChime")
+			if typeof(stamp) == "number" and stamp > 0 then
+				playChime()
+			end
+		elseif name == "EvpRaised" then
+			local on = ride:GetAttribute("EvpRaised") == true
+			if on and not lastEvpRaised then
+				playOneShot(Constants.SOUND_DOOR, 0.15, 1.6)
+			end
+			lastEvpRaised = on
+			local loopSound = rumble
+			if loopSound ~= nil and on and not muted then
+				loopSound.Volume = math.min(loopSound.Volume, Constants.SOUND_RUMBLE_MIN)
+			end
+		elseif name == "PolaroidFlash" then
+			local stamp = ride:GetAttribute("PolaroidFlash")
+			if typeof(stamp) == "number" and stamp > 0 then
+				playOneShot(Constants.SOUND_POLAROID, Constants.SOUND_POLAROID_VOLUME, 1.35)
+			end
+		elseif name == "OpenAir" then
+			local level = ride:GetAttribute("OpenAir")
+			openAirLevel = if typeof(level) == "number" then math.clamp(level, 0, 1) else 0
+		elseif name == "EvpPlayId" then
+			local id = ride:GetAttribute("EvpPlayId")
+			local text = if typeof(id) == "string" then id else ""
+			if text ~= "" and text ~= lastPlayId then
+				playOneShot(Constants.SOUND_CHIME, 0.25, 0.7)
+				task.delay(0.35, function()
+					playOneShot(Constants.SOUND_CHIME, 0.2, 0.55)
+				end)
+			end
+			lastPlayId = text
 		end
 	end)
 
@@ -4023,6 +7530,13 @@ function Audio.start(button: TextButton)
 		elseif loopSound ~= nil and muted then
 			loopSound.Volume = 0
 		end
+		local windSound = openAir
+		if windSound ~= nil and not muted then
+			-- Web peaks ~0.14 * level; slice uses a quieter stand-in.
+			windSound.Volume = Constants.SOUND_OPEN_AIR_MAX * openAirLevel
+		elseif windSound ~= nil and muted then
+			windSound.Volume = 0
+		end
 		if fraction > 0.08 then
 			clackTravel += Constants.TOP_SPEED_MPS * fraction * dt
 			if clackTravel >= Constants.CLACK_SPACING_M then
@@ -4039,7 +7553,7 @@ return Audio
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="26">
+        <Item class="ModuleScript" referent="34">
           <Properties>
             <string name="Name">Choice</string>
             <string name="Source"><![CDATA[--!strict
@@ -4127,7 +7641,445 @@ return Choice
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="27">
+        <Item class="ModuleScript" referent="35">
+          <Properties>
+            <string name="Name">Evp</string>
+            <string name="Source"><![CDATA[--!strict
+-- Tape recorder UI: raise/lower, tune, hold-to-record, Evidence list + playback.
+-- Server owns meter/lock/tapes; this only fires remotes and draws attributes.
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local HttpService = game:GetService("HttpService")
+
+local Constants = require(ReplicatedStorage.Shared.Constants)
+
+local Evp = {}
+
+local function corner(parent: Instance, radius: number)
+	local ui = Instance.new("UICorner")
+	ui.CornerRadius = UDim.new(0, radius)
+	ui.Parent = parent
+end
+
+local function parseTapes(raw: string): { { signalId: string, title: string, stop: string, freq: string, transcript: string } }
+	local ok, data = pcall(function()
+		return HttpService:JSONDecode(raw)
+	end)
+	if not ok or typeof(data) ~= "table" then
+		return {}
+	end
+	local out = {}
+	for _, item in data do
+		if typeof(item) == "table" and typeof(item.signalId) == "string" and typeof(item.title) == "string" then
+			table.insert(out, {
+				signalId = item.signalId,
+				title = item.title,
+				stop = if typeof(item.stop) == "string" then item.stop else "",
+				freq = if typeof(item.freq) == "string" then item.freq else "",
+				transcript = if typeof(item.transcript) == "string" then item.transcript else "",
+			})
+		end
+	end
+	return out
+end
+
+function Evp.start(recorderButton: TextButton, evidenceButton: TextButton)
+	local player = Players.LocalPlayer
+	local playerGui = player:WaitForChild("PlayerGui")
+	local ride = ReplicatedStorage:WaitForChild("Ride")
+	local remotes = ReplicatedStorage:WaitForChild("Remotes")
+	local toggleRemote = remotes:WaitForChild("EvpToggle") :: RemoteEvent
+	local tuneRemote = remotes:WaitForChild("EvpTune") :: RemoteEvent
+	local recordRemote = remotes:WaitForChild("EvpRecord") :: RemoteEvent
+	local playRemote = remotes:WaitForChild("EvpPlay") :: RemoteEvent
+
+	local gui = playerGui:WaitForChild("LastLocalHud") :: ScreenGui
+
+	local panel = Instance.new("Frame")
+	panel.Name = "EvpRecorder"
+	panel.AnchorPoint = Vector2.new(1, 1)
+	panel.Position = UDim2.new(1, -16, 1, -120)
+	panel.Size = UDim2.fromOffset(280, 168)
+	panel.BackgroundColor3 = Color3.fromRGB(18, 16, 12)
+	panel.BackgroundTransparency = 0.08
+	panel.BorderSizePixel = 0
+	panel.Visible = false
+	panel.Parent = gui
+	corner(panel, 10)
+
+	local title = Instance.new("TextLabel")
+	title.BackgroundTransparency = 1
+	title.Font = Enum.Font.Code
+	title.Text = "MICROCASSETTE"
+	title.TextSize = 11
+	title.TextColor3 = Color3.fromRGB(180, 176, 166)
+	title.Position = UDim2.fromOffset(12, 8)
+	title.Size = UDim2.new(1, -48, 0, 16)
+	title.TextXAlignment = Enum.TextXAlignment.Left
+	title.Parent = panel
+
+	local lower = Instance.new("TextButton")
+	lower.Name = "Lower"
+	lower.AnchorPoint = Vector2.new(1, 0)
+	lower.Position = UDim2.new(1, -8, 0, 4)
+	lower.Size = UDim2.fromOffset(28, 28)
+	lower.BackgroundColor3 = Color3.fromRGB(40, 36, 30)
+	lower.BorderSizePixel = 0
+	lower.Font = Enum.Font.GothamBold
+	lower.Text = "×"
+	lower.TextColor3 = Constants.COLOR.cream
+	lower.TextSize = 16
+	lower.Parent = panel
+	corner(lower, 14)
+
+	local khzLabel = Instance.new("TextLabel")
+	khzLabel.Name = "Khz"
+	khzLabel.BackgroundTransparency = 1
+	khzLabel.Font = Enum.Font.GothamBold
+	khzLabel.Text = "120.0 kHz"
+	khzLabel.TextSize = 18
+	khzLabel.TextColor3 = Constants.COLOR.cream
+	khzLabel.Position = UDim2.fromOffset(12, 28)
+	khzLabel.Size = UDim2.fromOffset(120, 24)
+	khzLabel.TextXAlignment = Enum.TextXAlignment.Left
+	khzLabel.Parent = panel
+
+	local lockDot = Instance.new("Frame")
+	lockDot.Name = "Lock"
+	lockDot.Position = UDim2.fromOffset(140, 34)
+	lockDot.Size = UDim2.fromOffset(12, 12)
+	lockDot.BackgroundColor3 = Color3.fromRGB(44, 58, 40)
+	lockDot.BorderSizePixel = 0
+	lockDot.Parent = panel
+	corner(lockDot, 6)
+
+	local meterBack = Instance.new("Frame")
+	meterBack.Name = "MeterBack"
+	meterBack.Position = UDim2.fromOffset(12, 58)
+	meterBack.Size = UDim2.new(1, -24, 0, 8)
+	meterBack.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+	meterBack.BorderSizePixel = 0
+	meterBack.Parent = panel
+	corner(meterBack, 4)
+
+	local meterFill = Instance.new("Frame")
+	meterFill.Name = "Fill"
+	meterFill.Size = UDim2.fromScale(0, 1)
+	meterFill.BackgroundColor3 = Constants.COLOR.gLine
+	meterFill.BorderSizePixel = 0
+	meterFill.Parent = meterBack
+	corner(meterFill, 4)
+
+	local status = Instance.new("TextLabel")
+	status.Name = "Status"
+	status.BackgroundTransparency = 1
+	status.Font = Enum.Font.Gotham
+	status.Text = ""
+	status.TextSize = 12
+	status.TextColor3 = Constants.COLOR.cream
+	status.TextWrapped = true
+	status.Position = UDim2.fromOffset(12, 72)
+	status.Size = UDim2.new(1, -24, 0, 40)
+	status.TextXAlignment = Enum.TextXAlignment.Left
+	status.TextYAlignment = Enum.TextYAlignment.Top
+	status.Parent = panel
+
+	local tuneLeft = Instance.new("TextButton")
+	tuneLeft.Position = UDim2.fromOffset(12, 118)
+	tuneLeft.Size = UDim2.fromOffset(40, 36)
+	tuneLeft.BackgroundColor3 = Color3.fromRGB(40, 36, 30)
+	tuneLeft.BorderSizePixel = 0
+	tuneLeft.Font = Enum.Font.GothamBold
+	tuneLeft.Text = "["
+	tuneLeft.TextColor3 = Constants.COLOR.cream
+	tuneLeft.TextSize = 16
+	tuneLeft.Parent = panel
+	corner(tuneLeft, 8)
+
+	local tuneRight = Instance.new("TextButton")
+	tuneRight.Position = UDim2.fromOffset(56, 118)
+	tuneRight.Size = UDim2.fromOffset(40, 36)
+	tuneRight.BackgroundColor3 = Color3.fromRGB(40, 36, 30)
+	tuneRight.BorderSizePixel = 0
+	tuneRight.Font = Enum.Font.GothamBold
+	tuneRight.Text = "]"
+	tuneRight.TextColor3 = Constants.COLOR.cream
+	tuneRight.TextSize = 16
+	tuneRight.Parent = panel
+	corner(tuneRight, 8)
+
+	local rec = Instance.new("TextButton")
+	rec.Name = "Record"
+	rec.Position = UDim2.fromOffset(108, 118)
+	rec.Size = UDim2.new(1, -120, 0, 36)
+	rec.BackgroundColor3 = Color3.fromRGB(80, 28, 24)
+	rec.BorderSizePixel = 0
+	rec.Font = Enum.Font.GothamBold
+	rec.Text = "HOLD  REC"
+	rec.TextColor3 = Constants.COLOR.cream
+	rec.TextSize = 13
+	rec.Parent = panel
+	corner(rec, 8)
+
+	local evidence = Instance.new("Frame")
+	evidence.Name = "EvidenceLog"
+	evidence.AnchorPoint = Vector2.new(0.5, 0.5)
+	evidence.Position = UDim2.fromScale(0.5, 0.48)
+	evidence.Size = UDim2.fromOffset(360, 280)
+	evidence.BackgroundColor3 = Color3.fromRGB(14, 12, 10)
+	evidence.BackgroundTransparency = 0.05
+	evidence.BorderSizePixel = 0
+	evidence.Visible = false
+	evidence.Parent = gui
+	corner(evidence, 12)
+
+	local evTitle = Instance.new("TextLabel")
+	evTitle.BackgroundTransparency = 1
+	evTitle.Font = Enum.Font.GothamBold
+	evTitle.Text = "Evidence Log — Tapes"
+	evTitle.TextSize = 16
+	evTitle.TextColor3 = Constants.COLOR.cream
+	evTitle.Position = UDim2.fromOffset(14, 10)
+	evTitle.Size = UDim2.new(1, -50, 0, 24)
+	evTitle.TextXAlignment = Enum.TextXAlignment.Left
+	evTitle.Parent = evidence
+
+	local evClose = Instance.new("TextButton")
+	evClose.AnchorPoint = Vector2.new(1, 0)
+	evClose.Position = UDim2.new(1, -10, 0, 8)
+	evClose.Size = UDim2.fromOffset(28, 28)
+	evClose.BackgroundColor3 = Color3.fromRGB(40, 36, 30)
+	evClose.BorderSizePixel = 0
+	evClose.Font = Enum.Font.GothamBold
+	evClose.Text = "×"
+	evClose.TextColor3 = Constants.COLOR.cream
+	evClose.TextSize = 16
+	evClose.Parent = evidence
+	corner(evClose, 14)
+
+	local list = Instance.new("ScrollingFrame")
+	list.Name = "List"
+	list.Position = UDim2.fromOffset(12, 44)
+	list.Size = UDim2.new(1, -24, 1, -56)
+	list.BackgroundTransparency = 1
+	list.BorderSizePixel = 0
+	list.ScrollBarThickness = 4
+	list.CanvasSize = UDim2.fromOffset(0, 0)
+	list.Parent = evidence
+
+	local listLayout = Instance.new("UIListLayout")
+	listLayout.Padding = UDim.new(0, 6)
+	listLayout.Parent = list
+
+	local recordingHeld = false
+
+	local function hasRecorder(): boolean
+		return ride:GetAttribute("HasRecorder") == true
+	end
+
+	local function raised(): boolean
+		return ride:GetAttribute("EvpRaised") == true
+	end
+
+	local function refreshRecorderButton()
+		recorderButton.Visible = hasRecorder()
+		recorderButton.Text = if raised() then "LOWER" else "REC"
+		recorderButton.BackgroundColor3 = if raised()
+			then Color3.fromRGB(48, 28, 18)
+			else Color3.fromRGB(8, 8, 8)
+	end
+
+	local function refreshPanel()
+		panel.Visible = raised()
+		if not raised() then
+			return
+		end
+		local khz = ride:GetAttribute("EvpKhz")
+		local meter = ride:GetAttribute("EvpMeter")
+		local locked = ride:GetAttribute("EvpLocked")
+		local statusText = ride:GetAttribute("EvpStatus")
+		local saved = ride:GetAttribute("EvpSaved")
+		khzLabel.Text = string.format("%.1f kHz", if typeof(khz) == "number" then khz else 120)
+		meterFill.Size = UDim2.fromScale(math.clamp(if typeof(meter) == "number" then meter else 0, 0, 1), 1)
+		local lockedOn = typeof(locked) == "string" and locked ~= ""
+		lockDot.BackgroundColor3 = if lockedOn then Constants.COLOR.gLine else Color3.fromRGB(44, 58, 40)
+		if typeof(saved) == "string" and saved ~= "" then
+			status.Text = "Saved to tape: " .. saved
+		elseif typeof(statusText) == "string" then
+			status.Text = statusText
+		else
+			status.Text = ""
+		end
+		local recordT = ride:GetAttribute("EvpRecordT")
+		if typeof(recordT) == "number" and recordT > 0 then
+			rec.Text = string.format("REC  %.1fs", recordT)
+		else
+			rec.Text = "HOLD  REC"
+		end
+	end
+
+	local function rebuildEvidence()
+		for _, child in list:GetChildren() do
+			if child:IsA("TextButton") or child:IsA("TextLabel") then
+				child:Destroy()
+			end
+		end
+		local raw = ride:GetAttribute("EvpTapes")
+		local tapes = parseTapes(if typeof(raw) == "string" then raw else "[]")
+		if #tapes == 0 then
+			local empty = Instance.new("TextLabel")
+			empty.BackgroundTransparency = 1
+			empty.Font = Enum.Font.Gotham
+			empty.Text = "No tapes yet. Raise the recorder (R), tune, and hold REC on a voice."
+			empty.TextSize = 13
+			empty.TextColor3 = Color3.fromRGB(180, 176, 166)
+			empty.TextWrapped = true
+			empty.Size = UDim2.new(1, 0, 0, 48)
+			empty.Parent = list
+		else
+			for _, tape in tapes do
+				local btn = Instance.new("TextButton")
+				btn.Size = UDim2.new(1, -4, 0, 52)
+				btn.BackgroundColor3 = Color3.fromRGB(28, 26, 22)
+				btn.BorderSizePixel = 0
+				btn.AutoButtonColor = true
+				btn.Font = Enum.Font.GothamMedium
+				btn.Text = tape.title .. "\n" .. tape.freq .. " · " .. tape.stop .. "  [Play]"
+				btn.TextColor3 = Constants.COLOR.cream
+				btn.TextSize = 13
+				btn.TextXAlignment = Enum.TextXAlignment.Left
+				btn.Parent = list
+				corner(btn, 8)
+				local pad = Instance.new("UIPadding")
+				pad.PaddingLeft = UDim.new(0, 10)
+				pad.PaddingTop = UDim.new(0, 6)
+				pad.Parent = btn
+				local id = tape.signalId
+				btn.MouseButton1Click:Connect(function()
+					playRemote:FireServer(id)
+				end)
+			end
+		end
+		list.CanvasSize = UDim2.fromOffset(0, listLayout.AbsoluteContentSize.Y + 8)
+	end
+
+	recorderButton.MouseButton1Click:Connect(function()
+		toggleRemote:FireServer()
+	end)
+	evidenceButton.MouseButton1Click:Connect(function()
+		evidence.Visible = not evidence.Visible
+		if evidence.Visible then
+			rebuildEvidence()
+		end
+	end)
+	lower.MouseButton1Click:Connect(function()
+		if raised() then
+			toggleRemote:FireServer()
+		end
+	end)
+	evClose.MouseButton1Click:Connect(function()
+		evidence.Visible = false
+	end)
+	tuneLeft.MouseButton1Click:Connect(function()
+		tuneRemote:FireServer(-0.5)
+	end)
+	tuneRight.MouseButton1Click:Connect(function()
+		tuneRemote:FireServer(0.5)
+	end)
+
+	local function setRecording(on: boolean)
+		if recordingHeld == on then
+			return
+		end
+		recordingHeld = on
+		recordRemote:FireServer(on)
+	end
+
+	rec.MouseButton1Down:Connect(function()
+		setRecording(true)
+	end)
+	rec.MouseButton1Up:Connect(function()
+		setRecording(false)
+	end)
+	rec.MouseLeave:Connect(function()
+		setRecording(false)
+	end)
+
+	UserInputService.InputBegan:Connect(function(input: InputObject, processed: boolean)
+		if processed then
+			return
+		end
+		if input.KeyCode == Enum.KeyCode.R then
+			toggleRemote:FireServer()
+		elseif input.KeyCode == Enum.KeyCode.Tab then
+			evidence.Visible = not evidence.Visible
+			if evidence.Visible then
+				rebuildEvidence()
+			end
+		elseif raised() then
+			if input.KeyCode == Enum.KeyCode.LeftBracket then
+				tuneRemote:FireServer(-0.5)
+			elseif input.KeyCode == Enum.KeyCode.RightBracket then
+				tuneRemote:FireServer(0.5)
+			elseif input.KeyCode == Enum.KeyCode.Space then
+				setRecording(true)
+			end
+		end
+	end)
+	UserInputService.InputEnded:Connect(function(input: InputObject, _processed: boolean)
+		if input.KeyCode == Enum.KeyCode.Space then
+			setRecording(false)
+		end
+	end)
+	UserInputService.InputChanged:Connect(function(input: InputObject, processed: boolean)
+		if processed or not raised() then
+			return
+		end
+		if input.UserInputType == Enum.UserInputType.MouseWheel then
+			local z = input.Position.Z
+			tuneRemote:FireServer(if z > 0 then 0.5 else -0.5)
+		end
+	end)
+
+	ride.AttributeChanged:Connect(function(name: string)
+		if
+			name == "HasRecorder"
+			or name == "EvpRaised"
+			or name == "EvpKhz"
+			or name == "EvpMeter"
+			or name == "EvpLocked"
+			or name == "EvpStatus"
+			or name == "EvpSaved"
+			or name == "EvpRecordT"
+		then
+			refreshRecorderButton()
+			refreshPanel()
+		elseif name == "EvpTapes" and evidence.Visible then
+			rebuildEvidence()
+		end
+	end)
+
+	listLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+		list.CanvasSize = UDim2.fromOffset(0, listLayout.AbsoluteContentSize.Y + 8)
+	end)
+
+	RunService.Heartbeat:Connect(function()
+		evidenceButton.Visible = hasRecorder()
+		refreshRecorderButton()
+	end)
+
+	refreshRecorderButton()
+	refreshPanel()
+end
+
+return Evp
+]]></string>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="36">
           <Properties>
             <string name="Name">Flag</string>
             <string name="Source"><![CDATA[--!strict
@@ -4260,7 +8212,7 @@ return Flag
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="28">
+        <Item class="ModuleScript" referent="37">
           <Properties>
             <string name="Name">Glance</string>
             <string name="Source"><![CDATA[--!strict
@@ -4344,6 +8296,7 @@ function Glance.start()
 	local glanceGroup: Cluster? = nil
 	local glanceStart = 0
 	local nextGlance = 0
+	local tapeGlanceUntil = 0
 
 	local function collect()
 		local car = workspace:FindFirstChild("SubwayCar")
@@ -4361,6 +8314,17 @@ function Glance.start()
 			end
 		end
 	end
+
+	ride.AttributeChanged:Connect(function(name: string)
+		if name == "TapeGlance" or name == "FlashGlance" then
+			tapeGlanceUntil = os.clock() + 2.0
+			collect()
+			if #groups > 0 then
+				glanceGroup = groups[math.random(1, #groups)]
+				glanceStart = os.clock()
+			end
+		end
+	end)
 
 	local function angleToward(group: Cluster, maxRad: number): number
 		local character = player.Character
@@ -4382,16 +8346,18 @@ function Glance.start()
 
 	RunService.Heartbeat:Connect(function()
 		collect()
+		local now = os.clock()
+		local tapeGlance = now < tapeGlanceUntil
 		local band = ride:GetAttribute("Band")
 		local look = if typeof(band) == "string" then Band.look(band) else "none"
-		if look == "none" then
+		if look == "none" and not tapeGlance then
 			for _, group in groups do
 				restore(group)
 			end
 			glanceGroup = nil
 			return
 		end
-		if look == "turn" then
+		if look == "turn" and not tapeGlance then
 			glanceGroup = nil
 			local maxRad = math.rad(Constants.TURN_YAW_DEG)
 			for _, group in groups do
@@ -4399,11 +8365,12 @@ function Glance.start()
 			end
 			return
 		end
-		local now = os.clock()
-		if glanceGroup == nil and moving() and now >= nextGlance and #groups > 0 then
+		if glanceGroup == nil and (tapeGlance or (moving() and now >= nextGlance)) and #groups > 0 then
 			glanceGroup = groups[math.random(1, #groups)]
 			glanceStart = now
-			nextGlance = now + Constants.GLANCE_COOLDOWN
+			if not tapeGlance then
+				nextGlance = now + Constants.GLANCE_COOLDOWN
+			end
 		end
 		local active = glanceGroup
 		for _, group in groups do
@@ -4427,7 +8394,7 @@ return Glance
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="29">
+        <Item class="ModuleScript" referent="38">
           <Properties>
             <string name="Name">Hud</string>
             <string name="Source"><![CDATA[--!strict
@@ -4442,6 +8409,7 @@ local RunService = game:GetService("RunService")
 
 local Constants = require(ReplicatedStorage.Shared.Constants)
 local Lines = require(ReplicatedStorage.Shared.Lines)
+local Route = require(ReplicatedStorage.Shared.Route)
 
 local Hud = {}
 
@@ -4451,6 +8419,20 @@ local stayButton: TextButton? = nil
 local offButton: TextButton? = nil
 local choiceFrame: Frame? = nil
 local choiceCountdown: TextLabel? = nil
+local maskFrame: Frame? = nil
+local maskCountdown: TextLabel? = nil
+local maskButtonA: TextButton? = nil
+local maskButtonB: TextButton? = nil
+local maskButtonC: TextButton? = nil
+local trialFrame: Frame? = nil
+local trialCountdown: TextLabel? = nil
+local trialButtonA: TextButton? = nil
+local trialButtonB: TextButton? = nil
+local trialButtonC: TextButton? = nil
+local recorderButton: TextButton? = nil
+local evidenceButton: TextButton? = nil
+local cameraButton: TextButton? = nil
+local albumButton: TextButton? = nil
 local progressFill: Frame? = nil
 
 local function corner(parent: Instance, radius: number)
@@ -4505,6 +8487,117 @@ function Hud.setChoiceCountdown(text: string)
 	if countdown ~= nil then
 		countdown.Text = text
 	end
+end
+
+function Hud.maskButtonA(): TextButton
+	assert(maskButtonA ~= nil, "Hud.start must run first")
+	return maskButtonA
+end
+
+function Hud.maskButtonB(): TextButton
+	assert(maskButtonB ~= nil, "Hud.start must run first")
+	return maskButtonB
+end
+
+function Hud.maskButtonC(): TextButton
+	assert(maskButtonC ~= nil, "Hud.start must run first")
+	return maskButtonC
+end
+
+function Hud.setMaskVisible(visible: boolean)
+	local frame = maskFrame
+	if frame ~= nil then
+		frame.Visible = visible
+	end
+end
+
+function Hud.setMaskCountdown(text: string)
+	local countdown = maskCountdown
+	if countdown ~= nil then
+		countdown.Text = text
+	end
+end
+
+function Hud.setMaskLabels(a: string, b: string, c: string)
+	local ba = maskButtonA
+	local bb = maskButtonB
+	local bc = maskButtonC
+	if ba ~= nil then
+		ba.Text = "[1]  " .. a
+	end
+	if bb ~= nil then
+		bb.Text = "[2]  " .. b
+	end
+	if bc ~= nil then
+		bc.Text = "[3]  " .. c
+	end
+end
+
+function Hud.trialButtonA(): TextButton
+	assert(trialButtonA ~= nil, "Hud.start must run first")
+	return trialButtonA
+end
+
+function Hud.trialButtonB(): TextButton
+	assert(trialButtonB ~= nil, "Hud.start must run first")
+	return trialButtonB
+end
+
+function Hud.trialButtonC(): TextButton
+	assert(trialButtonC ~= nil, "Hud.start must run first")
+	return trialButtonC
+end
+
+function Hud.setTrialVisible(visible: boolean)
+	local frame = trialFrame
+	if frame ~= nil then
+		frame.Visible = visible
+	end
+end
+
+function Hud.setTrialCountdown(text: string)
+	local countdown = trialCountdown
+	if countdown ~= nil then
+		countdown.Text = text
+	end
+end
+
+function Hud.setTrialLabels(a: string, b: string, c: string, slots: number)
+	local ba = trialButtonA
+	local bb = trialButtonB
+	local bc = trialButtonC
+	if ba ~= nil then
+		ba.Text = "[1]  " .. a
+		ba.Visible = slots >= 1
+	end
+	if bb ~= nil then
+		bb.Text = "[2]  " .. b
+		bb.Visible = slots >= 2
+	end
+	if bc ~= nil then
+		bc.Text = "[3]  " .. c
+		bc.Visible = slots >= 3
+	end
+end
+
+function Hud.recorderButton(): TextButton
+	assert(recorderButton ~= nil, "Hud.start must run first")
+	return recorderButton
+end
+
+function Hud.evidenceButton(): TextButton
+	assert(evidenceButton ~= nil, "Hud.start must run first")
+	return evidenceButton
+end
+
+function Hud.cameraButton(): TextButton
+	assert(cameraButton ~= nil, "Hud.start must run first")
+	return cameraButton
+end
+
+function Hud.albumButton(): TextButton
+	assert(albumButton ~= nil, "Hud.start must run first")
+	return albumButton
 end
 
 function Hud.setProgress(ratio: number, holding: boolean)
@@ -4682,10 +8775,10 @@ function Hud.start()
 	feedback.Visible = false
 	feedback.Parent = gui
 
-	local strip = label(gui, "[F] FLAG   ·   [WASD] WALK   ·   [M] MUTE", 13, Color3.fromRGB(220, 216, 206))
+	local strip = label(gui, "[F] FLAG   ·   [R] REC   ·   [TAB] EVIDENCE   ·   [M] MUTE", 13, Color3.fromRGB(220, 216, 206))
 	strip.AnchorPoint = Vector2.new(0, 1)
 	strip.Position = UDim2.new(0, 14, 1, -18)
-	strip.Size = UDim2.fromOffset(320, 22)
+	strip.Size = UDim2.fromOffset(460, 22)
 	strip.Font = Enum.Font.Code
 
 	local mute = Instance.new("TextButton")
@@ -4704,6 +8797,76 @@ function Hud.start()
 	mute.Parent = gui
 	corner(mute, 6)
 	muteButton = mute
+
+	local recorder = Instance.new("TextButton")
+	recorder.Name = "Recorder"
+	recorder.AnchorPoint = Vector2.new(0, 1)
+	recorder.Position = UDim2.new(0, 94, 1, -48)
+	recorder.Size = UDim2.fromOffset(64, 28)
+	recorder.BackgroundColor3 = Color3.fromRGB(8, 8, 8)
+	recorder.BackgroundTransparency = 0.15
+	recorder.BorderSizePixel = 0
+	recorder.AutoButtonColor = true
+	recorder.Font = Enum.Font.GothamBold
+	recorder.Text = "REC"
+	recorder.TextColor3 = Constants.COLOR.cream
+	recorder.TextSize = 12
+	recorder.Visible = false
+	recorder.Parent = gui
+	corner(recorder, 6)
+	recorderButton = recorder
+
+	local evidenceBtn = Instance.new("TextButton")
+	evidenceBtn.Name = "Evidence"
+	evidenceBtn.AnchorPoint = Vector2.new(0, 1)
+	evidenceBtn.Position = UDim2.new(0, 166, 1, -48)
+	evidenceBtn.Size = UDim2.fromOffset(88, 28)
+	evidenceBtn.BackgroundColor3 = Color3.fromRGB(8, 8, 8)
+	evidenceBtn.BackgroundTransparency = 0.15
+	evidenceBtn.BorderSizePixel = 0
+	evidenceBtn.AutoButtonColor = true
+	evidenceBtn.Font = Enum.Font.GothamBold
+	evidenceBtn.Text = "EVIDENCE"
+	evidenceBtn.TextColor3 = Constants.COLOR.cream
+	evidenceBtn.TextSize = 11
+	evidenceBtn.Visible = false
+	evidenceBtn.Parent = gui
+	corner(evidenceBtn, 6)
+	evidenceButton = evidenceBtn
+
+	local camBtn = Instance.new("TextButton")
+	camBtn.Name = "Camera"
+	camBtn.AnchorPoint = Vector2.new(0, 1)
+	camBtn.Position = UDim2.new(0, 262, 1, -48)
+	camBtn.Size = UDim2.fromOffset(52, 28)
+	camBtn.BackgroundColor3 = Color3.fromRGB(8, 8, 8)
+	camBtn.BackgroundTransparency = 0.15
+	camBtn.BorderSizePixel = 0
+	camBtn.AutoButtonColor = true
+	camBtn.Font = Enum.Font.GothamBold
+	camBtn.Text = "CAM"
+	camBtn.TextColor3 = Constants.COLOR.cream
+	camBtn.TextSize = 12
+	camBtn.Parent = gui
+	corner(camBtn, 6)
+	cameraButton = camBtn
+
+	local albBtn = Instance.new("TextButton")
+	albBtn.Name = "Album"
+	albBtn.AnchorPoint = Vector2.new(0, 1)
+	albBtn.Position = UDim2.new(0, 322, 1, -48)
+	albBtn.Size = UDim2.fromOffset(64, 28)
+	albBtn.BackgroundColor3 = Color3.fromRGB(8, 8, 8)
+	albBtn.BackgroundTransparency = 0.15
+	albBtn.BorderSizePixel = 0
+	albBtn.AutoButtonColor = true
+	albBtn.Font = Enum.Font.GothamBold
+	albBtn.Text = "ALBUM"
+	albBtn.TextColor3 = Constants.COLOR.cream
+	albBtn.TextSize = 11
+	albBtn.Parent = gui
+	corner(albBtn, 6)
+	albumButton = albBtn
 
 	local barBack = Instance.new("Frame")
 	barBack.Name = "FlagBar"
@@ -4813,6 +8976,108 @@ function Hud.start()
 	corner(stepOff, 8)
 	offButton = stepOff
 
+	local masksCard = Instance.new("Frame")
+	masksCard.Name = "MaskChoice"
+	masksCard.AnchorPoint = Vector2.new(0.5, 1)
+	masksCard.Position = UDim2.new(0.5, 0, 1, -214)
+	masksCard.Size = UDim2.fromOffset(360, 168)
+	masksCard.BackgroundColor3 = Color3.new(0, 0, 0)
+	masksCard.BackgroundTransparency = 0.28
+	masksCard.BorderSizePixel = 0
+	masksCard.Visible = false
+	masksCard.Parent = gui
+	corner(masksCard, 10)
+	maskFrame = masksCard
+
+	local masksTitle = label(masksCard, "Answer carefully.", 14, Constants.COLOR.warn)
+	masksTitle.Name = "Title"
+	masksTitle.Font = Enum.Font.GothamBold
+	masksTitle.Position = UDim2.fromOffset(12, 8)
+	masksTitle.Size = UDim2.new(1, -24, 0, 18)
+	masksTitle.TextXAlignment = Enum.TextXAlignment.Center
+
+	local masksCount = label(masksCard, "", 12, Color3.fromRGB(180, 176, 166))
+	masksCount.Name = "Countdown"
+	masksCount.Font = Enum.Font.Code
+	masksCount.Position = UDim2.fromOffset(12, 28)
+	masksCount.Size = UDim2.new(1, -24, 0, 16)
+	masksCount.TextXAlignment = Enum.TextXAlignment.Center
+	maskCountdown = masksCount
+
+	local function maskBtn(name: string, y: number): TextButton
+		local btn = Instance.new("TextButton")
+		btn.Name = name
+		btn.Position = UDim2.fromOffset(16, y)
+		btn.Size = UDim2.new(1, -32, 0, 36)
+		btn.BackgroundColor3 = Color3.fromRGB(22, 28, 36)
+		btn.BackgroundTransparency = 0.1
+		btn.BorderSizePixel = 0
+		btn.AutoButtonColor = true
+		btn.Font = Enum.Font.GothamMedium
+		btn.Text = ""
+		btn.TextColor3 = Constants.COLOR.cream
+		btn.TextSize = 14
+		btn.TextWrapped = true
+		btn.Parent = masksCard
+		corner(btn, 8)
+		return btn
+	end
+
+	maskButtonA = maskBtn("MaskA", 50)
+	maskButtonB = maskBtn("MaskB", 90)
+	maskButtonC = maskBtn("MaskC", 130)
+
+	local trialCard = Instance.new("Frame")
+	trialCard.Name = "TrialChoice"
+	trialCard.AnchorPoint = Vector2.new(0.5, 1)
+	trialCard.Position = UDim2.new(0.5, 0, 1, -214)
+	trialCard.Size = UDim2.fromOffset(360, 168)
+	trialCard.BackgroundColor3 = Color3.new(0, 0, 0)
+	trialCard.BackgroundTransparency = 0.28
+	trialCard.BorderSizePixel = 0
+	trialCard.Visible = false
+	trialCard.Parent = gui
+	corner(trialCard, 10)
+	trialFrame = trialCard
+
+	local trialTitle = label(trialCard, "Find the way back.", 14, Constants.COLOR.warn)
+	trialTitle.Name = "Title"
+	trialTitle.Font = Enum.Font.GothamBold
+	trialTitle.Position = UDim2.fromOffset(12, 8)
+	trialTitle.Size = UDim2.new(1, -24, 0, 18)
+	trialTitle.TextXAlignment = Enum.TextXAlignment.Center
+
+	local trialCount = label(trialCard, "", 12, Color3.fromRGB(180, 176, 166))
+	trialCount.Name = "Countdown"
+	trialCount.Font = Enum.Font.Code
+	trialCount.Position = UDim2.fromOffset(12, 28)
+	trialCount.Size = UDim2.new(1, -24, 0, 16)
+	trialCount.TextXAlignment = Enum.TextXAlignment.Center
+	trialCountdown = trialCount
+
+	local function trialBtn(name: string, y: number): TextButton
+		local btn = Instance.new("TextButton")
+		btn.Name = name
+		btn.Position = UDim2.fromOffset(16, y)
+		btn.Size = UDim2.new(1, -32, 0, 36)
+		btn.BackgroundColor3 = Color3.fromRGB(36, 28, 22)
+		btn.BackgroundTransparency = 0.1
+		btn.BorderSizePixel = 0
+		btn.AutoButtonColor = true
+		btn.Font = Enum.Font.GothamMedium
+		btn.Text = ""
+		btn.TextColor3 = Constants.COLOR.cream
+		btn.TextSize = 14
+		btn.TextWrapped = true
+		btn.Parent = trialCard
+		corner(btn, 8)
+		return btn
+	end
+
+	trialButtonA = trialBtn("TrialA", 50)
+	trialButtonB = trialBtn("TrialB", 90)
+	trialButtonC = trialBtn("TrialC", 130)
+
 	local dwellCard = Instance.new("Frame")
 	dwellCard.Name = "Dwell"
 	dwellCard.AnchorPoint = Vector2.new(0.5, 1)
@@ -4889,7 +9154,15 @@ function Hud.start()
 		local stopName = textOf("NextStop")
 		nextName.Text = stopName
 		nextLabel.Visible = stopName ~= ""
-		chapter.Text = textOf("ChapterLine")
+		local chapterLine = textOf("ChapterLine")
+		local character = Players.LocalPlayer.Character
+		local root = if character ~= nil then character:FindFirstChild("HumanoidRootPart") else nil
+		if root ~= nil and root:IsA("BasePart") then
+			local xMetres = root.Position.X / Constants.STUDS_PER_METER
+			chapter.Text = Route.withCarLabel(chapterLine, Route.carLabel(xMetres))
+		else
+			chapter.Text = chapterLine
+		end
 
 		local susAttr = ride:GetAttribute("Suspicion")
 		local sus = if typeof(susAttr) == "number" then susAttr else 0
@@ -4944,6 +9217,14 @@ function Hud.start()
 	end
 
 	RunService.Heartbeat:Connect(function()
+		local chapterLine = textOf("ChapterLine")
+		local character = Players.LocalPlayer.Character
+		local root = if character ~= nil then character:FindFirstChild("HumanoidRootPart") else nil
+		if root ~= nil and root:IsA("BasePart") then
+			local xMetres = root.Position.X / Constants.STUDS_PER_METER
+			chapter.Text = Route.withCarLabel(chapterLine, Route.carLabel(xMetres))
+		end
+
 		local deadline = ride:GetAttribute("DwellUntil")
 		if typeof(deadline) ~= "number" or deadline <= 0 then
 			dwellCard.Visible = false
@@ -4974,7 +9255,405 @@ return Hud
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="30">
+        <Item class="ModuleScript" referent="39">
+          <Properties>
+            <string name="Name">Mask</string>
+            <string name="Source"><![CDATA[--!strict
+-- Parent mask check UI. Server owns validation; this only fires Remotes.Mask
+-- while MaskActive is true. Timeout on the server counts as hesitation.
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+
+local Mask = {}
+
+function Mask.start(
+	buttonA: TextButton,
+	buttonB: TextButton,
+	buttonC: TextButton,
+	setVisible: (boolean) -> (),
+	setCountdown: (string) -> (),
+	setLabels: (string, string, string) -> ()
+)
+	local ride = ReplicatedStorage:WaitForChild("Ride")
+	local remotes = ReplicatedStorage:WaitForChild("Remotes")
+	local maskRemote = remotes:WaitForChild("Mask") :: RemoteEvent
+	local sent = false
+
+	local function active(): boolean
+		return ride:GetAttribute("MaskActive") == true
+	end
+
+	local function pick(slot: string)
+		if not active() or sent then
+			return
+		end
+		sent = true
+		maskRemote:FireServer(slot)
+	end
+
+	buttonA.MouseButton1Click:Connect(function()
+		pick("A")
+	end)
+	buttonB.MouseButton1Click:Connect(function()
+		pick("B")
+	end)
+	buttonC.MouseButton1Click:Connect(function()
+		pick("C")
+	end)
+
+	UserInputService.InputBegan:Connect(function(input: InputObject, processed: boolean)
+		if processed or not active() then
+			return
+		end
+		if input.KeyCode == Enum.KeyCode.One or input.KeyCode == Enum.KeyCode.KeypadOne then
+			pick("A")
+		elseif input.KeyCode == Enum.KeyCode.Two or input.KeyCode == Enum.KeyCode.KeypadTwo then
+			pick("B")
+		elseif input.KeyCode == Enum.KeyCode.Three or input.KeyCode == Enum.KeyCode.KeypadThree then
+			pick("C")
+		end
+	end)
+
+	local function textOf(name: string): string
+		local value = ride:GetAttribute(name)
+		if typeof(value) == "string" then
+			return value
+		end
+		return ""
+	end
+
+	local function refresh()
+		local on = active()
+		setVisible(on)
+		if not on then
+			sent = false
+			setCountdown("")
+			setLabels("", "", "")
+			return
+		end
+		setLabels(textOf("MaskA"), textOf("MaskB"), textOf("MaskC"))
+		local deadline = ride:GetAttribute("MaskUntil")
+		if typeof(deadline) ~= "number" or deadline <= 0 then
+			setCountdown("")
+			return
+		end
+		local remain = math.ceil(deadline - workspace:GetServerTimeNow())
+		if remain < 1 then
+			remain = 1
+		end
+		setCountdown(tostring(remain) .. "s · hesitate raises suspicion")
+	end
+
+	ride.AttributeChanged:Connect(function(name: string)
+		if
+			name == "MaskActive"
+			or name == "MaskUntil"
+			or name == "MaskA"
+			or name == "MaskB"
+			or name == "MaskC"
+		then
+			refresh()
+		end
+	end)
+	RunService.Heartbeat:Connect(function()
+		if active() then
+			refresh()
+		end
+	end)
+	refresh()
+end
+
+return Mask
+]]></string>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="40">
+          <Properties>
+            <string name="Name">Polaroid</string>
+            <string name="Source"><![CDATA[--!strict
+-- Polaroid viewfinder, shutter, and minimal album strip.
+-- Server owns film, framed catches, and flash suspicion; this draws UI and fires remotes.
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local HttpService = game:GetService("HttpService")
+
+local Constants = require(ReplicatedStorage.Shared.Constants)
+
+local Polaroid = {}
+
+local function corner(parent: Instance, radius: number)
+	local ui = Instance.new("UICorner")
+	ui.CornerRadius = UDim.new(0, radius)
+	ui.Parent = parent
+end
+
+local function parseAlbum(raw: string): { { id: string, stop: string } }
+	local ok, data = pcall(function()
+		return HttpService:JSONDecode(raw)
+	end)
+	if not ok or typeof(data) ~= "table" then
+		return {}
+	end
+	local out = {}
+	for _, item in data do
+		if typeof(item) == "table" and typeof(item.id) == "string" then
+			table.insert(out, {
+				id = item.id,
+				stop = if typeof(item.stop) == "string" then item.stop else "",
+			})
+		end
+	end
+	return out
+end
+
+function Polaroid.start(cameraButton: TextButton, albumButton: TextButton)
+	local player = Players.LocalPlayer
+	local playerGui = player:WaitForChild("PlayerGui")
+	local ride = ReplicatedStorage:WaitForChild("Ride")
+	local remotes = ReplicatedStorage:WaitForChild("Remotes")
+	local toggleRemote = remotes:WaitForChild("PolaroidToggle") :: RemoteEvent
+	local snapRemote = remotes:WaitForChild("PolaroidSnap") :: RemoteEvent
+	local albumRemote = remotes:WaitForChild("PolaroidAlbum") :: RemoteEvent
+
+	local gui = playerGui:WaitForChild("LastLocalHud") :: ScreenGui
+
+	local viewfinder = Instance.new("Frame")
+	viewfinder.Name = "PolaroidViewfinder"
+	viewfinder.Size = UDim2.fromScale(1, 1)
+	viewfinder.BackgroundTransparency = 1
+	viewfinder.BorderSizePixel = 0
+	viewfinder.Visible = false
+	viewfinder.Parent = gui
+
+	local vignette = Instance.new("Frame")
+	vignette.Name = "Vignette"
+	vignette.Size = UDim2.fromScale(1, 1)
+	vignette.BackgroundColor3 = Color3.new(0, 0, 0)
+	vignette.BackgroundTransparency = 0.55
+	vignette.BorderSizePixel = 0
+	vignette.Parent = viewfinder
+
+	local frame = Instance.new("Frame")
+	frame.Name = "Frame"
+	frame.AnchorPoint = Vector2.new(0.5, 0.5)
+	frame.Position = UDim2.fromScale(0.5, 0.48)
+	frame.Size = UDim2.fromScale(0.42, 0.55)
+	frame.BackgroundTransparency = 1
+	frame.BorderSizePixel = 0
+	frame.Parent = viewfinder
+
+	local stroke = Instance.new("UIStroke")
+	stroke.Thickness = 3
+	stroke.Color = Color3.fromRGB(230, 220, 200)
+	stroke.Transparency = 0.15
+	stroke.Parent = frame
+
+	local filmLabel = Instance.new("TextLabel")
+	filmLabel.Name = "Film"
+	filmLabel.AnchorPoint = Vector2.new(0.5, 1)
+	filmLabel.Position = UDim2.new(0.5, 0, 1, -18)
+	filmLabel.Size = UDim2.fromOffset(160, 22)
+	filmLabel.BackgroundTransparency = 1
+	filmLabel.Font = Enum.Font.Code
+	filmLabel.Text = "FILM 8"
+	filmLabel.TextSize = 14
+	filmLabel.TextColor3 = Constants.COLOR.cream
+	filmLabel.Parent = viewfinder
+
+	local snapHint = Instance.new("TextLabel")
+	snapHint.BackgroundTransparency = 1
+	snapHint.Font = Enum.Font.Gotham
+	snapHint.Text = "SPACE · SNAP"
+	snapHint.TextSize = 12
+	snapHint.TextColor3 = Color3.fromRGB(200, 196, 186)
+	snapHint.AnchorPoint = Vector2.new(0.5, 1)
+	snapHint.Position = UDim2.new(0.5, 0, 1, -42)
+	snapHint.Size = UDim2.fromOffset(160, 18)
+	snapHint.Parent = viewfinder
+
+	local flashOverlay = Instance.new("Frame")
+	flashOverlay.Name = "Flash"
+	flashOverlay.Size = UDim2.fromScale(1, 1)
+	flashOverlay.BackgroundColor3 = Color3.fromRGB(255, 248, 230)
+	flashOverlay.BackgroundTransparency = 1
+	flashOverlay.BorderSizePixel = 0
+	flashOverlay.ZIndex = 20
+	flashOverlay.Parent = gui
+
+	local albumPanel = Instance.new("Frame")
+	albumPanel.Name = "PolaroidAlbum"
+	albumPanel.AnchorPoint = Vector2.new(0.5, 1)
+	albumPanel.Position = UDim2.new(0.5, 0, 1, -140)
+	albumPanel.Size = UDim2.fromOffset(420, 88)
+	albumPanel.BackgroundColor3 = Color3.fromRGB(16, 14, 12)
+	albumPanel.BackgroundTransparency = 0.08
+	albumPanel.BorderSizePixel = 0
+	albumPanel.Visible = false
+	albumPanel.Parent = gui
+	corner(albumPanel, 8)
+
+	local albumTitle = Instance.new("TextLabel")
+	albumTitle.BackgroundTransparency = 1
+	albumTitle.Font = Enum.Font.GothamBold
+	albumTitle.Text = "ALBUM"
+	albumTitle.TextSize = 11
+	albumTitle.TextColor3 = Color3.fromRGB(180, 176, 166)
+	albumTitle.Position = UDim2.fromOffset(12, 6)
+	albumTitle.Size = UDim2.new(1, -24, 0, 16)
+	albumTitle.TextXAlignment = Enum.TextXAlignment.Left
+	albumTitle.Parent = albumPanel
+
+	local strip = Instance.new("Frame")
+	strip.Name = "Strip"
+	strip.Position = UDim2.fromOffset(10, 28)
+	strip.Size = UDim2.new(1, -20, 0, 50)
+	strip.BackgroundTransparency = 1
+	strip.Parent = albumPanel
+
+	local stripLayout = Instance.new("UIListLayout")
+	stripLayout.FillDirection = Enum.FillDirection.Horizontal
+	stripLayout.Padding = UDim.new(0, 8)
+	stripLayout.SortOrder = Enum.SortOrder.LayoutOrder
+	stripLayout.Parent = strip
+
+	local emptyLabel = Instance.new("TextLabel")
+	emptyLabel.Name = "Empty"
+	emptyLabel.BackgroundTransparency = 1
+	emptyLabel.Font = Enum.Font.Gotham
+	emptyLabel.Text = "No prints yet."
+	emptyLabel.TextSize = 12
+	emptyLabel.TextColor3 = Color3.fromRGB(150, 146, 136)
+	emptyLabel.Size = UDim2.fromScale(1, 1)
+	emptyLabel.Parent = strip
+
+	local function cameraRaised(): boolean
+		return ride:GetAttribute("CameraRaised") == true
+	end
+
+	local function albumOpen(): boolean
+		return ride:GetAttribute("AlbumOpen") == true
+	end
+
+	local function refreshFilm()
+		local left = ride:GetAttribute("FilmLeft")
+		local n = if typeof(left) == "number" then left else 0
+		filmLabel.Text = string.format("FILM %d", n)
+		cameraButton.Text = if cameraRaised() then "CAM·" else "CAM"
+	end
+
+	local function refreshAlbum()
+		local raw = ride:GetAttribute("PolaroidAlbum")
+		local photos = parseAlbum(if typeof(raw) == "string" then raw else "[]")
+		for _, child in strip:GetChildren() do
+			if child:IsA("Frame") then
+				child:Destroy()
+			end
+		end
+		emptyLabel.Visible = #photos == 0
+		for i, photo in photos do
+			if i > 6 then
+				break
+			end
+			local cell = Instance.new("Frame")
+			cell.Name = photo.id
+			cell.Size = UDim2.fromOffset(44, 48)
+			cell.BackgroundColor3 = Color3.fromRGB(210, 200, 180)
+			cell.BackgroundTransparency = 0.15
+			cell.BorderSizePixel = 0
+			cell.LayoutOrder = i
+			cell.Parent = strip
+			corner(cell, 2)
+			local undeveloped = Instance.new("Frame")
+			undeveloped.Size = UDim2.new(1, -6, 1, -10)
+			undeveloped.Position = UDim2.fromOffset(3, 3)
+			undeveloped.BackgroundColor3 = Color3.fromRGB(40, 38, 34)
+			undeveloped.BorderSizePixel = 0
+			undeveloped.Parent = cell
+		end
+	end
+
+	local function refresh()
+		viewfinder.Visible = cameraRaised()
+		albumPanel.Visible = albumOpen()
+		refreshFilm()
+		refreshAlbum()
+		cameraButton.Visible = true
+		albumButton.Visible = true
+	end
+
+	local function fireSnap()
+		if not cameraRaised() then
+			return
+		end
+		local camera = workspace.CurrentCamera
+		if camera == nil then
+			return
+		end
+		local look = camera.CFrame.LookVector
+		local pos = camera.CFrame.Position
+		snapRemote:FireServer(pos.X, pos.Y, pos.Z, look.X, look.Y, look.Z)
+	end
+
+	cameraButton.MouseButton1Click:Connect(function()
+		toggleRemote:FireServer()
+	end)
+	albumButton.MouseButton1Click:Connect(function()
+		albumRemote:FireServer()
+	end)
+
+	UserInputService.InputBegan:Connect(function(input: InputObject, processed: boolean)
+		if processed then
+			return
+		end
+		if input.KeyCode == Enum.KeyCode.C then
+			toggleRemote:FireServer()
+		elseif input.KeyCode == Enum.KeyCode.P then
+			albumRemote:FireServer()
+		elseif cameraRaised() and (input.KeyCode == Enum.KeyCode.Space or input.KeyCode == Enum.KeyCode.Return) then
+			fireSnap()
+		end
+	end)
+
+	local flashUntil = 0
+	ride.AttributeChanged:Connect(function(name: string)
+		if name == "PolaroidFlash" then
+			local stamp = ride:GetAttribute("PolaroidFlash")
+			if typeof(stamp) == "number" and stamp > 0 then
+				flashUntil = os.clock() + 0.22
+				flashOverlay.BackgroundTransparency = 0.15
+			end
+		elseif
+			name == "CameraRaised"
+			or name == "AlbumOpen"
+			or name == "FilmLeft"
+			or name == "PolaroidAlbum"
+		then
+			refresh()
+		end
+	end)
+
+	RunService.RenderStepped:Connect(function()
+		if os.clock() < flashUntil then
+			local u = (flashUntil - os.clock()) / 0.22
+			flashOverlay.BackgroundTransparency = 0.15 + (1 - math.clamp(u, 0, 1)) * 0.85
+		else
+			flashOverlay.BackgroundTransparency = 1
+		end
+	end)
+
+	refresh()
+end
+
+return Polaroid
+]]></string>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="41">
           <Properties>
             <string name="Name">Sway</string>
             <string name="Source"><![CDATA[--!strict
@@ -5055,7 +9734,140 @@ return Sway
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="31">
+        <Item class="ModuleScript" referent="42">
+          <Properties>
+            <string name="Name">TrialChoice</string>
+            <string name="Source"><![CDATA[--!strict
+-- False Stop Trial pick UI. Server owns validation; fires Remotes.Trial with 0/1/2.
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+
+local TrialChoice = {}
+
+function TrialChoice.start(
+	buttonA: TextButton,
+	buttonB: TextButton,
+	buttonC: TextButton,
+	setVisible: (boolean) -> (),
+	setCountdown: (string) -> (),
+	setLabels: (string, string, string, number) -> ()
+)
+	local ride = ReplicatedStorage:WaitForChild("Ride")
+	local remotes = ReplicatedStorage:WaitForChild("Remotes")
+	local trialRemote = remotes:WaitForChild("Trial") :: RemoteEvent
+	local sent = false
+
+	local function active(): boolean
+		return ride:GetAttribute("TrialActive") == true
+	end
+
+	local function slots(): number
+		local value = ride:GetAttribute("TrialSlots")
+		if typeof(value) == "number" then
+			return value
+		end
+		return 0
+	end
+
+	local function pick(val: number)
+		if not active() or sent then
+			return
+		end
+		sent = true
+		trialRemote:FireServer(val)
+	end
+
+	buttonA.MouseButton1Click:Connect(function()
+		pick(0)
+	end)
+	buttonB.MouseButton1Click:Connect(function()
+		if slots() == 2 then
+			pick(2)
+		else
+			pick(1)
+		end
+	end)
+	buttonC.MouseButton1Click:Connect(function()
+		pick(2)
+	end)
+
+	UserInputService.InputBegan:Connect(function(input: InputObject, processed: boolean)
+		if processed or not active() then
+			return
+		end
+		if input.KeyCode == Enum.KeyCode.One or input.KeyCode == Enum.KeyCode.KeypadOne then
+			pick(0)
+		elseif input.KeyCode == Enum.KeyCode.Two or input.KeyCode == Enum.KeyCode.KeypadTwo then
+			if slots() == 2 then
+				pick(2)
+			else
+				pick(1)
+			end
+		elseif input.KeyCode == Enum.KeyCode.Three or input.KeyCode == Enum.KeyCode.KeypadThree then
+			if slots() >= 3 then
+				pick(2)
+			end
+		end
+	end)
+
+	local function textOf(name: string): string
+		local value = ride:GetAttribute(name)
+		if typeof(value) == "string" then
+			return value
+		end
+		return ""
+	end
+
+	local function refresh()
+		local on = active()
+		setVisible(on)
+		if not on then
+			sent = false
+			setCountdown("")
+			setLabels("", "", "", 0)
+			return
+		end
+		local n = slots()
+		setLabels(textOf("TrialA"), textOf("TrialB"), textOf("TrialC"), n)
+		local deadline = ride:GetAttribute("TrialUntil")
+		if typeof(deadline) ~= "number" or deadline <= 0 then
+			setCountdown("Watch the lights · signs lie")
+			return
+		end
+		local remain = math.ceil(deadline - workspace:GetServerTimeNow())
+		if remain < 1 then
+			remain = 1
+		end
+		setCountdown(tostring(remain) .. "s · watch the lights")
+	end
+
+	ride.AttributeChanged:Connect(function(name: string)
+		if
+			name == "TrialActive"
+			or name == "TrialUntil"
+			or name == "TrialA"
+			or name == "TrialB"
+			or name == "TrialC"
+			or name == "TrialSlots"
+		then
+			refresh()
+		end
+	end)
+	RunService.Heartbeat:Connect(function()
+		if active() then
+			refresh()
+		end
+	end)
+	refresh()
+end
+
+return TrialChoice
+]]></string>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="43">
           <Properties>
             <string name="Name">Walk</string>
             <string name="Source"><![CDATA[--!strict
@@ -5188,7 +10000,7 @@ return Walk
       </Item>
     </Item>
   </Item>
-  <Item class="Workspace" referent="32">
+  <Item class="Workspace" referent="44">
     <Properties>
       <string name="Name">Workspace</string>
       <float name="Gravity">196.2</float>
