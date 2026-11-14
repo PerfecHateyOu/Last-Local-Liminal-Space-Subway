@@ -32,6 +32,8 @@ local trialButtonB: TextButton? = nil
 local trialButtonC: TextButton? = nil
 local recorderButton: TextButton? = nil
 local evidenceButton: TextButton? = nil
+local cameraButton: TextButton? = nil
+local albumButton: TextButton? = nil
 local progressFill: Frame? = nil
 
 local function corner(parent: Instance, radius: number)
@@ -187,6 +189,16 @@ end
 function Hud.evidenceButton(): TextButton
 	assert(evidenceButton ~= nil, "Hud.start must run first")
 	return evidenceButton
+end
+
+function Hud.cameraButton(): TextButton
+	assert(cameraButton ~= nil, "Hud.start must run first")
+	return cameraButton
+end
+
+function Hud.albumButton(): TextButton
+	assert(albumButton ~= nil, "Hud.start must run first")
+	return albumButton
 end
 
 function Hud.setProgress(ratio: number, holding: boolean)
@@ -422,6 +434,40 @@ function Hud.start()
 	evidenceBtn.Parent = gui
 	corner(evidenceBtn, 6)
 	evidenceButton = evidenceBtn
+
+	local camBtn = Instance.new("TextButton")
+	camBtn.Name = "Camera"
+	camBtn.AnchorPoint = Vector2.new(0, 1)
+	camBtn.Position = UDim2.new(0, 262, 1, -48)
+	camBtn.Size = UDim2.fromOffset(52, 28)
+	camBtn.BackgroundColor3 = Color3.fromRGB(8, 8, 8)
+	camBtn.BackgroundTransparency = 0.15
+	camBtn.BorderSizePixel = 0
+	camBtn.AutoButtonColor = true
+	camBtn.Font = Enum.Font.GothamBold
+	camBtn.Text = "CAM"
+	camBtn.TextColor3 = Constants.COLOR.cream
+	camBtn.TextSize = 12
+	camBtn.Parent = gui
+	corner(camBtn, 6)
+	cameraButton = camBtn
+
+	local albBtn = Instance.new("TextButton")
+	albBtn.Name = "Album"
+	albBtn.AnchorPoint = Vector2.new(0, 1)
+	albBtn.Position = UDim2.new(0, 322, 1, -48)
+	albBtn.Size = UDim2.fromOffset(64, 28)
+	albBtn.BackgroundColor3 = Color3.fromRGB(8, 8, 8)
+	albBtn.BackgroundTransparency = 0.15
+	albBtn.BorderSizePixel = 0
+	albBtn.AutoButtonColor = true
+	albBtn.Font = Enum.Font.GothamBold
+	albBtn.Text = "ALBUM"
+	albBtn.TextColor3 = Constants.COLOR.cream
+	albBtn.TextSize = 11
+	albBtn.Parent = gui
+	corner(albBtn, 6)
+	albumButton = albBtn
 
 	local barBack = Instance.new("Frame")
 	barBack.Name = "FlagBar"

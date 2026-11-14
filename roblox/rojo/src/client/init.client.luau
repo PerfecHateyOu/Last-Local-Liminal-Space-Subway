@@ -10,6 +10,7 @@ local Choice = require(script.Choice)
 local Mask = require(script.Mask)
 local TrialChoice = require(script.TrialChoice)
 local Evp = require(script.Evp)
+local Polaroid = require(script.Polaroid)
 
 Hud.start()
 Flag.start(Hud.flagButton())
@@ -32,6 +33,7 @@ TrialChoice.start(
 	Hud.setTrialLabels
 )
 Evp.start(Hud.recorderButton(), Hud.evidenceButton())
+Polaroid.start(Hud.cameraButton(), Hud.albumButton())
 Walk.start()
 Sway.start()
 Glance.start()

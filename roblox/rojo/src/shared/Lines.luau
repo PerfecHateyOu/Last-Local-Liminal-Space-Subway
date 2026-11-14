@@ -60,6 +60,11 @@ Lines.DAD_RECORDER_TRAIN =
 Lines.RECORDER_HINT = "Dad gave you a tape recorder. Press R to raise it. Tab opens Evidence."
 Lines.RECORDER_NONE = "You don’t have anything to record with."
 Lines.RECORDER_BUSY = "Your hands are full."
+-- Polaroid (web camera / film hints).
+Lines.CAMERA_BUSY = "Answer first."
+Lines.CAMERA_OUT_OF_FILM = "Out of film."
+Lines.CAMERA_HINT = "Press C for the Polaroid. Space snaps. P opens the album strip."
+Lines.CAMERA_FLASH_WATCH = "The flash caught a parent's eye."
 Lines.HAVEN_BOARD = "You get back on with them."
 -- Kept for Doors.resolve signature / older call sites; unused once haven runs.
 Lines.HAVEN_STUB = ""
