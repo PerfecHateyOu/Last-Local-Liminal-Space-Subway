@@ -10,6 +10,7 @@ local RunService = game:GetService("RunService")
 
 local Constants = require(ReplicatedStorage.Shared.Constants)
 local Lines = require(ReplicatedStorage.Shared.Lines)
+local Route = require(ReplicatedStorage.Shared.Route)
 
 local Hud = {}
 
@@ -708,7 +709,15 @@ function Hud.start()
 		local stopName = textOf("NextStop")
 		nextName.Text = stopName
 		nextLabel.Visible = stopName ~= ""
-		chapter.Text = textOf("ChapterLine")
+		local chapterLine = textOf("ChapterLine")
+		local character = Players.LocalPlayer.Character
+		local root = if character ~= nil then character:FindFirstChild("HumanoidRootPart") else nil
+		if root ~= nil and root:IsA("BasePart") then
+			local xMetres = root.Position.X / Constants.STUDS_PER_METER
+			chapter.Text = Route.withCarLabel(chapterLine, Route.carLabel(xMetres))
+		else
+			chapter.Text = chapterLine
+		end
 
 		local susAttr = ride:GetAttribute("Suspicion")
 		local sus = if typeof(susAttr) == "number" then susAttr else 0
@@ -763,6 +772,14 @@ function Hud.start()
 	end
 
 	RunService.Heartbeat:Connect(function()
+		local chapterLine = textOf("ChapterLine")
+		local character = Players.LocalPlayer.Character
+		local root = if character ~= nil then character:FindFirstChild("HumanoidRootPart") else nil
+		if root ~= nil and root:IsA("BasePart") then
+			local xMetres = root.Position.X / Constants.STUDS_PER_METER
+			chapter.Text = Route.withCarLabel(chapterLine, Route.carLabel(xMetres))
+		end
+
 		local deadline = ride:GetAttribute("DwellUntil")
 		if typeof(deadline) ~= "number" or deadline <= 0 then
 			dwellCard.Visible = false
