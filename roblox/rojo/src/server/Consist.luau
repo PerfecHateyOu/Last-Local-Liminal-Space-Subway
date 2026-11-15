@@ -447,15 +447,18 @@ function Consist.attach(car: BuiltCar)
 
 	local importedA = tryVisualCar("Car_A", carA, -19.5)
 	local importedC = tryVisualCar("Car_C", carC, 19.5)
-	if importedA then
-		print("[Last Local] Using modeled Car_A over Part shell.")
+	if importedA and importedC then
+		print("[Last Local] Using modeled Car_A and Car_C over Part shells.")
+	elseif importedA or importedC then
+		print(
+			string.format(
+				"[Last Local] Adjacent cars: %s mesh, %s Part shell.",
+				if importedA then "Car_A" else "Car_C",
+				if importedA then "Car_C" else "Car_A"
+			)
+		)
 	else
-		print("[Last Local] Car_A Part fallback (no Models.Car_A).")
-	end
-	if importedC then
-		print("[Last Local] Using modeled Car_C over Part shell.")
-	else
-		print("[Last Local] Car_C Part fallback (no Models.Car_C).")
+		print("[Last Local] Car_A / Car_C Part shells (optional Models.Car_A / Car_C not present).")
 	end
 
 	local gangways = Instance.new("Folder")
@@ -467,10 +470,21 @@ function Consist.attach(car: BuiltCar)
 	wireCarBDoors(car.model)
 
 	local notes: { string } = {}
+	local adjacentParts = 0
 	for _, def in Passengers.ADJACENT do
-		table.insert(notes, car.spawnPassenger(def, car.passengers))
+		local note = car.spawnPassenger(def, car.passengers)
+		table.insert(notes, note)
+		if string.find(note, "parts", 1, true) then
+			adjacentParts += 1
+		end
 	end
-	print(string.format("[Last Local] Adjacent passengers: %s", if #notes > 0 then table.concat(notes, ", ") else "none"))
+	if #notes == 0 then
+		print("[Last Local] Adjacent passengers: none")
+	elseif adjacentParts == #notes then
+		print(string.format("[Last Local] Adjacent passengers: %d Part figures.", #notes))
+	else
+		print(string.format("[Last Local] Adjacent passengers: %s", table.concat(notes, ", ")))
+	end
 end
 
 return Consist

@@ -36,14 +36,19 @@
     </Properties>
     <Item class="Folder" referent="2">
       <Properties>
-        <string name="Name">Models</string>
+        <string name="Name">Assets</string>
       </Properties>
     </Item>
     <Item class="Folder" referent="3">
       <Properties>
+        <string name="Name">Models</string>
+      </Properties>
+    </Item>
+    <Item class="Folder" referent="4">
+      <Properties>
         <string name="Name">Shared</string>
       </Properties>
-      <Item class="ModuleScript" referent="4">
+      <Item class="ModuleScript" referent="5">
         <Properties>
           <string name="Name">Achievements</string>
           <string name="Source"><![CDATA[--!strict
@@ -177,7 +182,135 @@ return Achievements
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="5">
+      <Item class="ModuleScript" referent="6">
+        <Properties>
+          <string name="Name">Assets</string>
+          <string name="Source"><![CDATA[--!strict
+-- Mesh and sound asset wiring for the Studio place.
+--
+-- Meshes: CarBuilder clones Models under ReplicatedStorage.Models (FBX
+-- imports). A missing model uses Part figures — that is intentional, not an
+-- error. See README "Put your characters in the car".
+--
+-- Sounds: classic rbxasset://sounds/* paths are often rejected as unapproved
+-- and spam Output. Defaults are empty (silent). After you upload audio (or
+-- pick Creator Store clips you may use), put rbxassetid://… values in
+-- ReplicatedStorage.Assets StringValues named below. Do not invent private
+-- asset IDs in source.
+
+local Assets = {}
+
+export type SoundKey = "chime" | "door" | "clack" | "rumble" | "openAir" | "polaroid"
+
+-- Folder child names under ReplicatedStorage.Assets (StringValue.Value).
+Assets.SOUND_VALUE_NAMES = {
+	chime = "Chime",
+	door = "Door",
+	clack = "Clack",
+	rumble = "Rumble",
+	openAir = "OpenAir",
+	polaroid = "Polaroid",
+}
+
+-- Ordered for one-line status logs.
+Assets.SOUND_ORDER = { "chime", "door", "clack", "rumble", "openAir", "polaroid" } :: { SoundKey }
+
+-- Strip whitespace; accept bare digits as rbxassetid://N; reject classic
+-- rbxasset://sounds/* paths that Roblox often blocks for experiences.
+function Assets.normalizeSoundId(raw: string?): string
+	if raw == nil then
+		return ""
+	end
+	local trimmed = string.gsub(raw, "^%s+", "")
+	trimmed = string.gsub(trimmed, "%s+$", "")
+	if trimmed == "" then
+		return ""
+	end
+	local lower = string.lower(trimmed)
+	if string.find(lower, "^rbxasset://sounds/") ~= nil then
+		return ""
+	end
+	if string.match(trimmed, "^%d+$") ~= nil then
+		return "rbxassetid://" .. trimmed
+	end
+	return trimmed
+end
+
+function Assets.isSoundIdReady(id: string): boolean
+	return Assets.normalizeSoundId(id) ~= ""
+end
+
+local function readStringValue(folder: Instance?, name: string): string?
+	if folder == nil then
+		return nil
+	end
+	local child = folder:FindFirstChild(name)
+	if child == nil then
+		return nil
+	end
+	if child:IsA("StringValue") then
+		return child.Value
+	end
+	local attr = folder:GetAttribute(name)
+	if typeof(attr) == "string" then
+		return attr
+	end
+	return nil
+end
+
+-- Place overrides live under ReplicatedStorage.Assets (created empty by Rojo;
+-- Studio fills StringValues). Missing folder / empty values → silent.
+function Assets.placeFolder(): Folder?
+	local ok, replicated = pcall(function()
+		return game:GetService("ReplicatedStorage")
+	end)
+	if not ok or replicated == nil then
+		return nil
+	end
+	local rs = replicated :: any
+	local folder = rs:FindFirstChild("Assets")
+	if folder ~= nil and folder:IsA("Folder") then
+		return folder
+	end
+	return nil
+end
+
+function Assets.soundId(key: SoundKey): string
+	local name = Assets.SOUND_VALUE_NAMES[key]
+	local fromPlace = readStringValue(Assets.placeFolder(), name)
+	return Assets.normalizeSoundId(fromPlace)
+end
+
+function Assets.soundStatus(): (number, number, { string })
+	local ready = 0
+	local missing: { string } = {}
+	for _, key in Assets.SOUND_ORDER do
+		local id = Assets.soundId(key)
+		if id ~= "" then
+			ready += 1
+		else
+			table.insert(missing, Assets.SOUND_VALUE_NAMES[key])
+		end
+	end
+	return ready, #Assets.SOUND_ORDER, missing
+end
+
+-- Mid-car riders CarBuilder always tries (modelName / NPC aliases).
+Assets.CORE_MODEL_HINTS = {
+	"mom / NPC_mom_seated",
+	"dad / NPC_dad_seated",
+	"passenger_mta / NPC_mta_seated",
+	"passenger_coat / NPC_coat_seated",
+	"passenger_puffer / NPC_puffer",
+	"anomaly_extra",
+	"Car_B (optional interior)",
+}
+
+return Assets
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="7">
         <Properties>
           <string name="Name">Band</string>
           <string name="Source"><![CDATA[--!strict
@@ -261,7 +394,7 @@ return Band
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="6">
+      <Item class="ModuleScript" referent="8">
         <Properties>
           <string name="Name">Constants</string>
           <string name="Source"><![CDATA[--!strict
@@ -515,20 +648,13 @@ Constants.POLAROID_MAX_FILM = 10
 Constants.POLAROID_SHUTTER_COOLDOWN = 0.9
 Constants.POLAROID_FLASH_WATCH_SUSPICION = 10
 Constants.POLAROID_FLASH_GLANCE_CHANCE = 0.5
--- Shutter click (reuse short switch; Studio can swap later).
-Constants.SOUND_POLAROID = "rbxasset://sounds/switch.wav"
+-- Sound bed volumes / playback (IDs live in Shared.Assets + place StringValues).
+-- Classic rbxasset://sounds/* defaults were removed: Studio rejects many as
+-- unapproved and spams Output. Empty place values → silent (no Failed to load).
 Constants.SOUND_POLAROID_VOLUME = 0.4
 -- Open-air trestle wind/rain bed (web audioEngine.setOpenAir).
-Constants.SOUND_OPEN_AIR = "rbxasset://sounds/swoosh.wav"
 Constants.SOUND_OPEN_AIR_MAX = 0.12
 Constants.SOUND_OPEN_AIR_PLAYBACK = 0.55
-
--- Sound bed (client). Built-in engine assets so the place needs no uploads.
--- Swap these IDs when custom MTA-style clips are imported.
-Constants.SOUND_CHIME = "rbxasset://sounds/electronicpingshort.wav"
-Constants.SOUND_DOOR = "rbxasset://sounds/switch.wav"
-Constants.SOUND_CLACK = "rbxasset://sounds/impact_explosion_03.mp3"
-Constants.SOUND_RUMBLE = "rbxasset://sounds/swoosh.wav"
 Constants.SOUND_CHIME_VOLUME = 0.45
 Constants.SOUND_DOOR_VOLUME = 0.35
 Constants.SOUND_CLACK_VOLUME = 0.12
@@ -592,7 +718,7 @@ return Constants
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="7">
+      <Item class="ModuleScript" referent="9">
         <Properties>
           <string name="Name">Dialogue</string>
           <string name="Source"><![CDATA[--!strict
@@ -973,7 +1099,7 @@ return Dialogue
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="8">
+      <Item class="ModuleScript" referent="10">
         <Properties>
           <string name="Name">Doors</string>
           <string name="Source"><![CDATA[--!strict
@@ -1100,7 +1226,7 @@ return Doors
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="9">
+      <Item class="ModuleScript" referent="11">
         <Properties>
           <string name="Name">Dwell</string>
           <string name="Source"><![CDATA[--!strict
@@ -1141,7 +1267,7 @@ return Dwell
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="10">
+      <Item class="ModuleScript" referent="12">
         <Properties>
           <string name="Name">Endings</string>
           <string name="Source"><![CDATA[--!strict
@@ -1370,7 +1496,7 @@ return Endings
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="11">
+      <Item class="ModuleScript" referent="13">
         <Properties>
           <string name="Name">Evp</string>
           <string name="Source"><![CDATA[--!strict
@@ -1787,7 +1913,7 @@ return Evp
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="12">
+      <Item class="ModuleScript" referent="14">
         <Properties>
           <string name="Name">Haven</string>
           <string name="Source"><![CDATA[--!strict
@@ -1825,7 +1951,7 @@ return Haven
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="13">
+      <Item class="ModuleScript" referent="15">
         <Properties>
           <string name="Name">Hold</string>
           <string name="Source"><![CDATA[--!strict
@@ -1923,7 +2049,7 @@ return Hold
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="14">
+      <Item class="ModuleScript" referent="16">
         <Properties>
           <string name="Name">KeepOut</string>
           <string name="Source"><![CDATA[--!strict
@@ -1985,7 +2111,7 @@ return KeepOut
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="15">
+      <Item class="ModuleScript" referent="17">
         <Properties>
           <string name="Name">Lines</string>
           <string name="Source"><![CDATA[--!strict
@@ -2219,7 +2345,7 @@ return Lines
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="16">
+      <Item class="ModuleScript" referent="18">
         <Properties>
           <string name="Name">Motion</string>
           <string name="Source"><![CDATA[--!strict
@@ -2281,7 +2407,7 @@ return Motion
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="17">
+      <Item class="ModuleScript" referent="19">
         <Properties>
           <string name="Name">Nightmare</string>
           <string name="Source"><![CDATA[--!strict
@@ -2324,7 +2450,7 @@ return Nightmare
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="18">
+      <Item class="ModuleScript" referent="20">
         <Properties>
           <string name="Name">Passengers</string>
           <string name="Source"><![CDATA[--!strict
@@ -2643,7 +2769,7 @@ return Passengers
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="19">
+      <Item class="ModuleScript" referent="21">
         <Properties>
           <string name="Name">Polaroid</string>
           <string name="Source"><![CDATA[--!strict
@@ -2717,7 +2843,7 @@ return Polaroid
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="20">
+      <Item class="ModuleScript" referent="22">
         <Properties>
           <string name="Name">Practice</string>
           <string name="Source"><![CDATA[--!strict
@@ -2758,7 +2884,7 @@ return Practice
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="21">
+      <Item class="ModuleScript" referent="23">
         <Properties>
           <string name="Name">PsychLog</string>
           <string name="Source"><![CDATA[--!strict
@@ -2913,7 +3039,7 @@ return PsychLog
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="22">
+      <Item class="ModuleScript" referent="24">
         <Properties>
           <string name="Name">Restraint</string>
           <string name="Source"><![CDATA[--!strict
@@ -3022,7 +3148,7 @@ return Restraint
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="23">
+      <Item class="ModuleScript" referent="25">
         <Properties>
           <string name="Name">Route</string>
           <string name="Source"><![CDATA[--!strict
@@ -3180,7 +3306,7 @@ return Route
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="24">
+      <Item class="ModuleScript" referent="26">
         <Properties>
           <string name="Name">Sanity</string>
           <string name="Source"><![CDATA[--!strict
@@ -3292,7 +3418,7 @@ return Sanity
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="25">
+      <Item class="ModuleScript" referent="27">
         <Properties>
           <string name="Name">Score</string>
           <string name="Source"><![CDATA[--!strict
@@ -3375,7 +3501,7 @@ return Score
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="26">
+      <Item class="ModuleScript" referent="28">
         <Properties>
           <string name="Name">Trestle</string>
           <string name="Source"><![CDATA[--!strict
@@ -3461,7 +3587,7 @@ return Trestle
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="27">
+      <Item class="ModuleScript" referent="29">
         <Properties>
           <string name="Name">Trial</string>
           <string name="Source"><![CDATA[--!strict
@@ -3694,11 +3820,11 @@ return Trial
       </Item>
     </Item>
   </Item>
-  <Item class="ServerScriptService" referent="28">
+  <Item class="ServerScriptService" referent="30">
     <Properties>
       <string name="Name">ServerScriptService</string>
     </Properties>
-    <Item class="Script" referent="29">
+    <Item class="Script" referent="31">
       <Properties>
         <string name="Name">Server</string>
         <token name="RunContext">0</token>
@@ -3757,7 +3883,7 @@ for _, player in Players:GetPlayers() do
 end
 ]]></string>
       </Properties>
-      <Item class="ModuleScript" referent="30">
+      <Item class="ModuleScript" referent="32">
         <Properties>
           <string name="Name">AnomalySystem</string>
           <string name="Source"><![CDATA[--!strict
@@ -3910,7 +4036,7 @@ return AnomalySystem
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="31">
+      <Item class="ModuleScript" referent="33">
         <Properties>
           <string name="Name">CarBuilder</string>
           <string name="Source"><![CDATA[--!strict
@@ -4895,14 +5021,27 @@ function CarBuilder.build(): BuiltCar
 		print("[Last Local] Using modeled Car_B. Part shell stays as invisible collision.")
 	end
 
-	print(string.format("[Last Local] Imported meshes: %s", if #imported > 0 then table.concat(imported, ", ") else "none"))
-	print(string.format("[Last Local] Part figures: %s", if #fallback > 0 then table.concat(fallback, ", ") else "none"))
+	-- One summary. Missing Models is expected until FBX import; do not warn/spam.
+	if #imported > 0 and #fallback == 0 then
+		print(string.format("[Last Local] Passenger meshes: %s", table.concat(imported, ", ")))
+	elseif #imported > 0 then
+		print(
+			string.format(
+				"[Last Local] Passenger meshes: %d imported, %d Part figures (%s).",
+				#imported,
+				#fallback,
+				table.concat(fallback, ", ")
+			)
+		)
+	else
+		print(
+			"[Last Local] Passenger meshes: none in ReplicatedStorage.Models — using Part figures. See README → Put your characters in the car."
+		)
+	end
 	local riding = 0
 	for _, child in passengers:GetChildren() do
 		if child:IsA("Model") and child:GetAttribute("Hidden") ~= true then
 			riding += 1
-			local at = child:GetPivot().Position
-			print(string.format("[Last Local] passenger %s at %.1f, %.1f, %.1f", child.Name, at.X, at.Y, at.Z))
 		end
 	end
 	-- mom, dad, and the three strangers. Crowd and the far-seat extra stay hidden.
@@ -5119,7 +5258,7 @@ return CarBuilder
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="32">
+      <Item class="ModuleScript" referent="34">
         <Properties>
           <string name="Name">Consist</string>
           <string name="Source"><![CDATA[--!strict
@@ -5571,15 +5710,18 @@ function Consist.attach(car: BuiltCar)
 
 	local importedA = tryVisualCar("Car_A", carA, -19.5)
 	local importedC = tryVisualCar("Car_C", carC, 19.5)
-	if importedA then
-		print("[Last Local] Using modeled Car_A over Part shell.")
+	if importedA and importedC then
+		print("[Last Local] Using modeled Car_A and Car_C over Part shells.")
+	elseif importedA or importedC then
+		print(
+			string.format(
+				"[Last Local] Adjacent cars: %s mesh, %s Part shell.",
+				if importedA then "Car_A" else "Car_C",
+				if importedA then "Car_C" else "Car_A"
+			)
+		)
 	else
-		print("[Last Local] Car_A Part fallback (no Models.Car_A).")
-	end
-	if importedC then
-		print("[Last Local] Using modeled Car_C over Part shell.")
-	else
-		print("[Last Local] Car_C Part fallback (no Models.Car_C).")
+		print("[Last Local] Car_A / Car_C Part shells (optional Models.Car_A / Car_C not present).")
 	end
 
 	local gangways = Instance.new("Folder")
@@ -5591,17 +5733,28 @@ function Consist.attach(car: BuiltCar)
 	wireCarBDoors(car.model)
 
 	local notes: { string } = {}
+	local adjacentParts = 0
 	for _, def in Passengers.ADJACENT do
-		table.insert(notes, car.spawnPassenger(def, car.passengers))
+		local note = car.spawnPassenger(def, car.passengers)
+		table.insert(notes, note)
+		if string.find(note, "parts", 1, true) then
+			adjacentParts += 1
+		end
 	end
-	print(string.format("[Last Local] Adjacent passengers: %s", if #notes > 0 then table.concat(notes, ", ") else "none"))
+	if #notes == 0 then
+		print("[Last Local] Adjacent passengers: none")
+	elseif adjacentParts == #notes then
+		print(string.format("[Last Local] Adjacent passengers: %d Part figures.", #notes))
+	else
+		print(string.format("[Last Local] Adjacent passengers: %s", table.concat(notes, ", ")))
+	end
 end
 
 return Consist
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="33">
+      <Item class="ModuleScript" referent="35">
         <Properties>
           <string name="Name">MetaStore</string>
           <string name="Source"><![CDATA[--!strict
@@ -5779,7 +5932,7 @@ return MetaStore
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="34">
+      <Item class="ModuleScript" referent="36">
         <Properties>
           <string name="Name">Ride</string>
           <string name="Source"><![CDATA[--!strict
@@ -8650,7 +8803,7 @@ return Ride
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="35">
+      <Item class="ModuleScript" referent="37">
         <Properties>
           <string name="Name">Scenery</string>
           <string name="Source"><![CDATA[--!strict
@@ -9084,7 +9237,7 @@ return Scenery
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="36">
+      <Item class="ModuleScript" referent="38">
         <Properties>
           <string name="Name">TrialSpace</string>
           <string name="Source"><![CDATA[--!strict
@@ -9344,7 +9497,7 @@ return TrialSpace
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="37">
+      <Item class="ModuleScript" referent="39">
         <Properties>
           <string name="Name">WorldLight</string>
           <string name="Source"><![CDATA[--!strict
@@ -9526,18 +9679,18 @@ return WorldLight
       </Item>
     </Item>
   </Item>
-  <Item class="StarterPlayer" referent="38">
+  <Item class="StarterPlayer" referent="40">
     <Properties>
       <string name="Name">StarterPlayer</string>
       <float name="CameraMaxZoomDistance">0.5</float>
       <float name="CameraMinZoomDistance">0.5</float>
       <token name="CameraMode">1</token>
     </Properties>
-    <Item class="StarterPlayerScripts" referent="39">
+    <Item class="StarterPlayerScripts" referent="41">
       <Properties>
         <string name="Name">StarterPlayerScripts</string>
       </Properties>
-      <Item class="LocalScript" referent="40">
+      <Item class="LocalScript" referent="42">
         <Properties>
           <string name="Name">Client</string>
           <string name="Source"><![CDATA[--!strict
@@ -9600,7 +9753,7 @@ Glance.start()
 Gaze.start()
 ]]></string>
         </Properties>
-        <Item class="ModuleScript" referent="41">
+        <Item class="ModuleScript" referent="43">
           <Properties>
             <string name="Name">Audio</string>
             <string name="Source"><![CDATA[--!strict
@@ -9609,12 +9762,15 @@ Gaze.start()
 -- Chime before PA, rumble from stretch speed, door open/close, track clacks.
 -- No ride-music decay, pause music, EVP, heartbeat, or intercom voice.
 -- OpenAir (0–1) fades a wind/rain bed on the Newtown Creek trestle.
+-- SoundIds come from Shared.Assets (place StringValues). Empty → skip play
+-- so unapproved classic rbxasset:// paths never hit Output.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local SoundService = game:GetService("SoundService")
 local UserInputService = game:GetService("UserInputService")
 
+local Assets = require(ReplicatedStorage.Shared.Assets)
 local Constants = require(ReplicatedStorage.Shared.Constants)
 local Hold = require(ReplicatedStorage.Shared.Hold)
 local Lines = require(ReplicatedStorage.Shared.Lines)
@@ -9633,10 +9789,14 @@ local clackTravel = 0
 local lastSpeedSample = 0
 local openAirLevel = 0
 
-local function makeSound(name: string, id: string, volume: number, looped: boolean): Sound
+local function makeSound(name: string, id: string, volume: number, looped: boolean): Sound?
+	local ready = Assets.normalizeSoundId(id)
+	if ready == "" then
+		return nil
+	end
 	local sound = Instance.new("Sound")
 	sound.Name = name
-	sound.SoundId = id
+	sound.SoundId = ready
 	sound.Volume = volume
 	sound.Looped = looped
 	sound.RollOffMode = Enum.RollOffMode.InverseTapered
@@ -9647,11 +9807,15 @@ local function makeSound(name: string, id: string, volume: number, looped: boole
 	return sound
 end
 
-local function playOneShot(id: string, volume: number, playback: number?)
+local function playOneShot(key: Assets.SoundKey, volume: number, playback: number?)
 	if muted then
 		return
 	end
+	local id = Assets.soundId(key)
 	local sound = makeSound("OneShot", id, volume, false)
+	if sound == nil then
+		return
+	end
 	if playback ~= nil then
 		sound.PlaybackSpeed = playback
 	end
@@ -9667,19 +9831,19 @@ local function playOneShot(id: string, volume: number, playback: number?)
 end
 
 local function playChime()
-	-- Two-tone stand-in for the MTA ding using one built-in ping pitched twice.
-	playOneShot(Constants.SOUND_CHIME, Constants.SOUND_CHIME_VOLUME, 1.05)
+	-- Two-tone stand-in for the MTA ding using one clip pitched twice.
+	playOneShot("chime", Constants.SOUND_CHIME_VOLUME, 1.05)
 	task.delay(0.45, function()
-		playOneShot(Constants.SOUND_CHIME, Constants.SOUND_CHIME_VOLUME * 0.9, 0.84)
+		playOneShot("chime", Constants.SOUND_CHIME_VOLUME * 0.9, 0.84)
 	end)
 end
 
 local function playDoor(opening: boolean)
-	playOneShot(Constants.SOUND_DOOR, Constants.SOUND_DOOR_VOLUME, if opening then 1.1 else 0.85)
+	playOneShot("door", Constants.SOUND_DOOR_VOLUME, if opening then 1.1 else 0.85)
 end
 
 local function playClack()
-	playOneShot(Constants.SOUND_CLACK, Constants.SOUND_CLACK_VOLUME, 1.4 + math.random() * 0.2)
+	playOneShot("clack", Constants.SOUND_CLACK_VOLUME, 1.4 + math.random() * 0.2)
 end
 
 local function speedFraction(): number
@@ -9761,15 +9925,37 @@ function Audio.start(button: TextButton)
 	bus.Parent = SoundService
 	group = bus
 
-	local loop = makeSound("Rumble", Constants.SOUND_RUMBLE, 0, true)
-	loop.PlaybackSpeed = Constants.SOUND_RUMBLE_PLAYBACK
-	loop:Play()
-	rumble = loop
+	local readyCount, total, missing = Assets.soundStatus()
+	if readyCount == 0 then
+		print(
+			"[Last Local] Sound bed silent (no ReplicatedStorage.Assets IDs). Ride continues. See README → Sound bed."
+		)
+	elseif readyCount < total then
+		print(
+			string.format(
+				"[Last Local] Sound bed %d/%d wired; silent without IDs: %s",
+				readyCount,
+				total,
+				table.concat(missing, ", ")
+			)
+		)
+	else
+		print("[Last Local] Sound bed fully wired.")
+	end
 
-	local wind = makeSound("OpenAir", Constants.SOUND_OPEN_AIR, 0, true)
-	wind.PlaybackSpeed = Constants.SOUND_OPEN_AIR_PLAYBACK
-	wind:Play()
-	openAir = wind
+	local loop = makeSound("Rumble", Assets.soundId("rumble"), 0, true)
+	if loop ~= nil then
+		loop.PlaybackSpeed = Constants.SOUND_RUMBLE_PLAYBACK
+		loop:Play()
+		rumble = loop
+	end
+
+	local wind = makeSound("OpenAir", Assets.soundId("openAir"), 0, true)
+	if wind ~= nil then
+		wind.PlaybackSpeed = Constants.SOUND_OPEN_AIR_PLAYBACK
+		wind:Play()
+		openAir = wind
+	end
 
 	local ride = ReplicatedStorage:WaitForChild("Ride")
 	local openAttr = ride:GetAttribute("OpenAir")
@@ -9818,7 +10004,7 @@ function Audio.start(button: TextButton)
 		elseif name == "EvpRaised" then
 			local on = ride:GetAttribute("EvpRaised") == true
 			if on and not lastEvpRaised then
-				playOneShot(Constants.SOUND_DOOR, 0.15, 1.6)
+				playOneShot("door", 0.15, 1.6)
 			end
 			lastEvpRaised = on
 			local loopSound = rumble
@@ -9828,7 +10014,7 @@ function Audio.start(button: TextButton)
 		elseif name == "PolaroidFlash" then
 			local stamp = ride:GetAttribute("PolaroidFlash")
 			if typeof(stamp) == "number" and stamp > 0 then
-				playOneShot(Constants.SOUND_POLAROID, Constants.SOUND_POLAROID_VOLUME, 1.35)
+				playOneShot("polaroid", Constants.SOUND_POLAROID_VOLUME, 1.35)
 			end
 		elseif name == "OpenAir" then
 			local level = ride:GetAttribute("OpenAir")
@@ -9837,9 +10023,9 @@ function Audio.start(button: TextButton)
 			local id = ride:GetAttribute("EvpPlayId")
 			local text = if typeof(id) == "string" then id else ""
 			if text ~= "" and text ~= lastPlayId then
-				playOneShot(Constants.SOUND_CHIME, 0.25, 0.7)
+				playOneShot("chime", 0.25, 0.7)
 				task.delay(0.35, function()
-					playOneShot(Constants.SOUND_CHIME, 0.2, 0.55)
+					playOneShot("chime", 0.2, 0.55)
 				end)
 			end
 			lastPlayId = text
@@ -9895,7 +10081,7 @@ return Audio
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="42">
+        <Item class="ModuleScript" referent="44">
           <Properties>
             <string name="Name">Choice</string>
             <string name="Source"><![CDATA[--!strict
@@ -9983,7 +10169,7 @@ return Choice
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="43">
+        <Item class="ModuleScript" referent="45">
           <Properties>
             <string name="Name">Evp</string>
             <string name="Source"><![CDATA[--!strict
@@ -10424,7 +10610,7 @@ return Evp
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="44">
+        <Item class="ModuleScript" referent="46">
           <Properties>
             <string name="Name">Exit</string>
             <string name="Source"><![CDATA[--!strict
@@ -10526,7 +10712,7 @@ return Exit
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="45">
+        <Item class="ModuleScript" referent="47">
           <Properties>
             <string name="Name">Flag</string>
             <string name="Source"><![CDATA[--!strict
@@ -10695,7 +10881,7 @@ return Flag
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="46">
+        <Item class="ModuleScript" referent="48">
           <Properties>
             <string name="Name">Gaze</string>
             <string name="Source"><![CDATA[--!strict
@@ -10783,7 +10969,7 @@ return Gaze
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="47">
+        <Item class="ModuleScript" referent="49">
           <Properties>
             <string name="Name">Glance</string>
             <string name="Source"><![CDATA[--!strict
@@ -10965,7 +11151,7 @@ return Glance
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="48">
+        <Item class="ModuleScript" referent="50">
           <Properties>
             <string name="Name">Hud</string>
             <string name="Source"><![CDATA[--!strict
@@ -12235,7 +12421,7 @@ return Hud
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="49">
+        <Item class="ModuleScript" referent="51">
           <Properties>
             <string name="Name">Mask</string>
             <string name="Source"><![CDATA[--!strict
@@ -12349,7 +12535,7 @@ return Mask
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="50">
+        <Item class="ModuleScript" referent="52">
           <Properties>
             <string name="Name">Meta</string>
             <string name="Source"><![CDATA[--!strict
@@ -12504,7 +12690,7 @@ return Meta
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="51">
+        <Item class="ModuleScript" referent="53">
           <Properties>
             <string name="Name">Polaroid</string>
             <string name="Source"><![CDATA[--!strict
@@ -12788,7 +12974,7 @@ return Polaroid
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="52">
+        <Item class="ModuleScript" referent="54">
           <Properties>
             <string name="Name">Sway</string>
             <string name="Source"><![CDATA[--!strict
@@ -12869,7 +13055,7 @@ return Sway
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="53">
+        <Item class="ModuleScript" referent="55">
           <Properties>
             <string name="Name">TrialChoice</string>
             <string name="Source"><![CDATA[--!strict
@@ -13002,7 +13188,7 @@ return TrialChoice
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="54">
+        <Item class="ModuleScript" referent="56">
           <Properties>
             <string name="Name">Walk</string>
             <string name="Source"><![CDATA[--!strict
@@ -13135,7 +13321,7 @@ return Walk
       </Item>
     </Item>
   </Item>
-  <Item class="Workspace" referent="55">
+  <Item class="Workspace" referent="57">
     <Properties>
       <string name="Name">Workspace</string>
       <float name="FallenPartsDestroyHeight">-50</float>

@@ -10,6 +10,10 @@
       "Models": {
         "$className": "Folder",
         "$ignoreUnknownInstances": true
+      },
+      "Assets": {
+        "$className": "Folder",
+        "$ignoreUnknownInstances": true
       }
     },
     "ServerScriptService": {

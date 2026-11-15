@@ -980,14 +980,27 @@ function CarBuilder.build(): BuiltCar
 		print("[Last Local] Using modeled Car_B. Part shell stays as invisible collision.")
 	end
 
-	print(string.format("[Last Local] Imported meshes: %s", if #imported > 0 then table.concat(imported, ", ") else "none"))
-	print(string.format("[Last Local] Part figures: %s", if #fallback > 0 then table.concat(fallback, ", ") else "none"))
+	-- One summary. Missing Models is expected until FBX import; do not warn/spam.
+	if #imported > 0 and #fallback == 0 then
+		print(string.format("[Last Local] Passenger meshes: %s", table.concat(imported, ", ")))
+	elseif #imported > 0 then
+		print(
+			string.format(
+				"[Last Local] Passenger meshes: %d imported, %d Part figures (%s).",
+				#imported,
+				#fallback,
+				table.concat(fallback, ", ")
+			)
+		)
+	else
+		print(
+			"[Last Local] Passenger meshes: none in ReplicatedStorage.Models — using Part figures. See README → Put your characters in the car."
+		)
+	end
 	local riding = 0
 	for _, child in passengers:GetChildren() do
 		if child:IsA("Model") and child:GetAttribute("Hidden") ~= true then
 			riding += 1
-			local at = child:GetPivot().Position
-			print(string.format("[Last Local] passenger %s at %.1f, %.1f, %.1f", child.Name, at.X, at.Y, at.Z))
 		end
 	end
 	-- mom, dad, and the three strangers. Crowd and the far-seat extra stay hidden.
