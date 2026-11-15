@@ -1791,16 +1791,32 @@ function Ride.start(car: CarBuilder.BuiltCar)
 		maskBusy = false
 	end
 
-	gazeRemote.OnServerEvent:Connect(function(_player: Player, passengerId: any)
+	-- Single-car slice: one shared gaze (same as Flag / Meta). Only the
+	-- ride owner (metaUserId, else first player) may update it. The id must
+	-- name a real passenger model that is not Hidden.
+	gazeRemote.OnServerEvent:Connect(function(player: Player, passengerId: any)
 		local phase = ride:GetAttribute("Phase")
 		if phase ~= "ride" and phase ~= "stop" and phase ~= "haven" then
 			gazeTarget = nil
 			gazeSince = 0
 			return
 		end
+		local owner = metaUserId
+		if owner == nil then
+			local list = Players:GetPlayers()
+			if #list > 0 then
+				owner = list[1].UserId
+			end
+		end
+		if owner == nil or player.UserId ~= owner then
+			return
+		end
 		local id: string? = nil
 		if typeof(passengerId) == "string" and passengerId ~= "" then
-			id = passengerId
+			local model = car.passengers:FindFirstChild(passengerId)
+			if model ~= nil and model:IsA("Model") and model:GetAttribute("Hidden") ~= true then
+				id = passengerId
+			end
 		end
 		if id ~= gazeTarget then
 			gazeTarget = id
