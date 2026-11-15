@@ -2,8 +2,8 @@
 -- Hold Flag (F, or the button) while the crosshair is on a passenger.
 -- The hold is 0.7 seconds, the web game's CFG.flagHold. It only fills
 -- during a ride, which is when the web game counts a flag.
--- During the Greenpoint restraint, the same hold reports to Remotes.Hold
--- (Space or F) and does not flag.
+-- During the Greenpoint restraint, Space or F reports to Remotes.Hold
+-- and does not flag. Space never flags ordinary passengers.
 -- The server decides caught vs false flag. This script does not.
 
 local Players = game:GetService("Players")
@@ -68,7 +68,12 @@ function Flag.start(button: TextButton)
 	local currentId: string? = nil
 	local lastSentHold: boolean? = nil
 
-	local function holding(): boolean
+	-- Space is restraint-only (web Hold Space). Ordinary flags stay on F / button.
+	local function flagHolding(): boolean
+		return keyDown or buttonDown
+	end
+
+	local function restraintHolding(): boolean
 		return keyDown or spaceDown or buttonDown
 	end
 
@@ -103,9 +108,9 @@ function Flag.start(button: TextButton)
 		local riding = ride:GetAttribute("Phase") == "ride"
 		local restraint = ride:GetAttribute("RestraintActive") == true
 		local intervening = ride:GetAttribute("Intervening") == true
-		local down = holding()
 
 		if restraint then
+			local down = restraintHolding()
 			if lastSentHold ~= down then
 				lastSentHold = down
 				holdRemote:FireServer(down)
@@ -123,6 +128,7 @@ function Flag.start(button: TextButton)
 		end
 		Hud.setRestraintMode(false)
 
+		local down = flagHolding()
 		if intervening or not down then
 			locked = false
 			progress = 0

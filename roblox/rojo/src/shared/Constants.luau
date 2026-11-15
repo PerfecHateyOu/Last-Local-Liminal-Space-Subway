@@ -119,7 +119,13 @@ Constants.INTERVENTION_RESET_SUSPICION = 40
 Constants.MASK_NEED_SUSPICION = 10
 -- Product decision (Rojo): reaching suspicion 100 does NOT end the ride.
 -- Intervention can fire at 60+, but there is no hard fail at the cap.
+-- Court Square endings (PR14) still use peak/interventions; they never invent a fail-at-100 ending.
 Constants.SUSPICION_HARD_FAIL = false
+
+-- Court Sq exit choice window (web presentFinalExitChoice window 8.0).
+Constants.EXIT_CHOICE_SECONDS = 8
+-- Quieter branch endings need peak ≤ half of INTERVENE_SUSPICION.
+Constants.COMPOSED_PEAK = 30
 
 -- Bands from the suspicion number. 0–24 calm, 25–49 uneasy, 50–74 watched,
 -- 75–100 hunted.

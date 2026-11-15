@@ -32,6 +32,7 @@ local Evp = require(ReplicatedStorage.Shared.Evp)
 local Polaroid = require(ReplicatedStorage.Shared.Polaroid)
 local Sanity = require(ReplicatedStorage.Shared.Sanity)
 local Restraint = require(ReplicatedStorage.Shared.Restraint)
+local Endings = require(ReplicatedStorage.Shared.Endings)
 local Lines = require(ReplicatedStorage.Shared.Lines)
 local Score = require(ReplicatedStorage.Shared.Score)
 local Band = require(ReplicatedStorage.Shared.Band)
@@ -84,6 +85,9 @@ function Ride.start(car: CarBuilder.BuiltCar)
 	local holdRemote = Instance.new("RemoteEvent")
 	holdRemote.Name = "Hold"
 	holdRemote.Parent = remotes
+	local exitRemote = Instance.new("RemoteEvent")
+	exitRemote.Name = "Exit"
+	exitRemote.Parent = remotes
 
 	ride:SetAttribute("Phase", "intro")
 	ride:SetAttribute("PaText", "")
@@ -104,6 +108,14 @@ function Ride.start(car: CarBuilder.BuiltCar)
 	ride:SetAttribute("RestraintActive", false)
 	ride:SetAttribute("RestraintProgress", 0)
 	ride:SetAttribute("RestraintOK", false)
+	ride:SetAttribute("ExitActive", false)
+	ride:SetAttribute("ExitUntil", 0)
+	ride:SetAttribute("ReportReady", false)
+	ride:SetAttribute("EndingId", "")
+	ride:SetAttribute("EndingTitle", "")
+	ride:SetAttribute("EndingBadge", "")
+	ride:SetAttribute("EndingNarrative", "")
+	ride:SetAttribute("ReportStats", "")
 	ride:SetAttribute("HasRecorder", false)
 	ride:SetAttribute("SegStop", 0)
 	ride:SetAttribute("EvpRaised", false)
@@ -375,6 +387,12 @@ function Ride.start(car: CarBuilder.BuiltCar)
 	local restraintHeld = false
 	local restraintHidden: { string } = {}
 	local restraintMomRest: { [BasePart]: Color3 } = {}
+	local accCorrect = 0
+	local accMiss = 0
+	local trialStops: { number } = {}
+	local finalExit: Endings.ExitChoice = "escalators"
+	local pendingExitChoice: string? = nil
+	local exitEpoch = 0
 	local stopHadAnomaly = false
 	local stopNoticed = false
 	local stopFalseAlarm = false
@@ -460,6 +478,7 @@ function Ride.start(car: CarBuilder.BuiltCar)
 			or ride:GetAttribute("Phase") == "trial"
 			or ride:GetAttribute("RestraintActive") == true
 			or ride:GetAttribute("Intervening") == true
+			or ride:GetAttribute("ExitActive") == true
 	end
 
 	local function lowerCamera()
@@ -848,8 +867,11 @@ function Ride.start(car: CarBuilder.BuiltCar)
 		end
 	end
 
-	holdRemote.OnServerEvent:Connect(function(_player: Player, held: any)
+	holdRemote.OnServerEvent:Connect(function(player: Player, held: any)
 		if typeof(held) ~= "boolean" then
+			return
+		end
+		if player.Character == nil then
 			return
 		end
 		if restraintState == nil then
@@ -857,6 +879,16 @@ function Ride.start(car: CarBuilder.BuiltCar)
 			return
 		end
 		restraintHeld = held
+	end)
+
+	exitRemote.OnServerEvent:Connect(function(_player: Player, choice: any)
+		if ride:GetAttribute("ExitActive") ~= true then
+			return
+		end
+		if typeof(choice) ~= "string" then
+			return
+		end
+		pendingExitChoice = choice
 	end)
 
 	RunService.Heartbeat:Connect(function(dt: number)
@@ -1434,7 +1466,8 @@ function Ride.start(car: CarBuilder.BuiltCar)
 
 	local segToken = 0
 
-	local function runTrial(token: number, stopName: string): boolean
+	local function runTrial(token: number, stopName: string, stopNumber: number): boolean
+		table.insert(trialStops, stopNumber)
 		ride:SetAttribute("Phase", "trial")
 		clearMaskUi()
 		TrialSpace.setVisible(trialSpace.model, true)
@@ -1631,12 +1664,81 @@ function Ride.start(car: CarBuilder.BuiltCar)
 		applySuspicion(Score.flagDelta(verdict == "noticed", live, Constants.FALSE_ALARM_SUSPICION, Constants.CORRECT_FLAG_SUSPICION))
 	end)
 
+	local function tapeIds(): { string }
+		local ids = {}
+		for _, tape in evpState.tapes do
+			table.insert(ids, tape.signalId)
+		end
+		return ids
+	end
+
+	local function waitForExitChoice(seconds: number): Endings.ExitChoice
+		exitEpoch += 1
+		local epoch = exitEpoch
+		pendingExitChoice = nil
+		ride:SetAttribute("ExitActive", true)
+		ride:SetAttribute("ExitUntil", workspace:GetServerTimeNow() + seconds)
+		local deadline = os.clock() + seconds
+		while os.clock() < deadline and pendingExitChoice == nil and epoch == exitEpoch do
+			task.wait(0.05)
+		end
+		ride:SetAttribute("ExitActive", false)
+		ride:SetAttribute("ExitUntil", 0)
+		return Endings.normalizeExit(pendingExitChoice)
+	end
+
+	local function publishReport(def: Endings.EndingDefinition, summary: Endings.EndingSummary)
+		ride:SetAttribute("EndingId", def.id)
+		ride:SetAttribute("EndingTitle", def.title)
+		ride:SetAttribute("EndingBadge", def.badge)
+		ride:SetAttribute("EndingNarrative", def.narrative)
+		local restraintLine = if summary.restraintOK then "held" else "failed / skipped"
+		local stats = table.concat({
+			"Sanity Retained  " .. tostring(summary.sanPct) .. "%",
+			"Peak Suspicion   " .. tostring(summary.peak),
+			"Anomaly Accuracy " .. tostring(summary.accPct) .. "%  (" .. tostring(accCorrect) .. "/" .. tostring(
+				accCorrect + accMiss
+			) .. ")",
+			"Interventions    " .. tostring(summary.interventions),
+			"Trials           " .. tostring(#summary.trialStops),
+			"Restraint        " .. restraintLine,
+			"Tapes            " .. tostring(#summary.tapes),
+			"Exit             " .. summary.exit,
+			"False flags      " .. tostring(falseFlags),
+		}, "\n")
+		ride:SetAttribute("ReportStats", stats)
+		ride:SetAttribute("ReportReady", true)
+	end
+
 	local function finishScore()
 		local miss = if caught then 0 else 1
 		local kind = if caught then "caught" else "missed"
 		local word = if caught then Lines.CAUGHT else Lines.MISSED
 		showFeedback(kind, word, true)
-		showSub(Lines.scoreLine(miss, falseFlags), 30)
+		showSub(Lines.scoreLine(miss, falseFlags), 8)
+	end
+
+	local function endGameAtCourtSq()
+		sampleSanity()
+		finalExit = waitForExitChoice(Constants.EXIT_CHOICE_SECONDS)
+		showSub(Endings.exitLine(finalExit), 3.0)
+		task.wait(3.2)
+		local summary: Endings.EndingSummary = {
+			peak = peakSuspicion,
+			interventions = interventions,
+			trialStops = trialStops,
+			sanPct = Sanity.retainedPercent(sanSamples),
+			accPct = Endings.accuracyPercent(accCorrect, accMiss),
+			restraintOK = restraintOK,
+			tapes = tapeIds(),
+			exit = finalExit,
+		}
+		-- No hard fail at suspicion 100: resolveEnding never invents one.
+		local def = Endings.resolve(summary)
+		finishScore()
+		publishReport(def, summary)
+		ride:SetAttribute("Phase", "end")
+		ride:SetAttribute("NextStop", Route.stopName(13))
 	end
 
 	-- One named tube, on and off. stripHold keeps applyLights from painting
@@ -1936,7 +2038,7 @@ function Ride.start(car: CarBuilder.BuiltCar)
 			while token == segToken and restraintState ~= nil and os.clock() < deadline do
 				task.wait(0.05)
 			end
-			if restraintState ~= nil then
+			if token == segToken and restraintState ~= nil then
 				endRestraint(false, Lines.RESTRAINT_FAIL_WAIT)
 			end
 		end
@@ -1962,6 +2064,13 @@ function Ride.start(car: CarBuilder.BuiltCar)
 			publishEvp()
 		end
 		ride:SetAttribute("Phase", "stop")
+		if stopHadAnomaly then
+			if stopNoticed then
+				accCorrect += 1
+			else
+				accMiss += 1
+			end
+		end
 		local kind = Score.result(stopHadAnomaly, stopNoticed, stopFalseAlarm)
 		applySuspicion(Score.endDelta(kind, Constants.CLEAN_STOP_SUSPICION, Constants.DECAY_SUSPICION))
 		if seg.kind == "false" then
@@ -1997,9 +2106,7 @@ function Ride.start(car: CarBuilder.BuiltCar)
 			at(t0, 3.4)
 			showSub(Lines.MOM_ARRIVE, 4)
 			at(t0, 6.6)
-			finishScore()
-			ride:SetAttribute("Phase", "end")
-			ride:SetAttribute("NextStop", Route.stopName(13))
+			endGameAtCourtSq()
 			return
 		end
 
@@ -2081,7 +2188,7 @@ function Ride.start(car: CarBuilder.BuiltCar)
 			end
 			ride:SetAttribute("Phase", "stop")
 		elseif outcome.mode == "trial" then
-			local ok = runTrial(token, Route.stopName(seg.stop))
+			local ok = runTrial(token, Route.stopName(seg.stop), seg.stop)
 			if not ok or token ~= segToken then
 				return
 			end

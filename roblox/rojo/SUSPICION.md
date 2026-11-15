@@ -30,6 +30,9 @@ TBD is undecided — do not fill it in from a guess.
   11–13 sanity ceiling; fail +15 suspicion. Walk locked while active.
 - Concerned **intervention** at suspicion ≥ 60: parent lines, reset to 40,
   −5 sanity. Does **not** end the ride (no hard fail at 100).
+- Court Square **exit choice** + `resolveEnding` Travel Report (peak,
+  interventions, trials, sanity retained, accuracy, restraint, tapes, exit).
+  Peak 100 still resolves an ending; it never invents a fail-at-100 game over.
 - Safe Haven at Myrtle–Willoughby: step off → platform linger + `HasRecorder`;
   stay aboard → `refuseHaven` +10. Train handoff if you skipped the platform.
 - False Stop Trial on non-forgiving false step-offs: path/board rounds, lying

@@ -30,6 +30,16 @@ local trialCountdown: TextLabel? = nil
 local trialButtonA: TextButton? = nil
 local trialButtonB: TextButton? = nil
 local trialButtonC: TextButton? = nil
+local exitFrame: Frame? = nil
+local exitCountdown: TextLabel? = nil
+local exitButtonA: TextButton? = nil
+local exitButtonB: TextButton? = nil
+local exitButtonC: TextButton? = nil
+local reportFrame: Frame? = nil
+local reportBadge: TextLabel? = nil
+local reportTitle: TextLabel? = nil
+local reportNarrative: TextLabel? = nil
+local reportStats: TextLabel? = nil
 local recorderButton: TextButton? = nil
 local evidenceButton: TextButton? = nil
 local cameraButton: TextButton? = nil
@@ -180,6 +190,50 @@ function Hud.setTrialLabels(a: string, b: string, c: string, slots: number)
 	if bc ~= nil then
 		bc.Text = "[3]  " .. c
 		bc.Visible = slots >= 3
+	end
+end
+
+function Hud.exitButtonA(): TextButton
+	assert(exitButtonA ~= nil, "Hud.start must run first")
+	return exitButtonA
+end
+
+function Hud.exitButtonB(): TextButton
+	assert(exitButtonB ~= nil, "Hud.start must run first")
+	return exitButtonB
+end
+
+function Hud.exitButtonC(): TextButton
+	assert(exitButtonC ~= nil, "Hud.start must run first")
+	return exitButtonC
+end
+
+function Hud.setExitVisible(visible: boolean)
+	local frame = exitFrame
+	if frame ~= nil then
+		frame.Visible = visible
+	end
+end
+
+function Hud.setExitCountdown(text: string)
+	local countdown = exitCountdown
+	if countdown ~= nil then
+		countdown.Text = text
+	end
+end
+
+function Hud.setExitLabels(a: string, b: string, c: string)
+	local ba = exitButtonA
+	local bb = exitButtonB
+	local bc = exitButtonC
+	if ba ~= nil then
+		ba.Text = "[1]  " .. a
+	end
+	if bb ~= nil then
+		bb.Text = "[2]  " .. b
+	end
+	if bc ~= nil then
+		bc.Text = "[3]  " .. c
 	end
 end
 
@@ -752,6 +806,119 @@ function Hud.start()
 	trialButtonB = trialBtn("TrialB", 90)
 	trialButtonC = trialBtn("TrialC", 130)
 
+	local exitCard = Instance.new("Frame")
+	exitCard.Name = "ExitChoice"
+	exitCard.AnchorPoint = Vector2.new(0.5, 1)
+	exitCard.Position = UDim2.new(0.5, 0, 1, -214)
+	exitCard.Size = UDim2.fromOffset(380, 178)
+	exitCard.BackgroundColor3 = Color3.new(0, 0, 0)
+	exitCard.BackgroundTransparency = 0.28
+	exitCard.BorderSizePixel = 0
+	exitCard.Visible = false
+	exitCard.Parent = gui
+	corner(exitCard, 10)
+	exitFrame = exitCard
+
+	local exitTitle = label(exitCard, Lines.EXIT_PROMPT, 14, Constants.COLOR.warn)
+	exitTitle.Name = "Title"
+	exitTitle.Font = Enum.Font.GothamBold
+	exitTitle.Position = UDim2.fromOffset(12, 8)
+	exitTitle.Size = UDim2.new(1, -24, 0, 18)
+	exitTitle.TextXAlignment = Enum.TextXAlignment.Center
+
+	local exitCount = label(exitCard, "", 12, Color3.fromRGB(180, 176, 166))
+	exitCount.Name = "Countdown"
+	exitCount.Font = Enum.Font.Code
+	exitCount.Position = UDim2.fromOffset(12, 28)
+	exitCount.Size = UDim2.new(1, -24, 0, 16)
+	exitCount.TextXAlignment = Enum.TextXAlignment.Center
+	exitCountdown = exitCount
+
+	local function exitBtn(name: string, y: number): TextButton
+		local btn = Instance.new("TextButton")
+		btn.Name = name
+		btn.Position = UDim2.fromOffset(16, y)
+		btn.Size = UDim2.new(1, -32, 0, 36)
+		btn.BackgroundColor3 = Color3.fromRGB(24, 32, 28)
+		btn.BackgroundTransparency = 0.1
+		btn.BorderSizePixel = 0
+		btn.AutoButtonColor = true
+		btn.Font = Enum.Font.GothamMedium
+		btn.Text = ""
+		btn.TextColor3 = Constants.COLOR.cream
+		btn.TextSize = 13
+		btn.TextWrapped = true
+		btn.Parent = exitCard
+		corner(btn, 8)
+		return btn
+	end
+
+	exitButtonA = exitBtn("ExitA", 50)
+	exitButtonB = exitBtn("ExitB", 90)
+	exitButtonC = exitBtn("ExitC", 130)
+
+	local reportCard = Instance.new("Frame")
+	reportCard.Name = "TravelReport"
+	reportCard.AnchorPoint = Vector2.new(0.5, 0.5)
+	reportCard.Position = UDim2.fromScale(0.5, 0.5)
+	reportCard.Size = UDim2.fromOffset(420, 360)
+	reportCard.BackgroundColor3 = Color3.fromRGB(236, 230, 214)
+	reportCard.BackgroundTransparency = 0.05
+	reportCard.BorderSizePixel = 0
+	reportCard.Visible = false
+	reportCard.ZIndex = 20
+	reportCard.Parent = gui
+	corner(reportCard, 6)
+	reportFrame = reportCard
+
+	local reportHead = label(reportCard, "MTA NYCT // LAST LOCAL RIDE RECORD", 11, Color3.fromRGB(40, 40, 40))
+	reportHead.Font = Enum.Font.Code
+	reportHead.Position = UDim2.fromOffset(16, 12)
+	reportHead.Size = UDim2.new(1, -32, 0, 16)
+	reportHead.ZIndex = 21
+
+	local reportH2 = label(reportCard, "Travel Report", 22, Color3.fromRGB(20, 20, 20))
+	reportH2.Font = Enum.Font.GothamBold
+	reportH2.Position = UDim2.fromOffset(16, 32)
+	reportH2.Size = UDim2.new(1, -32, 0, 28)
+	reportH2.ZIndex = 21
+
+	local endingBadgeLbl = label(reportCard, "", 12, Color3.fromRGB(236, 230, 214))
+	endingBadgeLbl.Name = "Badge"
+	endingBadgeLbl.BackgroundTransparency = 0
+	endingBadgeLbl.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+	endingBadgeLbl.Font = Enum.Font.Code
+	endingBadgeLbl.Position = UDim2.fromOffset(16, 68)
+	endingBadgeLbl.Size = UDim2.new(1, -32, 0, 22)
+	endingBadgeLbl.TextXAlignment = Enum.TextXAlignment.Center
+	endingBadgeLbl.ZIndex = 21
+	reportBadge = endingBadgeLbl
+
+	local titleLbl = label(reportCard, "", 16, Color3.fromRGB(20, 20, 20))
+	titleLbl.Name = "EndingTitle"
+	titleLbl.Font = Enum.Font.GothamBold
+	titleLbl.Position = UDim2.fromOffset(16, 98)
+	titleLbl.Size = UDim2.new(1, -32, 0, 22)
+	titleLbl.ZIndex = 21
+	reportTitle = titleLbl
+
+	local narrative = label(reportCard, "", 13, Color3.fromRGB(40, 40, 40))
+	narrative.Name = "Narrative"
+	narrative.Position = UDim2.fromOffset(16, 124)
+	narrative.Size = UDim2.new(1, -32, 0, 110)
+	narrative.TextYAlignment = Enum.TextYAlignment.Top
+	narrative.ZIndex = 21
+	reportNarrative = narrative
+
+	local stats = label(reportCard, "", 12, Color3.fromRGB(50, 50, 50))
+	stats.Name = "Stats"
+	stats.Font = Enum.Font.Code
+	stats.Position = UDim2.fromOffset(16, 240)
+	stats.Size = UDim2.new(1, -32, 0, 100)
+	stats.TextYAlignment = Enum.TextYAlignment.Top
+	stats.ZIndex = 21
+	reportStats = stats
+
 	local dwellCard = Instance.new("Frame")
 	dwellCard.Name = "Dwell"
 	dwellCard.AnchorPoint = Vector2.new(0.5, 1)
@@ -910,6 +1077,25 @@ function Hud.start()
 			feedback.TextColor3 = Constants.COLOR.warn
 		else
 			feedback.TextColor3 = Constants.COLOR.cream
+		end
+
+		local reportReady = ride:GetAttribute("ReportReady") == true
+		if reportFrame ~= nil then
+			reportFrame.Visible = reportReady
+		end
+		if reportReady then
+			if reportBadge ~= nil then
+				reportBadge.Text = textOf("EndingBadge")
+			end
+			if reportTitle ~= nil then
+				reportTitle.Text = textOf("EndingTitle")
+			end
+			if reportNarrative ~= nil then
+				reportNarrative.Text = textOf("EndingNarrative")
+			end
+			if reportStats ~= nil then
+				reportStats.Text = textOf("ReportStats")
+			end
 		end
 	end
 
