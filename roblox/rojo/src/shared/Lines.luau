@@ -189,7 +189,9 @@ function Lines.sanityMeter(value: number, tier: string): string
 end
 
 -- Restraint (Greenpoint Av). Hold Space or F; same button as Flag.
-Lines.RESTRAINT_HINT = "Hold Space or F. Don't let go. Don't react."
+-- Banner matches web "Hold Space. Don't let go. Don't react." with F called out for Studio.
+Lines.RESTRAINT_HINT = "HOLD — keep Space or F down. Don't let go. Don't react."
+Lines.RESTRAINT_BUTTON = "Space / F"
 Lines.RESTRAINT_DAD = "Dad: No. We're not getting off. You know that."
 Lines.RESTRAINT_MOM_MOUTH = "Mom (her mouth doesn't move): You can stop pretending."
 Lines.RESTRAINT_OK = "The lights come back. Everyone is where they were."

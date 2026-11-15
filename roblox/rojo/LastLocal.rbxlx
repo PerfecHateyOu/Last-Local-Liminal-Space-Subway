@@ -389,7 +389,9 @@ Constants.SANITY_RESTRAINT_FAIL = 5
 Constants.RESTRAINT_RAISE = 6
 Constants.RESTRAINT_START_AT = 8.0
 Constants.RESTRAINT_DURATION = 15.0
-Constants.RESTRAINT_WAIT = 5.0
+-- Web grab window is 5s; Studio Play needs longer for Space/F to register
+-- after the HOLD prompt appears. Fail still soft (suspicion bump, ride continues).
+Constants.RESTRAINT_WAIT = 10.0
 Constants.RESTRAINT_GRACE = 2.5
 Constants.RESTRAINT_FAIL_SUSPICION = 15
 -- Concerned intervention (web SUS.intervene). Resets suspicion to 40; does not end the ride.
@@ -2179,7 +2181,9 @@ function Lines.sanityMeter(value: number, tier: string): string
 end
 
 -- Restraint (Greenpoint Av). Hold Space or F; same button as Flag.
-Lines.RESTRAINT_HINT = "Hold Space or F. Don't let go. Don't react."
+-- Banner matches web "Hold Space. Don't let go. Don't react." with F called out for Studio.
+Lines.RESTRAINT_HINT = "HOLD — keep Space or F down. Don't let go. Don't react."
+Lines.RESTRAINT_BUTTON = "Space / F"
 Lines.RESTRAINT_DAD = "Dad: No. We're not getting off. You know that."
 Lines.RESTRAINT_MOM_MOUTH = "Mom (her mouth doesn't move): You can stop pretending."
 Lines.RESTRAINT_OK = "The lights come back. Everyone is where they were."
@@ -2920,12 +2924,14 @@ return PsychLog
 -- Greenpoint Av restraint beat (web gameState startRestraintMoment /
 -- updateRestraint / endRestraint). Pure helpers; Ride owns the live state.
 
+local Constants = require(script.Parent.Constants)
+
 local Restraint = {}
 
-Restraint.START_AT = 8.0
-Restraint.WAIT_TIMEOUT = 5.0
-Restraint.DURATION = 15.0
-Restraint.GRACE = 2.5
+Restraint.START_AT = Constants.RESTRAINT_START_AT
+Restraint.WAIT_TIMEOUT = Constants.RESTRAINT_WAIT
+Restraint.DURATION = Constants.RESTRAINT_DURATION
+Restraint.GRACE = Constants.RESTRAINT_GRACE
 
 Restraint.BEAT_MOM = 1.5
 Restraint.BEAT_DAD = 4.0
@@ -6582,7 +6588,8 @@ function Ride.start(car: CarBuilder.BuiltCar)
 		end
 		restraintState = Restraint.newState(Constants.RESTRAINT_DURATION)
 		publishRestraint()
-		showHint(Lines.RESTRAINT_HINT, 6.0)
+		-- Keep the banner up for the full grab window (web shows 6s on a 5s wait).
+		showHint(Lines.RESTRAINT_HINT, Constants.RESTRAINT_WAIT)
 	end
 
 	local function updateRestraint(dt: number)
@@ -11241,7 +11248,7 @@ function Hud.setRestraintMode(active: boolean)
 	end
 	if active then
 		button.Text = "HOLD"
-		hint.Text = "don't let go"
+		hint.Text = Lines.RESTRAINT_BUTTON
 		hint.TextColor3 = Constants.COLOR.warn
 		button.BackgroundColor3 = Color3.fromRGB(36, 28, 12)
 	else

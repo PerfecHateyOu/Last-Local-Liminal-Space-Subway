@@ -2,12 +2,14 @@
 -- Greenpoint Av restraint beat (web gameState startRestraintMoment /
 -- updateRestraint / endRestraint). Pure helpers; Ride owns the live state.
 
+local Constants = require(script.Parent.Constants)
+
 local Restraint = {}
 
-Restraint.START_AT = 8.0
-Restraint.WAIT_TIMEOUT = 5.0
-Restraint.DURATION = 15.0
-Restraint.GRACE = 2.5
+Restraint.START_AT = Constants.RESTRAINT_START_AT
+Restraint.WAIT_TIMEOUT = Constants.RESTRAINT_WAIT
+Restraint.DURATION = Constants.RESTRAINT_DURATION
+Restraint.GRACE = Constants.RESTRAINT_GRACE
 
 Restraint.BEAT_MOM = 1.5
 Restraint.BEAT_DAD = 4.0

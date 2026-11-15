@@ -271,7 +271,7 @@ function Hud.setRestraintMode(active: boolean)
 	end
 	if active then
 		button.Text = "HOLD"
-		hint.Text = "don't let go"
+		hint.Text = Lines.RESTRAINT_BUTTON
 		hint.TextColor3 = Constants.COLOR.warn
 		button.BackgroundColor3 = Color3.fromRGB(36, 28, 12)
 	else

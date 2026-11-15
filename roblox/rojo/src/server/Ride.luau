@@ -798,7 +798,8 @@ function Ride.start(car: CarBuilder.BuiltCar)
 		end
 		restraintState = Restraint.newState(Constants.RESTRAINT_DURATION)
 		publishRestraint()
-		showHint(Lines.RESTRAINT_HINT, 6.0)
+		-- Keep the banner up for the full grab window (web shows 6s on a 5s wait).
+		showHint(Lines.RESTRAINT_HINT, Constants.RESTRAINT_WAIT)
 	end
 
 	local function updateRestraint(dt: number)
