@@ -201,4 +201,11 @@ Lines.INTERVENTION_DAD = "Dad: Hey. Look at me. Both of us, right now."
 Lines.INTERVENTION_MOM = "Mom: Talk to us. What is going on with you?"
 Lines.INTERVENTION_YOU = "You: Nothing. I'm okay. I promise."
 
+-- Court Square exit choice (labels never spoil which ending is open).
+Lines.EXIT_PROMPT = "Which way out?"
+Lines.EXIT_ESCALATORS = "Follow Mom and Dad to the escalators"
+Lines.EXIT_LOWER = "Follow the static down the side stairs"
+Lines.EXIT_HATCH = "Push through the emergency door"
+Lines.EXIT_DEFAULT = "default Escalators"
+
 return Lines

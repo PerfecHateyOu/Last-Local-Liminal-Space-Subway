@@ -30,6 +30,7 @@ check("restraint raises ceiling", hi11ok == 15)
 
 check("drift into Classon", Sanity.driftForStop(4) == -5)
 check("flat drift at Broadway", Sanity.driftForStop(8) == 0)
+check("boarding stop has no drift", Sanity.driftForStop(1) == 0)
 
 check("clamp into band", Sanity.apply(100, -5, 0, 9) == 9)
 check("clamp floor", Sanity.apply(2, -5, 0, 9) == 0)

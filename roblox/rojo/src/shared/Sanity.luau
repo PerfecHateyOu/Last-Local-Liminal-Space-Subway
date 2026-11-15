@@ -69,7 +69,8 @@ end
 function Sanity.driftForStop(stop: number): number
 	local d = DRIFT[stop]
 	if d == nil then
-		return -5
+		-- Stop 1 (boarding) and unknown stops: no drift.
+		return 0
 	end
 	return d
 end

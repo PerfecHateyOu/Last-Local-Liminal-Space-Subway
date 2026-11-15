@@ -9,6 +9,7 @@ local Audio = require(script.Audio)
 local Choice = require(script.Choice)
 local Mask = require(script.Mask)
 local TrialChoice = require(script.TrialChoice)
+local Exit = require(script.Exit)
 local Evp = require(script.Evp)
 local Polaroid = require(script.Polaroid)
 
@@ -31,6 +32,14 @@ TrialChoice.start(
 	Hud.setTrialVisible,
 	Hud.setTrialCountdown,
 	Hud.setTrialLabels
+)
+Exit.start(
+	Hud.exitButtonA(),
+	Hud.exitButtonB(),
+	Hud.exitButtonC(),
+	Hud.setExitVisible,
+	Hud.setExitCountdown,
+	Hud.setExitLabels
 )
 Evp.start(Hud.recorderButton(), Hud.evidenceButton())
 Polaroid.start(Hud.cameraButton(), Hud.albumButton())
