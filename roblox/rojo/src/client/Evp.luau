@@ -366,6 +366,9 @@ function Evp.start(recorderButton: TextButton, evidenceButton: TextButton)
 		if processed then
 			return
 		end
+		if ride:GetAttribute("Phase") == "menu" then
+			return
+		end
 		if input.KeyCode == Enum.KeyCode.R then
 			toggleRemote:FireServer()
 		elseif input.KeyCode == Enum.KeyCode.Tab then

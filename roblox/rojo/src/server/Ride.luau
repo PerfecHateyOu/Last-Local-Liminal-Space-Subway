@@ -12,14 +12,17 @@
 -- never write these interior lights.
 
 local HttpService = game:GetService("HttpService")
+local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
 local AnomalySystem = require(script.Parent.AnomalySystem)
 local CarBuilder = require(script.Parent.CarBuilder)
+local MetaStore = require(script.Parent.MetaStore)
 local Scenery = require(script.Parent.Scenery)
 local TrialSpace = require(script.Parent.TrialSpace)
 local WorldLight = require(script.Parent.WorldLight)
+local Achievements = require(ReplicatedStorage.Shared.Achievements)
 local Constants = require(ReplicatedStorage.Shared.Constants)
 local Trestle = require(ReplicatedStorage.Shared.Trestle)
 local Doors = require(ReplicatedStorage.Shared.Doors)
@@ -27,6 +30,8 @@ local Dwell = require(ReplicatedStorage.Shared.Dwell)
 local Hold = require(ReplicatedStorage.Shared.Hold)
 local Dialogue = require(ReplicatedStorage.Shared.Dialogue)
 local Haven = require(ReplicatedStorage.Shared.Haven)
+local Nightmare = require(ReplicatedStorage.Shared.Nightmare)
+local Practice = require(ReplicatedStorage.Shared.Practice)
 local Trial = require(ReplicatedStorage.Shared.Trial)
 local Evp = require(ReplicatedStorage.Shared.Evp)
 local Polaroid = require(ReplicatedStorage.Shared.Polaroid)
@@ -88,8 +93,14 @@ function Ride.start(car: CarBuilder.BuiltCar)
 	local exitRemote = Instance.new("RemoteEvent")
 	exitRemote.Name = "Exit"
 	exitRemote.Parent = remotes
+	local metaStartRemote = Instance.new("RemoteEvent")
+	metaStartRemote.Name = "MetaStart"
+	metaStartRemote.Parent = remotes
+	local metaAgainRemote = Instance.new("RemoteEvent")
+	metaAgainRemote.Name = "MetaAgain"
+	metaAgainRemote.Parent = remotes
 
-	ride:SetAttribute("Phase", "intro")
+	ride:SetAttribute("Phase", "menu")
 	ride:SetAttribute("PaText", "")
 	ride:SetAttribute("Subtitle", "")
 	ride:SetAttribute("Hint", "")
@@ -117,6 +128,11 @@ function Ride.start(car: CarBuilder.BuiltCar)
 	ride:SetAttribute("EndingNarrative", "")
 	ride:SetAttribute("ReportStats", "")
 	ride:SetAttribute("HasRecorder", false)
+	ride:SetAttribute("NightmareUnlocked", false)
+	ride:SetAttribute("NightmareOn", false)
+	ride:SetAttribute("PracticeOn", false)
+	ride:SetAttribute("MetaArchive", "")
+	ride:SetAttribute("PracticeNote", "")
 	ride:SetAttribute("SegStop", 0)
 	ride:SetAttribute("EvpRaised", false)
 	ride:SetAttribute("EvpKhz", 120)
@@ -292,10 +308,19 @@ function Ride.start(car: CarBuilder.BuiltCar)
 		accel: number,
 		cruise: number,
 		brake: number,
+		top: number,
 		holdAt: number,
 		holdFor: number,
 	}
 	local stretch: Stretch? = nil
+	local nightmareOn = false
+	local practiceOn = false
+	local startChapter = 1
+	local trestleBadgeChecked = false
+	local anomalyTypesSeen: { [string]: boolean } = {}
+	local pendingStart: { nightmare: boolean, chapter: number }? = nil
+	local pendingAgain = false
+	local metaUserId: number? = nil
 
 	local function publishOpenAir(level: number)
 		if math.abs(level - lastOpenAir) < 0.03 then
@@ -305,12 +330,16 @@ function Ride.start(car: CarBuilder.BuiltCar)
 		ride:SetAttribute("OpenAir", level)
 		Scenery.setOpenAirLevel(level)
 		WorldLight.setOpenAir(level)
+		if level > 0.4 and not trestleBadgeChecked then
+			trestleBadgeChecked = true
+		end
 	end
 
 	local function beginStretch(seg: Route.Segment, holdAt: number, holdFor: number)
 		local accel = Constants.ACCEL
 		local brake = Constants.BRAKE
-		local cruise = seg.sliceCruise
+		local cruise = Nightmare.cruiseSeconds(seg.sliceCruise, nightmareOn)
+		local top = Nightmare.topSpeed(Constants.TOP_SPEED_MPS, nightmareOn)
 		-- Whichever platform is already at the doors is the one we leave.
 		if math.abs(arriving.base - odo) < math.abs(leaving.base - odo) then
 			local swap = leaving
@@ -318,7 +347,7 @@ function Ride.start(car: CarBuilder.BuiltCar)
 			arriving = swap
 		end
 		leaving.base = odo
-		local dist = Motion.segmentDistance(accel, cruise, brake, Constants.TOP_SPEED_MPS)
+		local dist = Motion.segmentDistance(accel, cruise, brake, top)
 		arriving.base = odo + dist
 		Scenery.setName(arriving, Route.stopName(seg.stop))
 		-- Newtown Creek: open-air 21 St approach / departure (web gameState trestle).
@@ -332,6 +361,7 @@ function Ride.start(car: CarBuilder.BuiltCar)
 			accel = accel,
 			cruise = cruise,
 			brake = brake,
+			top = top,
 			holdAt = holdAt,
 			holdFor = holdFor,
 		}
@@ -351,7 +381,7 @@ function Ride.start(car: CarBuilder.BuiltCar)
 		if current ~= nil then
 			local elapsed = workspace:GetServerTimeNow() - current.start
 			local motionT = Hold.motionTime(elapsed, current.holdAt, current.holdFor)
-			odo = current.origin + Motion.distance(motionT, current.accel, current.cruise, current.brake, Constants.TOP_SPEED_MPS)
+			odo = current.origin + Motion.distance(motionT, current.accel, current.cruise, current.brake, current.top)
 		end
 		local openLevel = if ride:GetAttribute("Phase") == "trial" then 0 else Trestle.outsideLevel(odo, trestlePlan)
 		publishOpenAir(openLevel)
@@ -999,6 +1029,10 @@ function Ride.start(car: CarBuilder.BuiltCar)
 		if phase == "ride" and Polaroid.photoCatches(framed, liveIds) then
 			caught = true
 			stopNoticed = true
+			for _, id in framed do
+				anomalyTypesSeen[id] = true
+			end
+			anomalyTypesSeen["photo"] = true
 			applySuspicion(Score.flagDelta(true, true, Constants.FALSE_ALARM_SUSPICION, Constants.CORRECT_FLAG_SUSPICION))
 		end
 
@@ -1657,6 +1691,11 @@ function Ride.start(car: CarBuilder.BuiltCar)
 		if verdict == "noticed" then
 			caught = true
 			stopNoticed = true
+			if isTell and typeof(tellKind) == "string" then
+				anomalyTypesSeen[tellKind] = true
+			elseif marked then
+				anomalyTypesSeen["extra"] = true
+			end
 			showFeedback("caught", Lines.CAUGHT, false)
 		else
 			falseFlags += 1
@@ -1697,7 +1736,12 @@ function Ride.start(car: CarBuilder.BuiltCar)
 		ride:SetAttribute("EndingBadge", def.badge)
 		ride:SetAttribute("EndingNarrative", def.narrative)
 		local restraintLine = if summary.restraintOK then "held" else "failed / skipped"
+		local modeLine = if practiceOn
+			then "Mode             PRACTICE (nothing saved)"
+			elseif nightmareOn then "Mode             NIGHTMARE"
+			else "Mode             Standard"
 		local stats = table.concat({
+			modeLine,
 			"Sanity Retained  " .. tostring(summary.sanPct) .. "%",
 			"Peak Suspicion   " .. tostring(summary.peak),
 			"Anomaly Accuracy " .. tostring(summary.accPct) .. "%  (" .. tostring(accCorrect) .. "/" .. tostring(
@@ -1712,6 +1756,123 @@ function Ride.start(car: CarBuilder.BuiltCar)
 		}, "\n")
 		ride:SetAttribute("ReportStats", stats)
 		ride:SetAttribute("ReportReady", true)
+	end
+
+	local function formatArchive(data: MetaStore.Save): string
+		local endingCount = 0
+		for _ in data.endings do
+			endingCount += 1
+		end
+		local lines = {
+			"CASE FILES",
+			"Runs " .. tostring(data.runsCompleted),
+			"Endings " .. tostring(endingCount),
+			"Achievements " .. tostring(Achievements.count(data.achievements)),
+			"Tapes " .. tostring(#data.tapes),
+			"Album " .. tostring(#data.album),
+		}
+		for _, id in Achievements.IDS do
+			if Achievements.has(data.achievements, id) then
+				table.insert(lines, "• " .. Achievements.definition(id).title)
+			end
+		end
+		for id, entry in data.endings do
+			table.insert(lines, "◇ " .. id .. " ×" .. tostring(entry.count))
+		end
+		return table.concat(lines, "\n")
+	end
+
+	local function refreshMetaPublish()
+		local uid = metaUserId
+		if uid == nil then
+			local list = Players:GetPlayers()
+			if #list > 0 then
+				uid = list[1].UserId
+				metaUserId = uid
+			end
+		end
+		if uid == nil then
+			ride:SetAttribute("NightmareUnlocked", false)
+			ride:SetAttribute("MetaArchive", "CASE FILES\n(no player yet)")
+			return
+		end
+		local data = MetaStore.load(uid)
+		ride:SetAttribute("NightmareUnlocked", data.nightmareUnlocked or data.runsCompleted > 0)
+		ride:SetAttribute("MetaArchive", formatArchive(data))
+	end
+
+	-- Single-car slice: one shared ride. Progress belongs to metaUserId
+	-- (whoever fired MetaStart / MetaAgain). Fallback is first player only.
+	local function persistMeta(def: Endings.EndingDefinition)
+		if Practice.offRecord(practiceOn, false) then
+			return
+		end
+		local uid = metaUserId
+		if uid == nil then
+			local list = Players:GetPlayers()
+			if #list == 0 then
+				return
+			end
+			uid = list[1].UserId
+			metaUserId = uid
+		end
+		local data = MetaStore.load(uid)
+		data.runsCompleted += 1
+		data.nightmareUnlocked = true
+		MetaStore.recordEnding(data, def.id, os.time())
+		local tapes: { MetaStore.TapeEntry } = {}
+		for _, tape in evpState.tapes do
+			table.insert(tapes, {
+				signalId = tape.signalId,
+				title = tape.title,
+				stop = tape.stop,
+				freq = tape.freq,
+				transcript = tape.transcript,
+			})
+		end
+		MetaStore.mergeTapes(data, tapes, Constants.META_TAPE_ARCHIVE_MAX)
+		local album: { MetaStore.PhotoEntry } = {}
+		for _, photo in polaroidPhotos do
+			table.insert(album, { id = photo.id, framed = photo.framed })
+		end
+		MetaStore.mergeAlbum(data, album, Constants.META_ALBUM_ARCHIVE_MAX)
+		for id in anomalyTypesSeen do
+			data.anomalyTypes[id] = true
+		end
+		local now = os.time()
+		if peakSuspicion == 0 then
+			Achievements.unlock(data.achievements, "iron_composure", now, false)
+		end
+		if def.id ~= "civilian_extraction" then
+			Achievements.unlock(data.achievements, "loop_breaker", now, false)
+		end
+		if accCorrect > 0 then
+			Achievements.unlock(data.achievements, "first_anomaly", now, false)
+		end
+		if anomalyTypesSeen["photo"] == true then
+			Achievements.unlock(data.achievements, "photo_evidence", now, false)
+		end
+		if #evpState.tapes >= 3 then
+			Achievements.unlock(data.achievements, "tuning_pro", now, false)
+		end
+		for _, tape in evpState.tapes do
+			if string.sub(tape.signalId, 1, 8) == "station-" then
+				Achievements.unlock(data.achievements, "broadcaster_lore", now, false)
+				break
+			end
+		end
+		if trestleBadgeChecked then
+			Achievements.unlock(data.achievements, "trestle_cross", now, false)
+		end
+		local documented = 0
+		for _ in data.anomalyTypes do
+			documented += 1
+		end
+		if documented >= 6 then
+			Achievements.unlock(data.achievements, "master_archivist", now, false)
+		end
+		MetaStore.save(uid, data)
+		refreshMetaPublish()
 	end
 
 	local function finishScore()
@@ -1741,6 +1902,7 @@ function Ride.start(car: CarBuilder.BuiltCar)
 		local def = Endings.resolve(summary)
 		finishScore()
 		publishReport(def, summary)
+		persistMeta(def)
 		ride:SetAttribute("Phase", "end")
 		ride:SetAttribute("NextStop", Route.stopName(13))
 	end
@@ -1791,15 +1953,16 @@ function Ride.start(car: CarBuilder.BuiltCar)
 			sampleSanity()
 		end
 		bandStop = seg.stop
-		applySanity(Sanity.driftForStop(seg.stop))
+		applySanity(Nightmare.driftDelta(Sanity.driftForStop(seg.stop), nightmareOn))
 
-		local length = Route.segmentLength(seg, Constants.ACCEL, Constants.BRAKE)
+		local cruiseLen = Nightmare.cruiseSeconds(seg.sliceCruise, nightmareOn)
+		local length = Constants.ACCEL + cruiseLen + Constants.BRAKE
 		inFinal = seg.final
 		if seg.final and huntedDim then
 			huntedDim = false
 		end
 		local held = Hold.applies(seg.stop, seg.b, seg.final, Constants.HOLD_STOP_A, Constants.HOLD_STOP_B)
-			and Hold.placed(Constants.HOLD_AT, Constants.HOLD_SECONDS, Constants.ACCEL, seg.sliceCruise)
+			and Hold.placed(Constants.HOLD_AT, Constants.HOLD_SECONDS, Constants.ACCEL, cruiseLen)
 		local holdAt = if held then Constants.HOLD_AT else 0
 		local holdFor = if held then Constants.HOLD_SECONDS else 0
 		beginStretch(seg, holdAt, holdFor)
@@ -2222,7 +2385,165 @@ function Ride.start(car: CarBuilder.BuiltCar)
 		task.wait(1.2)
 	end
 
-	task.spawn(function()
+	metaStartRemote.OnServerEvent:Connect(function(player: Player, nightmare: any, chapter: any)
+		if ride:GetAttribute("Phase") ~= "menu" then
+			return
+		end
+		if pendingStart ~= nil then
+			return
+		end
+		metaUserId = player.UserId
+		local ch = if typeof(chapter) == "number" then Practice.normalizeChapter(chapter) else 1
+		local data = MetaStore.load(player.UserId)
+		local unlocked = data.nightmareUnlocked or data.runsCompleted > 0
+		if ch > 1 and not unlocked then
+			ch = 1
+		end
+		local nm = nightmare == true and unlocked
+		pendingStart = { nightmare = nm, chapter = ch }
+	end)
+
+	metaAgainRemote.OnServerEvent:Connect(function(player: Player)
+		if ride:GetAttribute("Phase") ~= "end" or ride:GetAttribute("ReportReady") ~= true then
+			return
+		end
+		metaUserId = player.UserId
+		pendingAgain = true
+	end)
+
+	Players.PlayerAdded:Connect(function(player: Player)
+		if metaUserId == nil then
+			metaUserId = player.UserId
+			refreshMetaPublish()
+		end
+	end)
+	for _, player in Players:GetPlayers() do
+		if metaUserId == nil then
+			metaUserId = player.UserId
+		end
+	end
+	refreshMetaPublish()
+
+	local function clearReport()
+		ride:SetAttribute("ReportReady", false)
+		ride:SetAttribute("EndingId", "")
+		ride:SetAttribute("EndingTitle", "")
+		ride:SetAttribute("EndingBadge", "")
+		ride:SetAttribute("EndingNarrative", "")
+		ride:SetAttribute("ReportStats", "")
+	end
+
+	local function resetRunState()
+		table.clear(flagged)
+		falseFlags = 0
+		caught = false
+		suspicion = 0
+		peakSuspicion = 0
+		sanity = Constants.SANITY_START
+		bandStop = 1
+		table.clear(sanSamples)
+		interventions = 0
+		intervening = false
+		restraintState = nil
+		restraintDone = false
+		restraintOK = false
+		restraintHeld = false
+		table.clear(restraintHidden)
+		table.clear(restraintMomRest)
+		accCorrect = 0
+		accMiss = 0
+		table.clear(trialStops)
+		finalExit = "escalators"
+		pendingExitChoice = nil
+		stopHadAnomaly = false
+		stopNoticed = false
+		stopFalseAlarm = false
+		posterLive = false
+		inFinal = false
+		huntedDim = false
+		table.clear(maskUsed)
+		maskLast = nil
+		maskBusy = false
+		chatPlan = Dialogue.buildChatPlan(function()
+			return math.random()
+		end)
+		hasRecorder = false
+		evpState = Evp.newState(function()
+			return math.random()
+		end)
+		currentSegStop = nil
+		cameraRaised = false
+		albumOpen = false
+		filmLeft = Polaroid.STARTING_FILM
+		nextShotAt = 0
+		table.clear(polaroidPhotos)
+		photoSeq = 0
+		trestleBadgeChecked = false
+		table.clear(anomalyTypesSeen)
+		stretch = nil
+		odo = 0
+		lastOpenAir = -1
+		publishOpenAir(0)
+		setDoorTarget(1)
+		doorOpen = 1
+		clearCatalog()
+		clearTells()
+		clearExtra()
+		clearMaskUi()
+		clearTrialUi()
+		ride:SetAttribute("Suspicion", 0)
+		ride:SetAttribute("PeakSuspicion", 0)
+		publishSanity()
+		ride:SetAttribute("SanityRetained", 0)
+		ride:SetAttribute("Interventions", 0)
+		ride:SetAttribute("Intervening", false)
+		ride:SetAttribute("RestraintActive", false)
+		ride:SetAttribute("RestraintProgress", 0)
+		ride:SetAttribute("RestraintOK", false)
+		ride:SetAttribute("ExitActive", false)
+		ride:SetAttribute("ExitUntil", 0)
+		ride:SetAttribute("HasRecorder", false)
+		ride:SetAttribute("SegStop", 0)
+		ride:SetAttribute("EvpRaised", false)
+		ride:SetAttribute("EvpKhz", 120)
+		ride:SetAttribute("EvpMeter", 0)
+		ride:SetAttribute("EvpLocked", "")
+		ride:SetAttribute("EvpStatus", "")
+		ride:SetAttribute("EvpRecordT", 0)
+		ride:SetAttribute("EvpTapes", "[]")
+		ride:SetAttribute("EvpSaved", "")
+		ride:SetAttribute("EvpPlayId", "")
+		ride:SetAttribute("CameraRaised", false)
+		ride:SetAttribute("AlbumOpen", false)
+		ride:SetAttribute("FilmLeft", Polaroid.STARTING_FILM)
+		ride:SetAttribute("PolaroidAlbum", "[]")
+		ride:SetAttribute("Band", "calm")
+		ride:SetAttribute("FalseStopBonus", 0)
+		ride:SetAttribute("BoardStop", "")
+		ride:SetAttribute("BoardMinutes", 0)
+		ride:SetAttribute("Held", false)
+		ride:SetAttribute("ChoiceActive", false)
+		ride:SetAttribute("MaskActive", false)
+		ride:SetAttribute("TrialActive", false)
+		ride:SetAttribute("PaText", "")
+		ride:SetAttribute("Subtitle", "")
+		ride:SetAttribute("Hint", "")
+		ride:SetAttribute("Feedback", "")
+		ride:SetAttribute("FeedbackKind", "")
+		ride:SetAttribute("NightmareOn", nightmareOn)
+		ride:SetAttribute("PracticeOn", practiceOn)
+		ride:SetAttribute(
+			"PracticeNote",
+			if practiceOn then Lines.META_PRACTICE_NOTE else ""
+		)
+		publishBand()
+		publishEvp()
+		publishCamera()
+		publishRestraint()
+		clearReport()
+	end
+
+	local function runIntro()
 		ride:SetAttribute("Phase", "intro")
 		doorOpen = 1
 		setDoorTarget(1)
@@ -2245,13 +2566,70 @@ function Ride.start(car: CarBuilder.BuiltCar)
 		resolveDeparture(os.clock() - openedAt)
 		setDoorTarget(0)
 		task.wait(1.2)
+	end
 
-		for _, seg in Route.SEGMENTS do
-			runSegment(seg)
-			arrive(seg)
-			if seg.final then
+	local function runPracticeBoard()
+		ride:SetAttribute("Phase", "intro")
+		doorOpen = 1
+		setDoorTarget(1)
+		local originStop = if startChapter == 3 then 10 elseif startChapter == 2 then 5 else 1
+		ride:SetAttribute("NextStop", Route.stopName(originStop + 1))
+		ride:SetAttribute("ChapterLine", Route.chapterLine(originStop))
+		Scenery.setName(leaving, Route.stopName(originStop))
+		showPa(Lines.INTRO_PA, 2.5)
+		showSub(Lines.META_PRACTICE_NOTE, 3.0)
+		if startChapter >= 2 then
+			giveRecorder("practice")
+		end
+		task.wait(2.2)
+		showPa(Lines.STAND_CLEAR, 2)
+		task.wait(1.2)
+		setDoorTarget(0)
+		task.wait(1.0)
+	end
+
+	task.spawn(function()
+		while ride.Parent ~= nil do
+			pendingStart = nil
+			pendingAgain = false
+			clearReport()
+			ride:SetAttribute("NightmareOn", false)
+			ride:SetAttribute("PracticeOn", false)
+			ride:SetAttribute("PracticeNote", "")
+			ride:SetAttribute("Phase", "menu")
+			ride:SetAttribute("Hint", Lines.META_HINT)
+			refreshMetaPublish()
+			while pendingStart == nil and ride.Parent ~= nil do
+				task.wait(0.1)
+			end
+			if ride.Parent == nil or pendingStart == nil then
 				break
 			end
+			local choice = pendingStart
+			pendingStart = nil
+			nightmareOn = choice.nightmare
+			startChapter = choice.chapter
+			practiceOn = Practice.isPractice(startChapter)
+			resetRunState()
+			if practiceOn then
+				runPracticeBoard()
+			else
+				runIntro()
+			end
+			local from = Practice.startIndex(startChapter)
+			for i = from, #Route.SEGMENTS do
+				local seg = Route.SEGMENTS[i]
+				runSegment(seg)
+				arrive(seg)
+				if seg.final then
+					break
+				end
+			end
+			local deadline = os.clock() + Constants.META_REPORT_IDLE_SECONDS
+			while ride.Parent ~= nil and not pendingAgain and os.clock() < deadline do
+				task.wait(0.1)
+			end
+			pendingAgain = false
 		end
 	end)
 end
