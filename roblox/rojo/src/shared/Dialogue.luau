@@ -1,6 +1,7 @@
 --!strict
 -- Parent chats and mask lines from src/constants.ts (CHATS, CALM_CHATS,
--- MASK_DIALOGUES high/calm tier). Critical-tier glitch copy stays out.
+-- MASK_DIALOGUES). Critical glitch UI (PARANOID_UI_WORDS) stays out; critical
+-- mask lines still appear as plain copy when the band is hunted.
 
 local Dialogue = {}
 
@@ -54,7 +55,7 @@ local CALM_CHATS: { ChatExchange } = {
 	},
 }
 
--- First tier only (High / Calm set). needsSus lines need Suspicion >= 10.
+-- Tier 0: High / Calm. needsSus lines need Suspicion >= MASK_NEED_SUSPICION.
 local MASK_TIER0: { MaskLine } = {
 	{
 		who = 0,
@@ -114,6 +115,138 @@ local MASK_TIER0: { MaskLine } = {
 	},
 }
 
+-- Tier 1: Uneasy / Watched set (web Medium/Low).
+local MASK_TIER1: { MaskLine } = {
+	{
+		who = 1,
+		line = "You’d tell us if something was wrong, right?",
+		calm = "Of course.",
+		off = { "Would you tell me?", "Define wrong." },
+		needsSus = false,
+	},
+	{
+		who = 0,
+		line = "Why do you keep looking over there?",
+		calm = "Thought I saw someone I knew.",
+		off = { "You saw it too?", "Over where?" },
+		needsSus = false,
+	},
+	{
+		who = 1,
+		line = "You’re staring at something.",
+		calm = "Just zoning out.",
+		off = { "No I’m not.", "Don’t you see it?" },
+		needsSus = true,
+	},
+	{
+		who = 0,
+		line = "You’re holding that pole awfully tight.",
+		calm = "Train’s bumpy tonight.",
+		off = { "Because it keeps moving.", "Don’t let go of yours." },
+		needsSus = false,
+	},
+	{
+		who = 1,
+		line = "You didn’t say a word that whole stop.",
+		calm = "Just tired, Dad.",
+		off = { "Was it a stop?", "Nobody got on." },
+		needsSus = false,
+	},
+	{
+		who = 0,
+		line = "Is your stomach bothering you again?",
+		calm = "A little. It’ll pass.",
+		off = { "It’s not my stomach.", "Can you feel that too?" },
+		needsSus = false,
+	},
+	{
+		who = 1,
+		line = "Put your phone away and talk to us.",
+		calm = "Okay, okay. It’s away.",
+		off = { "It stopped showing the time.", "About what?" },
+		needsSus = false,
+	},
+	{
+		who = 0,
+		line = "You’re counting the stops again, aren’t you?",
+		calm = "Habit. Sorry.",
+		off = { "Someone has to.", "We passed this one already." },
+		needsSus = false,
+	},
+}
+
+-- Tier 2: Hunted / Critical set (plain copy; no glitch overlay).
+local MASK_TIER2: { MaskLine } = {
+	{
+		who = 0,
+		line = "You can see it too, can’t you?",
+		calm = "See what?",
+		off = { "Yes.", "Don’t." },
+		needsSus = false,
+	},
+	{
+		who = 1,
+		line = "We’re not getting off. You know that.",
+		calm = "I know.",
+		off = { "Why would you say that?", "Who said we were?" },
+		needsSus = false,
+	},
+	{
+		who = 0,
+		line = "Who are you looking for?",
+		calm = "Nobody. Just looking.",
+		off = { "The people who were here.", "You." },
+		needsSus = false,
+	},
+	{
+		who = 1,
+		line = "Sit still. They notice when you fidget.",
+		calm = "Okay. Sitting still.",
+		off = { "Who notices?", "You noticed." },
+		needsSus = false,
+	},
+	{
+		who = 0,
+		line = "We’ve always taken this train, sweetie.",
+		calm = "Right. I know.",
+		off = { "Since when?", "There’s no always down here." },
+		needsSus = false,
+	},
+	{
+		who = 1,
+		line = "Don’t look at the windows. Look at me.",
+		calm = "I’m looking at you.",
+		off = { "What’s in the windows?", "Your face is wrong." },
+		needsSus = false,
+	},
+	{
+		who = 0,
+		line = "Smile for me, hon. Like you used to.",
+		calm = "Like this?",
+		off = { "I don’t remember how.", "You first." },
+		needsSus = false,
+	},
+	{
+		who = 1,
+		line = "Nobody gets off at this one. Remember?",
+		calm = "I remember.",
+		off = { "Then why do the doors open?", "Who told you that?" },
+		needsSus = false,
+	},
+}
+
+-- Soft hunted overlays on ordinary chats (band-tuned parent lines).
+local HUNTED_CHATS: { ChatExchange } = {
+	{
+		{ who = 0, line = "Keep your eyes on us." },
+		{ who = 1, line = "Don’t make a scene." },
+	},
+	{
+		{ who = 1, line = "They’re watching how you sit." },
+		{ who = 0, line = "Look at me. Only me." },
+	},
+}
+
 function Dialogue.parentName(who: number): string
 	if who == 1 then
 		return "Dad"
@@ -164,14 +297,34 @@ function Dialogue.chatFor(plan: { [number]: ChatExchange }, chatIndex: number): 
 	return plan[chatIndex]
 end
 
-function Dialogue.maskPool(suspicion: number, needSusAt: number): { MaskLine }
+local function filterNeeds(tier: { MaskLine }, suspicion: number, needSusAt: number): { MaskLine }
 	local pool = {}
-	for _, entry in MASK_TIER0 do
+	for _, entry in tier do
 		if not entry.needsSus or suspicion >= needSusAt then
 			table.insert(pool, entry)
 		end
 	end
 	return pool
+end
+
+function Dialogue.maskPool(suspicion: number, needSusAt: number): { MaskLine }
+	return filterNeeds(MASK_TIER0, suspicion, needSusAt)
+end
+
+-- Band picks the mask tier (calm→0, uneasy/watched→1, hunted→2).
+function Dialogue.maskPoolForBand(band: string, suspicion: number, needSusAt: number): { MaskLine }
+	if band == "hunted" then
+		return filterNeeds(MASK_TIER2, suspicion, needSusAt)
+	end
+	if band == "uneasy" or band == "watched" then
+		return filterNeeds(MASK_TIER1, suspicion, needSusAt)
+	end
+	return filterNeeds(MASK_TIER0, suspicion, needSusAt)
+end
+
+function Dialogue.huntedChat(rng: () -> number): ChatExchange
+	local index = math.clamp(math.floor(rng() * #HUNTED_CHATS) + 1, 1, #HUNTED_CHATS)
+	return HUNTED_CHATS[index]
 end
 
 function Dialogue.pickMask(

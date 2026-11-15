@@ -65,9 +65,23 @@ Constants.CORRECT_FLAG_SUSPICION = 5
 Constants.CLEAN_STOP_SUSPICION = 5
 Constants.DECAY_SUSPICION = 2
 
--- Reacting at a false stop. This slice cannot see standing, moving to the
--- doors, or staring, so the ride never adds it.
+-- Reacting at a false stop: standing near an open door leaf during the dwell.
 Constants.FALSE_STOP_REACT_SUSPICION = 10
+Constants.FALSE_STOP_DOOR_RANGE_M = 2.2
+
+-- Caught staring (web SUS.visible / CFG.dwellReact). Parents are "alert"
+-- on watched/hunted, or while Held At Signal (StareIntervalScale > 1).
+Constants.STARE_ANOMALY_SUSPICION = 15
+Constants.STARE_PARENT_SUSPICION = 5
+Constants.STARE_ANOMALY_SECONDS = 1.5
+Constants.STARE_PARENT_SECONDS = 2.4
+-- Sitting still on a clean stop (extra decay).
+Constants.SITTING_STILL_SUSPICION = 2
+Constants.SITTING_STILL_MOVE_M = 1.2
+
+-- Flicker tick lengthens slightly at watched/hunted (still not a hold blackout).
+Constants.FLICKER_WATCHED_SCALE = 1.6
+Constants.FLICKER_HUNTED_SCALE = 2.2
 
 -- Stay / step-off (web SUS.falsePos / refuseHaven / maskFail).
 Constants.STEP_OFF_REAL_SUSPICION = 20
@@ -212,8 +226,7 @@ Constants.HOLD_BLINK = 0.35
 -- Slow dim. Above zero so the car does not go dark.
 Constants.HOLD_DIM = 0.55
 Constants.HOLD_RECOVER = 1.2
--- Caught-staring is not built. While held, a future check would run this
--- many times as often. The ride only publishes the number.
+-- While held, stare dwell needs are divided by this scale (2 = twice as fast).
 Constants.HOLD_STARE_MULTIPLIER = 2
 -- Existing catalog id, shown only during the Broadway hold, then cleared.
 Constants.HOLD_TELL = "wrong_countdown"

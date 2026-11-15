@@ -40,6 +40,7 @@ local reportBadge: TextLabel? = nil
 local reportTitle: TextLabel? = nil
 local reportNarrative: TextLabel? = nil
 local reportStats: TextLabel? = nil
+local reportPsych: TextLabel? = nil
 local againButton: TextButton? = nil
 local metaMenuFrame: Frame? = nil
 local metaArchiveLabel: TextLabel? = nil
@@ -898,7 +899,7 @@ function Hud.start()
 	reportCard.Name = "TravelReport"
 	reportCard.AnchorPoint = Vector2.new(0.5, 0.5)
 	reportCard.Position = UDim2.fromScale(0.5, 0.5)
-	reportCard.Size = UDim2.fromOffset(420, 400)
+	reportCard.Size = UDim2.fromOffset(440, 480)
 	reportCard.BackgroundColor3 = Color3.fromRGB(236, 230, 214)
 	reportCard.BackgroundTransparency = 0.05
 	reportCard.BorderSizePixel = 0
@@ -951,14 +952,23 @@ function Hud.start()
 	stats.Name = "Stats"
 	stats.Font = Enum.Font.Code
 	stats.Position = UDim2.fromOffset(16, 218)
-	stats.Size = UDim2.new(1, -32, 0, 110)
+	stats.Size = UDim2.new(1, -32, 0, 90)
 	stats.TextYAlignment = Enum.TextYAlignment.Top
 	stats.ZIndex = 21
 	reportStats = stats
 
+	local psych = label(reportCard, "", 11, Color3.fromRGB(60, 55, 48))
+	psych.Name = "Psych"
+	psych.Font = Enum.Font.Code
+	psych.Position = UDim2.fromOffset(16, 312)
+	psych.Size = UDim2.new(1, -32, 0, 88)
+	psych.TextYAlignment = Enum.TextYAlignment.Top
+	psych.ZIndex = 21
+	reportPsych = psych
+
 	local again = Instance.new("TextButton")
 	again.Name = "Again"
-	again.Position = UDim2.fromOffset(16, 340)
+	again.Position = UDim2.fromOffset(16, 410)
 	again.Size = UDim2.new(1, -32, 0, 40)
 	again.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
 	again.BorderSizePixel = 0
@@ -1209,6 +1219,9 @@ function Hud.start()
 			end
 			if reportStats ~= nil then
 				reportStats.Text = textOf("ReportStats")
+			end
+			if reportPsych ~= nil then
+				reportPsych.Text = textOf("ReportPsych")
 			end
 		end
 	end

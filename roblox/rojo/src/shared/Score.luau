@@ -47,10 +47,25 @@ function Score.endDelta(kind: string, cleanAmount: number, decayAmount: number):
 end
 
 -- Standing at the doors, moving to them, or staring on a false stop.
--- Nothing in this slice can see that, so the ride passes false.
 function Score.falseStopDelta(reacted: boolean, amount: number): number
 	if reacted then
 		return amount
+	end
+	return 0
+end
+
+-- Caught staring at an active anomaly (or a parent) while parents are alert.
+function Score.stareDelta(caught: boolean, amount: number): number
+	if caught then
+		return amount
+	end
+	return 0
+end
+
+-- Sitting still and looking away on a clean stop (decay bonus).
+function Score.sittingStillDelta(still: boolean, amount: number): number
+	if still then
+		return -amount
 	end
 	return 0
 end

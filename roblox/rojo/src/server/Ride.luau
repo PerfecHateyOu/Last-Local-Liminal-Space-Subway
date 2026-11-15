@@ -39,6 +39,7 @@ local Sanity = require(ReplicatedStorage.Shared.Sanity)
 local Restraint = require(ReplicatedStorage.Shared.Restraint)
 local Endings = require(ReplicatedStorage.Shared.Endings)
 local Lines = require(ReplicatedStorage.Shared.Lines)
+local PsychLog = require(ReplicatedStorage.Shared.PsychLog)
 local Score = require(ReplicatedStorage.Shared.Score)
 local Band = require(ReplicatedStorage.Shared.Band)
 local Motion = require(ReplicatedStorage.Shared.Motion)
@@ -93,6 +94,9 @@ function Ride.start(car: CarBuilder.BuiltCar)
 	local exitRemote = Instance.new("RemoteEvent")
 	exitRemote.Name = "Exit"
 	exitRemote.Parent = remotes
+	local gazeRemote = Instance.new("RemoteEvent")
+	gazeRemote.Name = "Gaze"
+	gazeRemote.Parent = remotes
 	local metaStartRemote = Instance.new("RemoteEvent")
 	metaStartRemote.Name = "MetaStart"
 	metaStartRemote.Parent = remotes
@@ -127,6 +131,7 @@ function Ride.start(car: CarBuilder.BuiltCar)
 	ride:SetAttribute("EndingBadge", "")
 	ride:SetAttribute("EndingNarrative", "")
 	ride:SetAttribute("ReportStats", "")
+	ride:SetAttribute("ReportPsych", "")
 	ride:SetAttribute("HasRecorder", false)
 	ride:SetAttribute("NightmareUnlocked", false)
 	ride:SetAttribute("NightmareOn", false)
@@ -262,8 +267,16 @@ function Ride.start(car: CarBuilder.BuiltCar)
 
 	local function blackout()
 		-- Flicker tick only. Callers are the two segments whose tick is "flicker".
+		-- Watched / hunted lengthens the tick slightly; still not a hold blackout.
+		local seconds = Constants.FLICKER_TICK_SECONDS
+		local bandAttr = ride:GetAttribute("Band")
+		if bandAttr == "hunted" then
+			seconds *= Constants.FLICKER_HUNTED_SCALE
+		elseif bandAttr == "watched" then
+			seconds *= Constants.FLICKER_WATCHED_SCALE
+		end
 		forcedOff = true
-		task.delay(Constants.FLICKER_TICK_SECONDS, function()
+		task.delay(seconds, function()
 			forcedOff = false
 		end)
 	end
@@ -447,6 +460,15 @@ function Ride.start(car: CarBuilder.BuiltCar)
 	local nextShotAt = 0
 	local polaroidPhotos: { Polaroid.Photo } = {}
 	local photoSeq = 0
+	local psychLog = PsychLog.newRide()
+	local gazeTarget: string? = nil
+	local gazeSince = 0
+	local stareAnomalyCharged = false
+	local stareParentCharged = false
+	local falseStopReacted = false
+	local falseStopOpen = false
+	local stretchMovedM = 0
+	local lastRootPos: Vector3? = nil
 
 	local function publishSanity()
 		ride:SetAttribute("Sanity", sanity)
@@ -1031,6 +1053,13 @@ function Ride.start(car: CarBuilder.BuiltCar)
 			stopNoticed = true
 			for _, id in framed do
 				anomalyTypesSeen[id] = true
+				local kind = if id == AnomalySystem.EXTRA_ID
+					then "extra"
+					elseif id == AnomalySystem.MOVED_ID then "moved"
+					elseif id == AnomalySystem.FACETURN_ID then "faceturn"
+					elseif id == AnomalySystem.MOMFACE_ID then "momface"
+					else id
+				PsychLog.markCaught(psychLog, kind, stopLabel)
 			end
 			anomalyTypesSeen["photo"] = true
 			applySuspicion(Score.flagDelta(true, true, Constants.FALSE_ALARM_SUSPICION, Constants.CORRECT_FLAG_SUSPICION))
@@ -1061,21 +1090,135 @@ function Ride.start(car: CarBuilder.BuiltCar)
 		end
 	end)
 
-	-- Intentionally unused. Nothing here can see a player stand at the
-	-- doors, walk to them, or stare on a false stop. A detector would
-	-- return true and FALSE_STOP_REACT_SUSPICION would be added.
-	local function playerReactedAtFalseStop(): boolean
+	local function playerNearDoors(): boolean
+		local range = Constants.meters(Constants.FALSE_STOP_DOOR_RANGE_M)
+		for _, player in Players:GetPlayers() do
+			local character = player.Character
+			local root = if character ~= nil then character:FindFirstChild("HumanoidRootPart") else nil
+			if root ~= nil and root:IsA("BasePart") then
+				for _, leaf in car.doors do
+					local part = leaf.model.PrimaryPart
+					if part ~= nil and (part.Position - root.Position).Magnitude <= range then
+						return true
+					end
+				end
+			end
+		end
 		return false
 	end
 
-	-- Passenger, on purpose. The player is the kid riding with Mom and Dad.
-	-- They cannot close the doors or dispatch the train, so this stays
-	-- false. It is intentionally unused. A depart control would return
-	-- true and add EARLY_DEPARTURE_SUSPICION. There is no such control,
-	-- and there is no fail state.
+	-- True when the player stands near an open door leaf during a false-stop dwell.
+	local function playerReactedAtFalseStop(): boolean
+		return falseStopReacted
+	end
+
+	-- Passenger, on purpose. The player cannot close doors or dispatch.
+	-- EARLY_DEPARTURE_SUSPICION stays unused; no fail state.
 	local function playerAskedToDepartEarly(): boolean
 		return false
 	end
+
+	local function parentsAlert(): boolean
+		local bandAttr = ride:GetAttribute("Band")
+		if bandAttr == "watched" or bandAttr == "hunted" then
+			return true
+		end
+		local scale = ride:GetAttribute("StareIntervalScale")
+		if typeof(scale) == "number" and scale > 1 and (bandAttr == "uneasy" or bandAttr == "watched" or bandAttr == "hunted") then
+			return true
+		end
+		return false
+	end
+
+	local function anomalyKindForId(passengerId: string): string?
+		local model = car.passengers:FindFirstChild(passengerId)
+		if model == nil or not model:IsA("Model") then
+			return nil
+		end
+		if model:GetAttribute("Hidden") == true then
+			return nil
+		end
+		local tell = model:GetAttribute("Tell")
+		if typeof(tell) == "string" then
+			return tell
+		end
+		if model:GetAttribute("Anomaly") == true then
+			if passengerId == AnomalySystem.EXTRA_ID then
+				return "extra"
+			end
+			if passengerId == AnomalySystem.MOVED_ID then
+				return "moved"
+			end
+			if passengerId == AnomalySystem.FACETURN_ID then
+				return "faceturn"
+			end
+			if passengerId == AnomalySystem.MOMFACE_ID then
+				return "momface"
+			end
+			return "extra"
+		end
+		return nil
+	end
+
+	local function processGaze(dt: number)
+		local phase = ride:GetAttribute("Phase")
+		if phase ~= "ride" and phase ~= "stop" then
+			return
+		end
+		local id = gazeTarget
+		if id == nil then
+			return
+		end
+		gazeSince += dt
+		local scaleAttr = ride:GetAttribute("StareIntervalScale")
+		local scale = if typeof(scaleAttr) == "number" then scaleAttr else 1
+		local anomalyNeed = Constants.STARE_ANOMALY_SECONDS / math.max(1, scale)
+		local parentNeed = Constants.STARE_PARENT_SECONDS / math.max(1, scale)
+		if id == "mom" or id == "dad" then
+			if not stareParentCharged and gazeSince >= parentNeed then
+				stareParentCharged = true
+				applySuspicion(Score.stareDelta(true, Constants.STARE_PARENT_SUSPICION))
+				showHint(Lines.STARE_PARENT, 2.2)
+			end
+			return
+		end
+		if not parentsAlert() or stareAnomalyCharged then
+			return
+		end
+		local kind = anomalyKindForId(id)
+		if kind == nil then
+			return
+		end
+		if gazeSince >= anomalyNeed then
+			stareAnomalyCharged = true
+			applySuspicion(Score.stareDelta(true, Constants.STARE_ANOMALY_SUSPICION))
+			showHint(Lines.STARE_CAUGHT, 2.4)
+			local stopLabel = ""
+			local stopAttr = ride:GetAttribute("NextStop")
+			if typeof(stopAttr) == "string" then
+				stopLabel = stopAttr
+			end
+			PsychLog.markSeen(psychLog, kind, stopLabel)
+		end
+	end
+
+	RunService.Heartbeat:Connect(function(dt: number)
+		for _, player in Players:GetPlayers() do
+			local character = player.Character
+			local root = if character ~= nil then character:FindFirstChild("HumanoidRootPart") else nil
+			if root ~= nil and root:IsA("BasePart") then
+				if lastRootPos ~= nil then
+					stretchMovedM += (root.Position - lastRootPos).Magnitude / Constants.STUDS_PER_METER
+				end
+				lastRootPos = root.Position
+			end
+		end
+		if falseStopOpen and not falseStopReacted and playerNearDoors() then
+			falseStopReacted = true
+			showHint(Lines.FALSE_STOP_REACT, 2.4)
+		end
+		processGaze(dt)
+	end)
 
 	local function beginDwell(seconds: number)
 		ride:SetAttribute("DwellUntil", workspace:GetServerTimeNow() + seconds)
@@ -1613,7 +1756,9 @@ function Ride.start(car: CarBuilder.BuiltCar)
 		if ride:GetAttribute("RestraintActive") == true or ride:GetAttribute("Intervening") == true then
 			return
 		end
-		local pool = Dialogue.maskPool(suspicion, Constants.MASK_NEED_SUSPICION)
+		local bandAttr = ride:GetAttribute("Band")
+		local bandName = if typeof(bandAttr) == "string" then bandAttr else "calm"
+		local pool = Dialogue.maskPoolForBand(bandName, suspicion, Constants.MASK_NEED_SUSPICION)
 		local line = Dialogue.pickMask(pool, maskUsed, maskLast, function()
 			return math.random()
 		end)
@@ -1645,6 +1790,23 @@ function Ride.start(car: CarBuilder.BuiltCar)
 		end
 		maskBusy = false
 	end
+
+	gazeRemote.OnServerEvent:Connect(function(_player: Player, passengerId: any)
+		local phase = ride:GetAttribute("Phase")
+		if phase ~= "ride" and phase ~= "stop" and phase ~= "haven" then
+			gazeTarget = nil
+			gazeSince = 0
+			return
+		end
+		local id: string? = nil
+		if typeof(passengerId) == "string" and passengerId ~= "" then
+			id = passengerId
+		end
+		if id ~= gazeTarget then
+			gazeTarget = id
+			gazeSince = 0
+		end
+	end)
 
 	flagRemote.OnServerEvent:Connect(function(player: Player, passengerId: any)
 		if typeof(passengerId) ~= "string" then
@@ -1691,11 +1853,18 @@ function Ride.start(car: CarBuilder.BuiltCar)
 		if verdict == "noticed" then
 			caught = true
 			stopNoticed = true
+			local catchId = if isTell and typeof(tellKind) == "string" then tellKind else "extra"
 			if isTell and typeof(tellKind) == "string" then
 				anomalyTypesSeen[tellKind] = true
 			elseif marked then
 				anomalyTypesSeen["extra"] = true
 			end
+			local stopLabel = ""
+			local stopAttr = ride:GetAttribute("NextStop")
+			if typeof(stopAttr) == "string" then
+				stopLabel = stopAttr
+			end
+			PsychLog.markCaught(psychLog, catchId, stopLabel)
 			showFeedback("caught", Lines.CAUGHT, false)
 		else
 			falseFlags += 1
@@ -1755,6 +1924,7 @@ function Ride.start(car: CarBuilder.BuiltCar)
 			"False flags      " .. tostring(falseFlags),
 		}, "\n")
 		ride:SetAttribute("ReportStats", stats)
+		ride:SetAttribute("ReportPsych", PsychLog.formatReport(psychLog))
 		ride:SetAttribute("ReportReady", true)
 	end
 
@@ -1988,6 +2158,14 @@ function Ride.start(car: CarBuilder.BuiltCar)
 		stopNoticed = false
 		stopFalseAlarm = false
 		posterLive = false
+		stareAnomalyCharged = false
+		stareParentCharged = false
+		gazeSince = 0
+		stretchMovedM = 0
+		lastRootPos = nil
+		if picked ~= nil then
+			PsychLog.markSeen(psychLog, picked, Route.stopName(seg.stop))
+		end
 		clearCatalog()
 		local wrongCountdown = picked == "wrong_countdown"
 		setTell(AnomalySystem.COUNTDOWN_ID, wrongCountdown)
@@ -2045,19 +2223,28 @@ function Ride.start(car: CarBuilder.BuiltCar)
 		local chatIndex = seg.chat
 		if chatIndex ~= nil then
 			local exchange = Dialogue.chatFor(chatPlan, chatIndex)
-			if exchange ~= nil then
-				local first = exchange[1]
-				local second = exchange[2]
-				task.delay(Constants.CHAT_AT_1, function()
-					if token ~= segToken or ride:GetAttribute("Phase") ~= "ride" then
-						return
-					end
-					if ride:GetAttribute("MaskActive") == true or ride:GetAttribute("ChoiceActive") == true then
-						return
-					end
-					showSub(Dialogue.chatLine(first.who, first.line), Constants.CHAT_LINE_SECONDS)
-				end)
-				task.delay(Constants.CHAT_AT_2, function()
+			task.delay(Constants.CHAT_AT_1, function()
+				if token ~= segToken or ride:GetAttribute("Phase") ~= "ride" then
+					return
+				end
+				if ride:GetAttribute("MaskActive") == true or ride:GetAttribute("ChoiceActive") == true then
+					return
+				end
+				-- Hunted: swap in a band-tuned parent exchange.
+				local bandAttr = ride:GetAttribute("Band")
+				local use = exchange
+				if bandAttr == "hunted" then
+					use = Dialogue.huntedChat(function()
+						return math.random()
+					end)
+				end
+				if use == nil then
+					return
+				end
+				local first = use[1]
+				local second = use[2]
+				showSub(Dialogue.chatLine(first.who, first.line), Constants.CHAT_LINE_SECONDS)
+				task.delay(Constants.CHAT_AT_2 - Constants.CHAT_AT_1, function()
 					if token ~= segToken or ride:GetAttribute("Phase") ~= "ride" then
 						return
 					end
@@ -2066,7 +2253,7 @@ function Ride.start(car: CarBuilder.BuiltCar)
 					end
 					showSub(Dialogue.chatLine(second.who, second.line), Constants.CHAT_LINE_SECONDS)
 				end)
-			end
+			end)
 		end
 		local maskTimes = seg.masks
 		if maskTimes ~= nil then
@@ -2240,9 +2427,17 @@ function Ride.start(car: CarBuilder.BuiltCar)
 		end
 		local kind = Score.result(stopHadAnomaly, stopNoticed, stopFalseAlarm)
 		applySuspicion(Score.endDelta(kind, Constants.CLEAN_STOP_SUSPICION, Constants.DECAY_SUSPICION))
-		if seg.kind == "false" then
-			applySuspicion(Score.falseStopDelta(playerReactedAtFalseStop(), Constants.FALSE_STOP_REACT_SUSPICION))
+		if kind == "clean" then
+			local still = stretchMovedM < Constants.SITTING_STILL_MOVE_M
+			applySuspicion(Score.sittingStillDelta(still, Constants.SITTING_STILL_SUSPICION))
 		end
+		stretchMovedM = 0
+		lastRootPos = nil
+		stareAnomalyCharged = false
+		stareParentCharged = false
+		gazeSince = 0
+		falseStopReacted = false
+		falseStopOpen = false
 		local feedbackKind, word = stopWord(kind)
 		showFeedback(feedbackKind, word, false)
 		clearTells()
@@ -2292,6 +2487,9 @@ function Ride.start(car: CarBuilder.BuiltCar)
 		at(t0, openAt)
 		setDoorTarget(1)
 		local openedAt = os.clock()
+		if seg.kind == "false" then
+			falseStopOpen = true
+		end
 
 		-- Minimum dwell still runs while the player chooses Stay / Step off.
 		beginDwell(Constants.MIN_DWELL_SECONDS)
@@ -2307,6 +2505,10 @@ function Ride.start(car: CarBuilder.BuiltCar)
 			return
 		end
 		endDwell()
+		if seg.kind == "false" then
+			falseStopOpen = false
+			applySuspicion(Score.falseStopDelta(playerReactedAtFalseStop(), Constants.FALSE_STOP_REACT_SUSPICION))
+		end
 		local outcome = Doors.resolve(
 			seg.kind,
 			seg.forgiving,
@@ -2431,6 +2633,7 @@ function Ride.start(car: CarBuilder.BuiltCar)
 		ride:SetAttribute("EndingBadge", "")
 		ride:SetAttribute("EndingNarrative", "")
 		ride:SetAttribute("ReportStats", "")
+		ride:SetAttribute("ReportPsych", "")
 	end
 
 	local function resetRunState()
@@ -2480,6 +2683,15 @@ function Ride.start(car: CarBuilder.BuiltCar)
 		photoSeq = 0
 		trestleBadgeChecked = false
 		table.clear(anomalyTypesSeen)
+		psychLog = PsychLog.newRide()
+		gazeTarget = nil
+		gazeSince = 0
+		stareAnomalyCharged = false
+		stareParentCharged = false
+		falseStopReacted = false
+		falseStopOpen = false
+		stretchMovedM = 0
+		lastRootPos = nil
 		stretch = nil
 		odo = 0
 		lastOpenAir = -1
