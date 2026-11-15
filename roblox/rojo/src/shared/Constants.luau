@@ -127,6 +127,11 @@ Constants.EXIT_CHOICE_SECONDS = 8
 -- Quieter branch endings need peak ≤ half of INTERVENE_SUSPICION.
 Constants.COMPOSED_PEAK = 30
 
+-- Meta progression (PR15).
+Constants.META_TAPE_ARCHIVE_MAX = 24
+Constants.META_ALBUM_ARCHIVE_MAX = 24
+Constants.META_REPORT_IDLE_SECONDS = 45
+
 -- Bands from the suspicion number. 0–24 calm, 25–49 uneasy, 50–74 watched,
 -- 75–100 hunted.
 Constants.BAND_CALM_MAX = 24

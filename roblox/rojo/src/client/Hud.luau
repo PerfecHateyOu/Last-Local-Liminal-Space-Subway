@@ -40,6 +40,10 @@ local reportBadge: TextLabel? = nil
 local reportTitle: TextLabel? = nil
 local reportNarrative: TextLabel? = nil
 local reportStats: TextLabel? = nil
+local againButton: TextButton? = nil
+local metaMenuFrame: Frame? = nil
+local metaArchiveLabel: TextLabel? = nil
+local metaNightmareLabel: TextLabel? = nil
 local recorderButton: TextButton? = nil
 local evidenceButton: TextButton? = nil
 local cameraButton: TextButton? = nil
@@ -300,6 +304,39 @@ function Hud.setProgress(ratio: number, holding: boolean)
 		button.BackgroundColor3 = Color3.fromRGB(28, 46, 22)
 	else
 		button.BackgroundColor3 = Color3.fromRGB(8, 8, 8)
+	end
+end
+
+function Hud.againButton(): TextButton
+	assert(againButton ~= nil, "Hud.start must run first")
+	return againButton
+end
+
+function Hud.setMenuVisible(visible: boolean)
+	local frame = metaMenuFrame
+	if frame ~= nil then
+		frame.Visible = visible
+	end
+end
+
+function Hud.setNightmareLabel(text: string, _unlocked: boolean)
+	local lbl = metaNightmareLabel
+	if lbl ~= nil then
+		lbl.Text = text
+	end
+end
+
+function Hud.setArchiveText(text: string)
+	local lbl = metaArchiveLabel
+	if lbl ~= nil then
+		lbl.Text = text
+	end
+end
+
+function Hud.setArchiveVisible(visible: boolean)
+	local lbl = metaArchiveLabel
+	if lbl ~= nil then
+		lbl.Visible = visible
 	end
 end
 
@@ -861,7 +898,7 @@ function Hud.start()
 	reportCard.Name = "TravelReport"
 	reportCard.AnchorPoint = Vector2.new(0.5, 0.5)
 	reportCard.Position = UDim2.fromScale(0.5, 0.5)
-	reportCard.Size = UDim2.fromOffset(420, 360)
+	reportCard.Size = UDim2.fromOffset(420, 400)
 	reportCard.BackgroundColor3 = Color3.fromRGB(236, 230, 214)
 	reportCard.BackgroundTransparency = 0.05
 	reportCard.BorderSizePixel = 0
@@ -905,7 +942,7 @@ function Hud.start()
 	local narrative = label(reportCard, "", 13, Color3.fromRGB(40, 40, 40))
 	narrative.Name = "Narrative"
 	narrative.Position = UDim2.fromOffset(16, 124)
-	narrative.Size = UDim2.new(1, -32, 0, 110)
+	narrative.Size = UDim2.new(1, -32, 0, 90)
 	narrative.TextYAlignment = Enum.TextYAlignment.Top
 	narrative.ZIndex = 21
 	reportNarrative = narrative
@@ -913,11 +950,88 @@ function Hud.start()
 	local stats = label(reportCard, "", 12, Color3.fromRGB(50, 50, 50))
 	stats.Name = "Stats"
 	stats.Font = Enum.Font.Code
-	stats.Position = UDim2.fromOffset(16, 240)
-	stats.Size = UDim2.new(1, -32, 0, 100)
+	stats.Position = UDim2.fromOffset(16, 218)
+	stats.Size = UDim2.new(1, -32, 0, 110)
 	stats.TextYAlignment = Enum.TextYAlignment.Top
 	stats.ZIndex = 21
 	reportStats = stats
+
+	local again = Instance.new("TextButton")
+	again.Name = "Again"
+	again.Position = UDim2.fromOffset(16, 340)
+	again.Size = UDim2.new(1, -32, 0, 40)
+	again.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+	again.BorderSizePixel = 0
+	again.Font = Enum.Font.GothamBold
+	again.Text = Lines.META_AGAIN .. "  [Enter]"
+	again.TextSize = 15
+	again.TextColor3 = Color3.fromRGB(236, 230, 214)
+	again.Visible = false
+	again.ZIndex = 22
+	again.Parent = reportCard
+	corner(again, 6)
+	againButton = again
+
+	local menu = Instance.new("Frame")
+	menu.Name = "MetaMenu"
+	menu.AnchorPoint = Vector2.new(0.5, 0.5)
+	menu.Position = UDim2.fromScale(0.5, 0.48)
+	menu.Size = UDim2.fromOffset(460, 520)
+	menu.BackgroundColor3 = Color3.fromRGB(12, 12, 14)
+	menu.BackgroundTransparency = 0.12
+	menu.BorderSizePixel = 0
+	menu.Visible = false
+	menu.ZIndex = 30
+	menu.Parent = gui
+	corner(menu, 8)
+	metaMenuFrame = menu
+
+	local menuTitle = label(menu, Lines.META_TITLE, 28, Color3.fromRGB(236, 230, 214))
+	menuTitle.Font = Enum.Font.GothamBold
+	menuTitle.Position = UDim2.fromOffset(20, 16)
+	menuTitle.Size = UDim2.new(1, -40, 0, 36)
+	menuTitle.TextXAlignment = Enum.TextXAlignment.Center
+	menuTitle.ZIndex = 31
+
+	local menuHint = label(menu, Lines.META_HINT, 13, Color3.fromRGB(180, 176, 168))
+	menuHint.Position = UDim2.fromOffset(20, 56)
+	menuHint.Size = UDim2.new(1, -40, 0, 36)
+	menuHint.TextXAlignment = Enum.TextXAlignment.Center
+	menuHint.ZIndex = 31
+
+	local function menuBtn(name: string, text: string, y: number): TextButton
+		local btn = Instance.new("TextButton")
+		btn.Name = name
+		btn.Position = UDim2.fromOffset(24, y)
+		btn.Size = UDim2.new(1, -48, 0, 36)
+		btn.BackgroundColor3 = Color3.fromRGB(28, 28, 32)
+		btn.BorderSizePixel = 0
+		btn.Font = Enum.Font.GothamMedium
+		btn.Text = text
+		btn.TextSize = 15
+		btn.TextColor3 = Color3.fromRGB(236, 230, 214)
+		btn.ZIndex = 31
+		btn.Parent = menu
+		corner(btn, 6)
+		return btn
+	end
+
+	menuBtn("StartCh1", "[1]  " .. Lines.META_START, 100)
+	menuBtn("StartCh2", "[2]  " .. Lines.META_CH2, 144)
+	menuBtn("StartCh3", "[3]  " .. Lines.META_CH3, 188)
+	local nmBtn = menuBtn("Nightmare", "[N]  " .. Lines.META_NIGHTMARE_LOCKED, 232)
+	metaNightmareLabel = nmBtn
+	menuBtn("Archive", "[Tab]  " .. Lines.META_ARCHIVE, 276)
+
+	local archiveLbl = label(menu, "", 12, Color3.fromRGB(200, 196, 188))
+	archiveLbl.Name = "ArchiveText"
+	archiveLbl.Font = Enum.Font.Code
+	archiveLbl.Position = UDim2.fromOffset(24, 324)
+	archiveLbl.Size = UDim2.new(1, -48, 0, 176)
+	archiveLbl.TextYAlignment = Enum.TextYAlignment.Top
+	archiveLbl.Visible = false
+	archiveLbl.ZIndex = 31
+	metaArchiveLabel = archiveLbl
 
 	local dwellCard = Instance.new("Frame")
 	dwellCard.Name = "Dwell"

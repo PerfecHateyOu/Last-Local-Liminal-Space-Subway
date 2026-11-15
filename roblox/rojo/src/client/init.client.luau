@@ -12,6 +12,7 @@ local TrialChoice = require(script.TrialChoice)
 local Exit = require(script.Exit)
 local Evp = require(script.Evp)
 local Polaroid = require(script.Polaroid)
+local Meta = require(script.Meta)
 
 Hud.start()
 Flag.start(Hud.flagButton())
@@ -43,6 +44,13 @@ Exit.start(
 )
 Evp.start(Hud.recorderButton(), Hud.evidenceButton())
 Polaroid.start(Hud.cameraButton(), Hud.albumButton())
+Meta.start(
+	Hud.setMenuVisible,
+	Hud.setNightmareLabel,
+	Hud.setArchiveText,
+	Hud.setArchiveVisible,
+	Hud.againButton()
+)
 Walk.start()
 Sway.start()
 Glance.start()

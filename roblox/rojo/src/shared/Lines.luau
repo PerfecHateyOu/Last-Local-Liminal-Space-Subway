@@ -208,4 +208,16 @@ Lines.EXIT_LOWER = "Follow the static down the side stairs"
 Lines.EXIT_HATCH = "Push through the emergency door"
 Lines.EXIT_DEFAULT = "default Escalators"
 
+-- Meta menu (nightmare / chapter / archive).
+Lines.META_TITLE = "LAST LOCAL"
+Lines.META_START = "Ride from Hoyt"
+Lines.META_CH2 = "Practice · Ch II (Haven)"
+Lines.META_CH3 = "Practice · Ch III (Greenpoint)"
+Lines.META_NIGHTMARE = "Nightmare mode"
+Lines.META_NIGHTMARE_LOCKED = "Nightmare (finish one full ride)"
+Lines.META_PRACTICE_NOTE = "Practice: nothing is saved."
+Lines.META_ARCHIVE = "Case Files"
+Lines.META_AGAIN = "Back to menu"
+Lines.META_HINT = "Choose a ride. Nightmare unlocks after one full arrival at Court Sq."
+
 return Lines
