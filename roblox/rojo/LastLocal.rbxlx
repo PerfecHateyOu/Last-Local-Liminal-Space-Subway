@@ -45,6 +45,140 @@
       </Properties>
       <Item class="ModuleScript" referent="4">
         <Properties>
+          <string name="Name">Achievements</string>
+          <string name="Source"><![CDATA[--!strict
+-- Career achievements from src/game/achievements.ts.
+-- Persistence lives in MetaStore; this module is defs + unlock helpers.
+
+local Achievements = {}
+
+export type AchievementId =
+	"first_anomaly"
+	| "photo_evidence"
+	| "tuning_pro"
+	| "broadcaster_lore"
+	| "iron_composure"
+	| "trestle_cross"
+	| "loop_breaker"
+	| "master_archivist"
+
+export type AchievementDef = {
+	id: AchievementId,
+	title: string,
+	category: string,
+	description: string,
+	badge: string,
+	secret: boolean?,
+}
+
+export type UnlockedMap = { [string]: { unlockedAt: number } }
+
+local DEFS: { [AchievementId]: AchievementDef } = {
+	first_anomaly = {
+		id = "first_anomaly",
+		title = "First Contact",
+		category = "observation",
+		description = "Catch your first anomaly with a flag or Polaroid photo.",
+		badge = "FLAG",
+	},
+	photo_evidence = {
+		id = "photo_evidence",
+		title = "Silver Halide Evidence",
+		category = "observation",
+		description = "Successfully photograph an active car anomaly with the Polaroid 600.",
+		badge = "PHOTO",
+	},
+	tuning_pro = {
+		id = "tuning_pro",
+		title = "Signal Hunter",
+		category = "signals",
+		description = "Record at least 3 distinct radio signals on the microcassette recorder.",
+		badge = "EVP",
+	},
+	broadcaster_lore = {
+		id = "broadcaster_lore",
+		title = "Phantom Broadcaster",
+		category = "signals",
+		description = "Discover and record a secret station broadcaster frequency.",
+		badge = "RADIO",
+	},
+	iron_composure = {
+		id = "iron_composure",
+		title = "The Unbroken Mask",
+		category = "composure",
+		description = "Complete a full ride with 0 peak suspicion from your parents.",
+		badge = "MASK",
+		secret = true,
+	},
+	trestle_cross = {
+		id = "trestle_cross",
+		title = "Night Watch",
+		category = "survival",
+		description = "Witness the Newtown Creek trestle crossing into the night sky.",
+		badge = "VISTA",
+	},
+	loop_breaker = {
+		id = "loop_breaker",
+		title = "Loop Breaker",
+		category = "survival",
+		description = "Unlock any alternative escape ending beyond standard Civilian Extraction.",
+		badge = "ESCAPE",
+	},
+	master_archivist = {
+		id = "master_archivist",
+		title = "Chief Archivist",
+		category = "observation",
+		description = "Catalog at least 6 distinct anomaly types across rides.",
+		badge = "DOSSIER",
+	},
+}
+
+Achievements.DEFS = DEFS
+Achievements.IDS = {
+	"first_anomaly",
+	"photo_evidence",
+	"tuning_pro",
+	"broadcaster_lore",
+	"iron_composure",
+	"trestle_cross",
+	"loop_breaker",
+	"master_archivist",
+} :: { AchievementId }
+
+function Achievements.definition(id: AchievementId): AchievementDef
+	return DEFS[id]
+end
+
+function Achievements.has(map: UnlockedMap, id: string): boolean
+	return map[id] ~= nil
+end
+
+-- Returns true when newly unlocked.
+function Achievements.unlock(map: UnlockedMap, id: AchievementId, at: number, offRecord: boolean): boolean
+	if offRecord then
+		return false
+	end
+	if map[id] ~= nil then
+		return false
+	end
+	map[id] = { unlockedAt = at }
+	return true
+end
+
+function Achievements.count(map: UnlockedMap): number
+	local n = 0
+	for _ in map do
+		n += 1
+	end
+	return n
+end
+
+return Achievements
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="5">
+        <Properties>
           <string name="Name">Band</string>
           <string name="Source"><![CDATA[--!strict
 -- Suspicion bands. The server picks the band from the suspicion number.
@@ -127,7 +261,7 @@ return Band
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="5">
+      <Item class="ModuleScript" referent="6">
         <Properties>
           <string name="Name">Constants</string>
           <string name="Source"><![CDATA[--!strict
@@ -197,9 +331,23 @@ Constants.CORRECT_FLAG_SUSPICION = 5
 Constants.CLEAN_STOP_SUSPICION = 5
 Constants.DECAY_SUSPICION = 2
 
--- Reacting at a false stop. This slice cannot see standing, moving to the
--- doors, or staring, so the ride never adds it.
+-- Reacting at a false stop: standing near an open door leaf during the dwell.
 Constants.FALSE_STOP_REACT_SUSPICION = 10
+Constants.FALSE_STOP_DOOR_RANGE_M = 2.2
+
+-- Caught staring (web SUS.visible / CFG.dwellReact). Parents are "alert"
+-- on watched/hunted, or while Held At Signal (StareIntervalScale > 1).
+Constants.STARE_ANOMALY_SUSPICION = 15
+Constants.STARE_PARENT_SUSPICION = 5
+Constants.STARE_ANOMALY_SECONDS = 1.5
+Constants.STARE_PARENT_SECONDS = 2.4
+-- Sitting still on a clean stop (extra decay).
+Constants.SITTING_STILL_SUSPICION = 2
+Constants.SITTING_STILL_MOVE_M = 1.2
+
+-- Flicker tick lengthens slightly at watched/hunted (still not a hold blackout).
+Constants.FLICKER_WATCHED_SCALE = 1.6
+Constants.FLICKER_HUNTED_SCALE = 2.2
 
 -- Stay / step-off (web SUS.falsePos / refuseHaven / maskFail).
 Constants.STEP_OFF_REAL_SUSPICION = 20
@@ -258,6 +406,11 @@ Constants.SUSPICION_HARD_FAIL = false
 Constants.EXIT_CHOICE_SECONDS = 8
 -- Quieter branch endings need peak ≤ half of INTERVENE_SUSPICION.
 Constants.COMPOSED_PEAK = 30
+
+-- Meta progression (PR15).
+Constants.META_TAPE_ARCHIVE_MAX = 24
+Constants.META_ALBUM_ARCHIVE_MAX = 24
+Constants.META_REPORT_IDLE_SECONDS = 45
 
 -- Bands from the suspicion number. 0–24 calm, 25–49 uneasy, 50–74 watched,
 -- 75–100 hunted.
@@ -339,8 +492,7 @@ Constants.HOLD_BLINK = 0.35
 -- Slow dim. Above zero so the car does not go dark.
 Constants.HOLD_DIM = 0.55
 Constants.HOLD_RECOVER = 1.2
--- Caught-staring is not built. While held, a future check would run this
--- many times as often. The ride only publishes the number.
+-- While held, stare dwell needs are divided by this scale (2 = twice as fast).
 Constants.HOLD_STARE_MULTIPLIER = 2
 -- Existing catalog id, shown only during the Broadway hold, then cleared.
 Constants.HOLD_TELL = "wrong_countdown"
@@ -440,12 +592,13 @@ return Constants
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="6">
+      <Item class="ModuleScript" referent="7">
         <Properties>
           <string name="Name">Dialogue</string>
           <string name="Source"><![CDATA[--!strict
 -- Parent chats and mask lines from src/constants.ts (CHATS, CALM_CHATS,
--- MASK_DIALOGUES high/calm tier). Critical-tier glitch copy stays out.
+-- MASK_DIALOGUES). Critical glitch UI (PARANOID_UI_WORDS) stays out; critical
+-- mask lines still appear as plain copy when the band is hunted.
 
 local Dialogue = {}
 
@@ -499,7 +652,7 @@ local CALM_CHATS: { ChatExchange } = {
 	},
 }
 
--- First tier only (High / Calm set). needsSus lines need Suspicion >= 10.
+-- Tier 0: High / Calm. needsSus lines need Suspicion >= MASK_NEED_SUSPICION.
 local MASK_TIER0: { MaskLine } = {
 	{
 		who = 0,
@@ -559,6 +712,138 @@ local MASK_TIER0: { MaskLine } = {
 	},
 }
 
+-- Tier 1: Uneasy / Watched set (web Medium/Low).
+local MASK_TIER1: { MaskLine } = {
+	{
+		who = 1,
+		line = "You’d tell us if something was wrong, right?",
+		calm = "Of course.",
+		off = { "Would you tell me?", "Define wrong." },
+		needsSus = false,
+	},
+	{
+		who = 0,
+		line = "Why do you keep looking over there?",
+		calm = "Thought I saw someone I knew.",
+		off = { "You saw it too?", "Over where?" },
+		needsSus = false,
+	},
+	{
+		who = 1,
+		line = "You’re staring at something.",
+		calm = "Just zoning out.",
+		off = { "No I’m not.", "Don’t you see it?" },
+		needsSus = true,
+	},
+	{
+		who = 0,
+		line = "You’re holding that pole awfully tight.",
+		calm = "Train’s bumpy tonight.",
+		off = { "Because it keeps moving.", "Don’t let go of yours." },
+		needsSus = false,
+	},
+	{
+		who = 1,
+		line = "You didn’t say a word that whole stop.",
+		calm = "Just tired, Dad.",
+		off = { "Was it a stop?", "Nobody got on." },
+		needsSus = false,
+	},
+	{
+		who = 0,
+		line = "Is your stomach bothering you again?",
+		calm = "A little. It’ll pass.",
+		off = { "It’s not my stomach.", "Can you feel that too?" },
+		needsSus = false,
+	},
+	{
+		who = 1,
+		line = "Put your phone away and talk to us.",
+		calm = "Okay, okay. It’s away.",
+		off = { "It stopped showing the time.", "About what?" },
+		needsSus = false,
+	},
+	{
+		who = 0,
+		line = "You’re counting the stops again, aren’t you?",
+		calm = "Habit. Sorry.",
+		off = { "Someone has to.", "We passed this one already." },
+		needsSus = false,
+	},
+}
+
+-- Tier 2: Hunted / Critical set (plain copy; no glitch overlay).
+local MASK_TIER2: { MaskLine } = {
+	{
+		who = 0,
+		line = "You can see it too, can’t you?",
+		calm = "See what?",
+		off = { "Yes.", "Don’t." },
+		needsSus = false,
+	},
+	{
+		who = 1,
+		line = "We’re not getting off. You know that.",
+		calm = "I know.",
+		off = { "Why would you say that?", "Who said we were?" },
+		needsSus = false,
+	},
+	{
+		who = 0,
+		line = "Who are you looking for?",
+		calm = "Nobody. Just looking.",
+		off = { "The people who were here.", "You." },
+		needsSus = false,
+	},
+	{
+		who = 1,
+		line = "Sit still. They notice when you fidget.",
+		calm = "Okay. Sitting still.",
+		off = { "Who notices?", "You noticed." },
+		needsSus = false,
+	},
+	{
+		who = 0,
+		line = "We’ve always taken this train, sweetie.",
+		calm = "Right. I know.",
+		off = { "Since when?", "There’s no always down here." },
+		needsSus = false,
+	},
+	{
+		who = 1,
+		line = "Don’t look at the windows. Look at me.",
+		calm = "I’m looking at you.",
+		off = { "What’s in the windows?", "Your face is wrong." },
+		needsSus = false,
+	},
+	{
+		who = 0,
+		line = "Smile for me, hon. Like you used to.",
+		calm = "Like this?",
+		off = { "I don’t remember how.", "You first." },
+		needsSus = false,
+	},
+	{
+		who = 1,
+		line = "Nobody gets off at this one. Remember?",
+		calm = "I remember.",
+		off = { "Then why do the doors open?", "Who told you that?" },
+		needsSus = false,
+	},
+}
+
+-- Soft hunted overlays on ordinary chats (band-tuned parent lines).
+local HUNTED_CHATS: { ChatExchange } = {
+	{
+		{ who = 0, line = "Keep your eyes on us." },
+		{ who = 1, line = "Don’t make a scene." },
+	},
+	{
+		{ who = 1, line = "They’re watching how you sit." },
+		{ who = 0, line = "Look at me. Only me." },
+	},
+}
+
 function Dialogue.parentName(who: number): string
 	if who == 1 then
 		return "Dad"
@@ -609,14 +894,34 @@ function Dialogue.chatFor(plan: { [number]: ChatExchange }, chatIndex: number): 
 	return plan[chatIndex]
 end
 
-function Dialogue.maskPool(suspicion: number, needSusAt: number): { MaskLine }
+local function filterNeeds(tier: { MaskLine }, suspicion: number, needSusAt: number): { MaskLine }
 	local pool = {}
-	for _, entry in MASK_TIER0 do
+	for _, entry in tier do
 		if not entry.needsSus or suspicion >= needSusAt then
 			table.insert(pool, entry)
 		end
 	end
 	return pool
+end
+
+function Dialogue.maskPool(suspicion: number, needSusAt: number): { MaskLine }
+	return filterNeeds(MASK_TIER0, suspicion, needSusAt)
+end
+
+-- Band picks the mask tier (calm→0, uneasy/watched→1, hunted→2).
+function Dialogue.maskPoolForBand(band: string, suspicion: number, needSusAt: number): { MaskLine }
+	if band == "hunted" then
+		return filterNeeds(MASK_TIER2, suspicion, needSusAt)
+	end
+	if band == "uneasy" or band == "watched" then
+		return filterNeeds(MASK_TIER1, suspicion, needSusAt)
+	end
+	return filterNeeds(MASK_TIER0, suspicion, needSusAt)
+end
+
+function Dialogue.huntedChat(rng: () -> number): ChatExchange
+	local index = math.clamp(math.floor(rng() * #HUNTED_CHATS) + 1, 1, #HUNTED_CHATS)
+	return HUNTED_CHATS[index]
 end
 
 function Dialogue.pickMask(
@@ -668,7 +973,7 @@ return Dialogue
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="7">
+      <Item class="ModuleScript" referent="8">
         <Properties>
           <string name="Name">Doors</string>
           <string name="Source"><![CDATA[--!strict
@@ -795,7 +1100,7 @@ return Doors
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="8">
+      <Item class="ModuleScript" referent="9">
         <Properties>
           <string name="Name">Dwell</string>
           <string name="Source"><![CDATA[--!strict
@@ -836,7 +1141,7 @@ return Dwell
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="9">
+      <Item class="ModuleScript" referent="10">
         <Properties>
           <string name="Name">Endings</string>
           <string name="Source"><![CDATA[--!strict
@@ -1065,7 +1370,7 @@ return Endings
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="10">
+      <Item class="ModuleScript" referent="11">
         <Properties>
           <string name="Name">Evp</string>
           <string name="Source"><![CDATA[--!strict
@@ -1482,7 +1787,7 @@ return Evp
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="11">
+      <Item class="ModuleScript" referent="12">
         <Properties>
           <string name="Name">Haven</string>
           <string name="Source"><![CDATA[--!strict
@@ -1520,7 +1825,7 @@ return Haven
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="12">
+      <Item class="ModuleScript" referent="13">
         <Properties>
           <string name="Name">Hold</string>
           <string name="Source"><![CDATA[--!strict
@@ -1618,7 +1923,7 @@ return Hold
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="13">
+      <Item class="ModuleScript" referent="14">
         <Properties>
           <string name="Name">KeepOut</string>
           <string name="Source"><![CDATA[--!strict
@@ -1680,7 +1985,7 @@ return KeepOut
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="14">
+      <Item class="ModuleScript" referent="15">
         <Properties>
           <string name="Name">Lines</string>
           <string name="Source"><![CDATA[--!strict
@@ -1893,11 +2198,28 @@ Lines.EXIT_LOWER = "Follow the static down the side stairs"
 Lines.EXIT_HATCH = "Push through the emergency door"
 Lines.EXIT_DEFAULT = "default Escalators"
 
+-- Meta menu (nightmare / chapter / archive).
+Lines.META_TITLE = "LAST LOCAL"
+Lines.META_START = "Ride from Hoyt"
+Lines.META_CH2 = "Practice · Ch II (Haven)"
+Lines.META_CH3 = "Practice · Ch III (Greenpoint)"
+Lines.META_NIGHTMARE = "Nightmare mode"
+Lines.META_NIGHTMARE_LOCKED = "Nightmare (finish one full ride)"
+Lines.META_PRACTICE_NOTE = "Practice: nothing is saved."
+Lines.META_ARCHIVE = "Case Files"
+Lines.META_AGAIN = "Back to menu"
+Lines.META_HINT = "Choose a ride. Nightmare unlocks after one full arrival at Court Sq."
+
+-- Caught staring / false-stop react feedback.
+Lines.STARE_CAUGHT = "They saw you looking."
+Lines.STARE_PARENT = "Mom: Don’t stare."
+Lines.FALSE_STOP_REACT = "You moved toward the doors. They noticed."
+
 return Lines
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="15">
+      <Item class="ModuleScript" referent="16">
         <Properties>
           <string name="Name">Motion</string>
           <string name="Source"><![CDATA[--!strict
@@ -1959,7 +2281,50 @@ return Motion
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="16">
+      <Item class="ModuleScript" referent="17">
+        <Properties>
+          <string name="Name">Nightmare</string>
+          <string name="Source"><![CDATA[--!strict
+-- Nightmare mode tuning from src/constants.ts NIGHTMARE.
+-- Unlocked after one completed full (non-practice) ride.
+
+local Nightmare = {}
+
+Nightmare.CRUISE = 0.75
+Nightmare.SPEED = 1.2
+Nightmare.DRIFT = 1.5
+Nightmare.MIN_DRIFT = -2
+
+function Nightmare.cruiseSeconds(base: number, on: boolean): number
+	if not on then
+		return base
+	end
+	return math.max(4, base * Nightmare.CRUISE)
+end
+
+function Nightmare.topSpeed(base: number, on: boolean): number
+	if not on then
+		return base
+	end
+	return base * Nightmare.SPEED
+end
+
+function Nightmare.driftDelta(base: number, on: boolean): number
+	if not on then
+		return base
+	end
+	local scaled = base * Nightmare.DRIFT
+	if scaled > Nightmare.MIN_DRIFT then
+		return Nightmare.MIN_DRIFT
+	end
+	return scaled
+end
+
+return Nightmare
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="18">
         <Properties>
           <string name="Name">Passengers</string>
           <string name="Source"><![CDATA[--!strict
@@ -2278,7 +2643,7 @@ return Passengers
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="17">
+      <Item class="ModuleScript" referent="19">
         <Properties>
           <string name="Name">Polaroid</string>
           <string name="Source"><![CDATA[--!strict
@@ -2352,7 +2717,203 @@ return Polaroid
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="18">
+      <Item class="ModuleScript" referent="20">
+        <Properties>
+          <string name="Name">Practice</string>
+          <string name="Source"><![CDATA[--!strict
+-- Practice / chapter-select helpers from src/game/practice.ts.
+-- Chapter II/III starts are off-record: no endings, badges, or DataStore writes.
+
+local Practice = {}
+
+-- 1-based index into Route.SEGMENTS (web CHAPTER_START_SEGMENT is 0-based into SEGS).
+-- Ch I: whole ride from Hoyt. Ch II: into Safe Haven. Ch III: Greenpoint restraint.
+Practice.CHAPTER_START_INDEX = {
+	[1] = 1,
+	[2] = 5,
+	[3] = 11,
+}
+
+function Practice.normalizeChapter(chapter: number): number
+	if chapter == 2 or chapter == 3 then
+		return chapter
+	end
+	return 1
+end
+
+function Practice.startIndex(chapter: number): number
+	local ch = Practice.normalizeChapter(chapter)
+	return Practice.CHAPTER_START_INDEX[ch] or 1
+end
+
+function Practice.isPractice(chapter: number): boolean
+	return Practice.normalizeChapter(chapter) > 1
+end
+
+function Practice.offRecord(practiceOn: boolean, debugRun: boolean): boolean
+	return practiceOn or debugRun
+end
+
+return Practice
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="21">
+        <Properties>
+          <string name="Name">PsychLog</string>
+          <string name="Source"><![CDATA[--!strict
+-- Ride Psych Log: anomaly types seen / caught this ride (web psychLog.ts).
+-- Shown on the Travel Report. Persistent Case Files stay in MetaStore (PR15).
+
+local PsychLog = {}
+
+export type EntryDef = {
+	id: string,
+	title: string,
+	tier: number,
+	note: string,
+}
+
+export type RideRecord = {
+	id: string,
+	stop: string,
+	seen: boolean,
+	caught: boolean,
+}
+
+export type RideState = {
+	records: { RideRecord },
+	byId: { [string]: RideRecord },
+}
+
+-- Catalog ids this Rojo slice can schedule (plus photo catch marker).
+local ENTRIES: { [string]: EntryDef } = {
+	poster_changed = {
+		id = "poster_changed",
+		title = "The Misprint",
+		tier = 0,
+		note = "An ad shifted color while you weren’t looking.",
+	},
+	sticker = {
+		id = "sticker",
+		title = "Window Residue",
+		tier = 0,
+		note = "Something appeared on the glass between stops.",
+	},
+	lighttemp = {
+		id = "lighttemp",
+		title = "The Cold Panel",
+		tier = 0,
+		note = "One ceiling tube turned a hospital blue.",
+	},
+	mapstop = {
+		id = "mapstop",
+		title = "Route Map Error",
+		tier = 1,
+		note = "The strip map listed Hollow St. There is no Hollow St.",
+	},
+	moved = {
+		id = "moved",
+		title = "The Relocated Passenger",
+		tier = 1,
+		note = "A rider was at the far doors without crossing the car.",
+	},
+	extra = {
+		id = "extra",
+		title = "The Additional Passenger",
+		tier = 1,
+		note = "A silent rider sat at the far end. They didn’t board.",
+	},
+	wrong_announcement = {
+		id = "wrong_announcement",
+		title = "Wrong Call",
+		tier = 1,
+		note = "The conductor named a stop you were not approaching.",
+	},
+	wrong_countdown = {
+		id = "wrong_countdown",
+		title = "Wrong Minutes",
+		tier = 1,
+		note = "The board’s minute count disagreed with the stretch.",
+	},
+	nearword = {
+		id = "nearword",
+		title = "Warped Copy",
+		tier = 2,
+		note = "An ad rearranged itself into words meant for you.",
+	},
+	empty = {
+		id = "empty",
+		title = "The Empty Car",
+		tier = 3,
+		note = "Every stranger was gone at once. Your parents didn’t mention it.",
+	},
+	faceturn = {
+		id = "faceturn",
+		title = "The Woman on Your Bench",
+		tier = 2,
+		note = "Her head turned further than a neck allows.",
+	},
+	momface = {
+		id = "momface",
+		title = "Mom, Fixed",
+		tier = 3,
+		note = "Her face set into an expression that wasn’t hers.",
+	},
+}
+
+PsychLog.ENTRIES = ENTRIES
+
+function PsychLog.newRide(): RideState
+	return { records = {}, byId = {} }
+end
+
+function PsychLog.definition(id: string): EntryDef?
+	return ENTRIES[id]
+end
+
+function PsychLog.markSeen(state: RideState, id: string, stop: string)
+	local existing = state.byId[id]
+	if existing ~= nil then
+		existing.seen = true
+		return
+	end
+	local rec: RideRecord = { id = id, stop = stop, seen = true, caught = false }
+	state.byId[id] = rec
+	table.insert(state.records, rec)
+end
+
+function PsychLog.markCaught(state: RideState, id: string, stop: string)
+	local existing = state.byId[id]
+	if existing ~= nil then
+		existing.seen = true
+		existing.caught = true
+		return
+	end
+	local rec: RideRecord = { id = id, stop = stop, seen = true, caught = true }
+	state.byId[id] = rec
+	table.insert(state.records, rec)
+end
+
+function PsychLog.formatReport(state: RideState): string
+	if #state.records == 0 then
+		return "Psych Log\n(none this ride)"
+	end
+	local lines = { "Psych Log" }
+	for _, rec in state.records do
+		local def = ENTRIES[rec.id]
+		local title = if def ~= nil then def.title else rec.id
+		local status = if rec.caught then "documented" else "unconfirmed"
+		table.insert(lines, string.format("• %s @ %s [%s]", title, rec.stop, status))
+	end
+	return table.concat(lines, "\n")
+end
+
+return PsychLog
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="22">
         <Properties>
           <string name="Name">Restraint</string>
           <string name="Source"><![CDATA[--!strict
@@ -2461,7 +3022,7 @@ return Restraint
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="19">
+      <Item class="ModuleScript" referent="23">
         <Properties>
           <string name="Name">Route</string>
           <string name="Source"><![CDATA[--!strict
@@ -2619,7 +3180,7 @@ return Route
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="20">
+      <Item class="ModuleScript" referent="24">
         <Properties>
           <string name="Name">Sanity</string>
           <string name="Source"><![CDATA[--!strict
@@ -2731,7 +3292,7 @@ return Sanity
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="21">
+      <Item class="ModuleScript" referent="25">
         <Properties>
           <string name="Name">Score</string>
           <string name="Source"><![CDATA[--!strict
@@ -2783,10 +3344,25 @@ function Score.endDelta(kind: string, cleanAmount: number, decayAmount: number):
 end
 
 -- Standing at the doors, moving to them, or staring on a false stop.
--- Nothing in this slice can see that, so the ride passes false.
 function Score.falseStopDelta(reacted: boolean, amount: number): number
 	if reacted then
 		return amount
+	end
+	return 0
+end
+
+-- Caught staring at an active anomaly (or a parent) while parents are alert.
+function Score.stareDelta(caught: boolean, amount: number): number
+	if caught then
+		return amount
+	end
+	return 0
+end
+
+-- Sitting still and looking away on a clean stop (decay bonus).
+function Score.sittingStillDelta(still: boolean, amount: number): number
+	if still then
+		return -amount
 	end
 	return 0
 end
@@ -2799,7 +3375,7 @@ return Score
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="22">
+      <Item class="ModuleScript" referent="26">
         <Properties>
           <string name="Name">Trestle</string>
           <string name="Source"><![CDATA[--!strict
@@ -2885,7 +3461,7 @@ return Trestle
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="23">
+      <Item class="ModuleScript" referent="27">
         <Properties>
           <string name="Name">Trial</string>
           <string name="Source"><![CDATA[--!strict
@@ -3118,11 +3694,11 @@ return Trial
       </Item>
     </Item>
   </Item>
-  <Item class="ServerScriptService" referent="24">
+  <Item class="ServerScriptService" referent="28">
     <Properties>
       <string name="Name">ServerScriptService</string>
     </Properties>
-    <Item class="Script" referent="25">
+    <Item class="Script" referent="29">
       <Properties>
         <string name="Name">Server</string>
         <token name="RunContext">0</token>
@@ -3139,7 +3715,8 @@ local WorldLight = require(script.WorldLight)
 local Constants = require(ReplicatedStorage.Shared.Constants)
 
 Players.CharacterAutoLoads = false
-workspace.StreamingEnabled = false
+-- StreamingEnabled is a place property only (default.project.json). Runtime
+-- writes throw PluginOrOpenCloud and abort before Ride is created.
 workspace.Gravity = 196.2
 workspace.FallenPartsDestroyHeight = -50
 
@@ -3181,7 +3758,7 @@ for _, player in Players:GetPlayers() do
 end
 ]]></string>
       </Properties>
-      <Item class="ModuleScript" referent="26">
+      <Item class="ModuleScript" referent="30">
         <Properties>
           <string name="Name">AnomalySystem</string>
           <string name="Source"><![CDATA[--!strict
@@ -3334,7 +3911,7 @@ return AnomalySystem
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="27">
+      <Item class="ModuleScript" referent="31">
         <Properties>
           <string name="Name">CarBuilder</string>
           <string name="Source"><![CDATA[--!strict
@@ -4543,7 +5120,7 @@ return CarBuilder
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="28">
+      <Item class="ModuleScript" referent="32">
         <Properties>
           <string name="Name">Consist</string>
           <string name="Source"><![CDATA[--!strict
@@ -5025,7 +5602,185 @@ return Consist
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="29">
+      <Item class="ModuleScript" referent="33">
+        <Properties>
+          <string name="Name">MetaStore</string>
+          <string name="Source"><![CDATA[--!strict
+-- Player meta progression: endings archive, achievements, tapes, album, run count.
+-- Uses DataStore when available; falls back to an in-memory table (Studio / offline).
+-- Failed GetAsync never seeds an empty save that later SetAsync could clobber cloud data.
+-- Once a key is live in memory for this session, load returns that copy (no delayed overwrite).
+
+local DataStoreService = game:GetService("DataStoreService")
+local HttpService = game:GetService("HttpService")
+
+local MetaStore = {}
+
+export type EndingEntry = { count: number, discoveredAt: number }
+export type TapeEntry = { signalId: string, title: string, stop: string, freq: string, transcript: string }
+export type PhotoEntry = { id: string, framed: { string } }
+
+export type Save = {
+	runsCompleted: number,
+	nightmareUnlocked: boolean,
+	endings: { [string]: EndingEntry },
+	achievements: { [string]: { unlockedAt: number } },
+	tapes: { TapeEntry },
+	album: { PhotoEntry },
+	anomalyTypes: { [string]: boolean },
+}
+
+local memory: { [string]: Save } = {}
+-- Keys where GetAsync failed: memory is session-only; skip SetAsync to avoid wiping cloud.
+local cloudBlocked: { [string]: boolean } = {}
+local store: GlobalDataStore? = nil
+
+local function tryStore(): GlobalDataStore?
+	if store ~= nil then
+		return store
+	end
+	local ok, result = pcall(function()
+		return DataStoreService:GetDataStore("LastLocalMeta_v1")
+	end)
+	if ok then
+		store = result
+		return store
+	end
+	return nil
+end
+
+function MetaStore.empty(): Save
+	return {
+		runsCompleted = 0,
+		nightmareUnlocked = false,
+		endings = {},
+		achievements = {},
+		tapes = {},
+		album = {},
+		anomalyTypes = {},
+	}
+end
+
+local function keyFor(userId: number): string
+	return "u_" .. tostring(userId)
+end
+
+local function fromRaw(raw: any): Save
+	local s = MetaStore.empty()
+	if typeof(raw) ~= "table" then
+		return s
+	end
+	local t = raw :: any
+	if typeof(t.runsCompleted) == "number" then
+		s.runsCompleted = t.runsCompleted
+	end
+	s.nightmareUnlocked = t.nightmareUnlocked == true or s.runsCompleted > 0
+	if typeof(t.endings) == "table" then
+		s.endings = t.endings
+	end
+	if typeof(t.achievements) == "table" then
+		s.achievements = t.achievements
+	end
+	if typeof(t.tapes) == "table" then
+		s.tapes = t.tapes
+	end
+	if typeof(t.album) == "table" then
+		s.album = t.album
+	end
+	if typeof(t.anomalyTypes) == "table" then
+		s.anomalyTypes = t.anomalyTypes
+	end
+	return s
+end
+
+function MetaStore.load(userId: number): Save
+	local k = keyFor(userId)
+	-- Session copy wins: avoids a late GetAsync overwriting in-memory progress.
+	local existing = memory[k]
+	if existing ~= nil then
+		return existing
+	end
+	local ds = tryStore()
+	if ds ~= nil then
+		local ok, raw = pcall(function()
+			return ds:GetAsync(k)
+		end)
+		if ok then
+			cloudBlocked[k] = nil
+			-- nil raw = first-time player; empty save is safe to persist later.
+			local s = fromRaw(raw)
+			memory[k] = s
+			return s
+		end
+		-- Read failed: session empty only; do not SetAsync until a later load succeeds.
+		cloudBlocked[k] = true
+		local s = MetaStore.empty()
+		memory[k] = s
+		return s
+	end
+	local s = MetaStore.empty()
+	memory[k] = s
+	return s
+end
+
+function MetaStore.save(userId: number, data: Save)
+	local k = keyFor(userId)
+	memory[k] = data
+	if cloudBlocked[k] then
+		return
+	end
+	local ds = tryStore()
+	if ds == nil then
+		return
+	end
+	pcall(function()
+		ds:SetAsync(k, data)
+	end)
+end
+
+function MetaStore.toJson(data: Save): string
+	return HttpService:JSONEncode(data)
+end
+
+function MetaStore.recordEnding(data: Save, endingId: string, at: number)
+	local existing = data.endings[endingId]
+	if existing ~= nil then
+		existing.count += 1
+	else
+		data.endings[endingId] = { count = 1, discoveredAt = at }
+	end
+end
+
+function MetaStore.mergeTapes(data: Save, tapes: { TapeEntry }, maxKeep: number)
+	local seen: { [string]: boolean } = {}
+	for _, t in data.tapes do
+		seen[t.signalId] = true
+	end
+	for _, t in tapes do
+		if not seen[t.signalId] then
+			table.insert(data.tapes, t)
+			seen[t.signalId] = true
+		end
+	end
+	while #data.tapes > maxKeep do
+		table.remove(data.tapes, 1)
+	end
+end
+
+function MetaStore.mergeAlbum(data: Save, photos: { PhotoEntry }, maxKeep: number)
+	for _, p in photos do
+		table.insert(data.album, p)
+	end
+	while #data.album > maxKeep do
+		table.remove(data.album, 1)
+	end
+end
+
+return MetaStore
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="34">
         <Properties>
           <string name="Name">Ride</string>
           <string name="Source"><![CDATA[--!strict
@@ -5042,14 +5797,17 @@ return Consist
 -- never write these interior lights.
 
 local HttpService = game:GetService("HttpService")
+local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
 local AnomalySystem = require(script.Parent.AnomalySystem)
 local CarBuilder = require(script.Parent.CarBuilder)
+local MetaStore = require(script.Parent.MetaStore)
 local Scenery = require(script.Parent.Scenery)
 local TrialSpace = require(script.Parent.TrialSpace)
 local WorldLight = require(script.Parent.WorldLight)
+local Achievements = require(ReplicatedStorage.Shared.Achievements)
 local Constants = require(ReplicatedStorage.Shared.Constants)
 local Trestle = require(ReplicatedStorage.Shared.Trestle)
 local Doors = require(ReplicatedStorage.Shared.Doors)
@@ -5057,6 +5815,8 @@ local Dwell = require(ReplicatedStorage.Shared.Dwell)
 local Hold = require(ReplicatedStorage.Shared.Hold)
 local Dialogue = require(ReplicatedStorage.Shared.Dialogue)
 local Haven = require(ReplicatedStorage.Shared.Haven)
+local Nightmare = require(ReplicatedStorage.Shared.Nightmare)
+local Practice = require(ReplicatedStorage.Shared.Practice)
 local Trial = require(ReplicatedStorage.Shared.Trial)
 local Evp = require(ReplicatedStorage.Shared.Evp)
 local Polaroid = require(ReplicatedStorage.Shared.Polaroid)
@@ -5064,6 +5824,7 @@ local Sanity = require(ReplicatedStorage.Shared.Sanity)
 local Restraint = require(ReplicatedStorage.Shared.Restraint)
 local Endings = require(ReplicatedStorage.Shared.Endings)
 local Lines = require(ReplicatedStorage.Shared.Lines)
+local PsychLog = require(ReplicatedStorage.Shared.PsychLog)
 local Score = require(ReplicatedStorage.Shared.Score)
 local Band = require(ReplicatedStorage.Shared.Band)
 local Motion = require(ReplicatedStorage.Shared.Motion)
@@ -5118,8 +5879,17 @@ function Ride.start(car: CarBuilder.BuiltCar)
 	local exitRemote = Instance.new("RemoteEvent")
 	exitRemote.Name = "Exit"
 	exitRemote.Parent = remotes
+	local gazeRemote = Instance.new("RemoteEvent")
+	gazeRemote.Name = "Gaze"
+	gazeRemote.Parent = remotes
+	local metaStartRemote = Instance.new("RemoteEvent")
+	metaStartRemote.Name = "MetaStart"
+	metaStartRemote.Parent = remotes
+	local metaAgainRemote = Instance.new("RemoteEvent")
+	metaAgainRemote.Name = "MetaAgain"
+	metaAgainRemote.Parent = remotes
 
-	ride:SetAttribute("Phase", "intro")
+	ride:SetAttribute("Phase", "menu")
 	ride:SetAttribute("PaText", "")
 	ride:SetAttribute("Subtitle", "")
 	ride:SetAttribute("Hint", "")
@@ -5146,7 +5916,13 @@ function Ride.start(car: CarBuilder.BuiltCar)
 	ride:SetAttribute("EndingBadge", "")
 	ride:SetAttribute("EndingNarrative", "")
 	ride:SetAttribute("ReportStats", "")
+	ride:SetAttribute("ReportPsych", "")
 	ride:SetAttribute("HasRecorder", false)
+	ride:SetAttribute("NightmareUnlocked", false)
+	ride:SetAttribute("NightmareOn", false)
+	ride:SetAttribute("PracticeOn", false)
+	ride:SetAttribute("MetaArchive", "")
+	ride:SetAttribute("PracticeNote", "")
 	ride:SetAttribute("SegStop", 0)
 	ride:SetAttribute("EvpRaised", false)
 	ride:SetAttribute("EvpKhz", 120)
@@ -5276,8 +6052,16 @@ function Ride.start(car: CarBuilder.BuiltCar)
 
 	local function blackout()
 		-- Flicker tick only. Callers are the two segments whose tick is "flicker".
+		-- Watched / hunted lengthens the tick slightly; still not a hold blackout.
+		local seconds = Constants.FLICKER_TICK_SECONDS
+		local bandAttr = ride:GetAttribute("Band")
+		if bandAttr == "hunted" then
+			seconds *= Constants.FLICKER_HUNTED_SCALE
+		elseif bandAttr == "watched" then
+			seconds *= Constants.FLICKER_WATCHED_SCALE
+		end
 		forcedOff = true
-		task.delay(Constants.FLICKER_TICK_SECONDS, function()
+		task.delay(seconds, function()
 			forcedOff = false
 		end)
 	end
@@ -5322,10 +6106,19 @@ function Ride.start(car: CarBuilder.BuiltCar)
 		accel: number,
 		cruise: number,
 		brake: number,
+		top: number,
 		holdAt: number,
 		holdFor: number,
 	}
 	local stretch: Stretch? = nil
+	local nightmareOn = false
+	local practiceOn = false
+	local startChapter = 1
+	local trestleBadgeChecked = false
+	local anomalyTypesSeen: { [string]: boolean } = {}
+	local pendingStart: { nightmare: boolean, chapter: number }? = nil
+	local pendingAgain = false
+	local metaUserId: number? = nil
 
 	local function publishOpenAir(level: number)
 		if math.abs(level - lastOpenAir) < 0.03 then
@@ -5335,12 +6128,16 @@ function Ride.start(car: CarBuilder.BuiltCar)
 		ride:SetAttribute("OpenAir", level)
 		Scenery.setOpenAirLevel(level)
 		WorldLight.setOpenAir(level)
+		if level > 0.4 and not trestleBadgeChecked then
+			trestleBadgeChecked = true
+		end
 	end
 
 	local function beginStretch(seg: Route.Segment, holdAt: number, holdFor: number)
 		local accel = Constants.ACCEL
 		local brake = Constants.BRAKE
-		local cruise = seg.sliceCruise
+		local cruise = Nightmare.cruiseSeconds(seg.sliceCruise, nightmareOn)
+		local top = Nightmare.topSpeed(Constants.TOP_SPEED_MPS, nightmareOn)
 		-- Whichever platform is already at the doors is the one we leave.
 		if math.abs(arriving.base - odo) < math.abs(leaving.base - odo) then
 			local swap = leaving
@@ -5348,7 +6145,7 @@ function Ride.start(car: CarBuilder.BuiltCar)
 			arriving = swap
 		end
 		leaving.base = odo
-		local dist = Motion.segmentDistance(accel, cruise, brake, Constants.TOP_SPEED_MPS)
+		local dist = Motion.segmentDistance(accel, cruise, brake, top)
 		arriving.base = odo + dist
 		Scenery.setName(arriving, Route.stopName(seg.stop))
 		-- Newtown Creek: open-air 21 St approach / departure (web gameState trestle).
@@ -5362,6 +6159,7 @@ function Ride.start(car: CarBuilder.BuiltCar)
 			accel = accel,
 			cruise = cruise,
 			brake = brake,
+			top = top,
 			holdAt = holdAt,
 			holdFor = holdFor,
 		}
@@ -5381,7 +6179,7 @@ function Ride.start(car: CarBuilder.BuiltCar)
 		if current ~= nil then
 			local elapsed = workspace:GetServerTimeNow() - current.start
 			local motionT = Hold.motionTime(elapsed, current.holdAt, current.holdFor)
-			odo = current.origin + Motion.distance(motionT, current.accel, current.cruise, current.brake, Constants.TOP_SPEED_MPS)
+			odo = current.origin + Motion.distance(motionT, current.accel, current.cruise, current.brake, current.top)
 		end
 		local openLevel = if ride:GetAttribute("Phase") == "trial" then 0 else Trestle.outsideLevel(odo, trestlePlan)
 		publishOpenAir(openLevel)
@@ -5447,6 +6245,15 @@ function Ride.start(car: CarBuilder.BuiltCar)
 	local nextShotAt = 0
 	local polaroidPhotos: { Polaroid.Photo } = {}
 	local photoSeq = 0
+	local psychLog = PsychLog.newRide()
+	local gazeTarget: string? = nil
+	local gazeSince = 0
+	local stareAnomalyCharged = false
+	local stareParentCharged = false
+	local falseStopReacted = false
+	local falseStopOpen = false
+	local stretchMovedM = 0
+	local lastRootPos: Vector3? = nil
 
 	local function publishSanity()
 		ride:SetAttribute("Sanity", sanity)
@@ -6029,6 +6836,17 @@ function Ride.start(car: CarBuilder.BuiltCar)
 		if phase == "ride" and Polaroid.photoCatches(framed, liveIds) then
 			caught = true
 			stopNoticed = true
+			for _, id in framed do
+				anomalyTypesSeen[id] = true
+				local kind = if id == AnomalySystem.EXTRA_ID
+					then "extra"
+					elseif id == AnomalySystem.MOVED_ID then "moved"
+					elseif id == AnomalySystem.FACETURN_ID then "faceturn"
+					elseif id == AnomalySystem.MOMFACE_ID then "momface"
+					else id
+				PsychLog.markCaught(psychLog, kind, stopLabel)
+			end
+			anomalyTypesSeen["photo"] = true
 			applySuspicion(Score.flagDelta(true, true, Constants.FALSE_ALARM_SUSPICION, Constants.CORRECT_FLAG_SUSPICION))
 		end
 
@@ -6057,21 +6875,135 @@ function Ride.start(car: CarBuilder.BuiltCar)
 		end
 	end)
 
-	-- Intentionally unused. Nothing here can see a player stand at the
-	-- doors, walk to them, or stare on a false stop. A detector would
-	-- return true and FALSE_STOP_REACT_SUSPICION would be added.
-	local function playerReactedAtFalseStop(): boolean
+	local function playerNearDoors(): boolean
+		local range = Constants.meters(Constants.FALSE_STOP_DOOR_RANGE_M)
+		for _, player in Players:GetPlayers() do
+			local character = player.Character
+			local root = if character ~= nil then character:FindFirstChild("HumanoidRootPart") else nil
+			if root ~= nil and root:IsA("BasePart") then
+				for _, leaf in car.doors do
+					local part = leaf.model.PrimaryPart
+					if part ~= nil and (part.Position - root.Position).Magnitude <= range then
+						return true
+					end
+				end
+			end
+		end
 		return false
 	end
 
-	-- Passenger, on purpose. The player is the kid riding with Mom and Dad.
-	-- They cannot close the doors or dispatch the train, so this stays
-	-- false. It is intentionally unused. A depart control would return
-	-- true and add EARLY_DEPARTURE_SUSPICION. There is no such control,
-	-- and there is no fail state.
+	-- True when the player stands near an open door leaf during a false-stop dwell.
+	local function playerReactedAtFalseStop(): boolean
+		return falseStopReacted
+	end
+
+	-- Passenger, on purpose. The player cannot close doors or dispatch.
+	-- EARLY_DEPARTURE_SUSPICION stays unused; no fail state.
 	local function playerAskedToDepartEarly(): boolean
 		return false
 	end
+
+	local function parentsAlert(): boolean
+		local bandAttr = ride:GetAttribute("Band")
+		if bandAttr == "watched" or bandAttr == "hunted" then
+			return true
+		end
+		local scale = ride:GetAttribute("StareIntervalScale")
+		if typeof(scale) == "number" and scale > 1 and (bandAttr == "uneasy" or bandAttr == "watched" or bandAttr == "hunted") then
+			return true
+		end
+		return false
+	end
+
+	local function anomalyKindForId(passengerId: string): string?
+		local model = car.passengers:FindFirstChild(passengerId)
+		if model == nil or not model:IsA("Model") then
+			return nil
+		end
+		if model:GetAttribute("Hidden") == true then
+			return nil
+		end
+		local tell = model:GetAttribute("Tell")
+		if typeof(tell) == "string" then
+			return tell
+		end
+		if model:GetAttribute("Anomaly") == true then
+			if passengerId == AnomalySystem.EXTRA_ID then
+				return "extra"
+			end
+			if passengerId == AnomalySystem.MOVED_ID then
+				return "moved"
+			end
+			if passengerId == AnomalySystem.FACETURN_ID then
+				return "faceturn"
+			end
+			if passengerId == AnomalySystem.MOMFACE_ID then
+				return "momface"
+			end
+			return "extra"
+		end
+		return nil
+	end
+
+	local function processGaze(dt: number)
+		local phase = ride:GetAttribute("Phase")
+		if phase ~= "ride" and phase ~= "stop" then
+			return
+		end
+		local id = gazeTarget
+		if id == nil then
+			return
+		end
+		gazeSince += dt
+		local scaleAttr = ride:GetAttribute("StareIntervalScale")
+		local scale = if typeof(scaleAttr) == "number" then scaleAttr else 1
+		local anomalyNeed = Constants.STARE_ANOMALY_SECONDS / math.max(1, scale)
+		local parentNeed = Constants.STARE_PARENT_SECONDS / math.max(1, scale)
+		if id == "mom" or id == "dad" then
+			if not stareParentCharged and gazeSince >= parentNeed then
+				stareParentCharged = true
+				applySuspicion(Score.stareDelta(true, Constants.STARE_PARENT_SUSPICION))
+				showHint(Lines.STARE_PARENT, 2.2)
+			end
+			return
+		end
+		if not parentsAlert() or stareAnomalyCharged then
+			return
+		end
+		local kind = anomalyKindForId(id)
+		if kind == nil then
+			return
+		end
+		if gazeSince >= anomalyNeed then
+			stareAnomalyCharged = true
+			applySuspicion(Score.stareDelta(true, Constants.STARE_ANOMALY_SUSPICION))
+			showHint(Lines.STARE_CAUGHT, 2.4)
+			local stopLabel = ""
+			local stopAttr = ride:GetAttribute("NextStop")
+			if typeof(stopAttr) == "string" then
+				stopLabel = stopAttr
+			end
+			PsychLog.markSeen(psychLog, kind, stopLabel)
+		end
+	end
+
+	RunService.Heartbeat:Connect(function(dt: number)
+		for _, player in Players:GetPlayers() do
+			local character = player.Character
+			local root = if character ~= nil then character:FindFirstChild("HumanoidRootPart") else nil
+			if root ~= nil and root:IsA("BasePart") then
+				if lastRootPos ~= nil then
+					stretchMovedM += (root.Position - lastRootPos).Magnitude / Constants.STUDS_PER_METER
+				end
+				lastRootPos = root.Position
+			end
+		end
+		if falseStopOpen and not falseStopReacted and playerNearDoors() then
+			falseStopReacted = true
+			showHint(Lines.FALSE_STOP_REACT, 2.4)
+		end
+		processGaze(dt)
+	end)
 
 	local function beginDwell(seconds: number)
 		ride:SetAttribute("DwellUntil", workspace:GetServerTimeNow() + seconds)
@@ -6609,7 +7541,9 @@ function Ride.start(car: CarBuilder.BuiltCar)
 		if ride:GetAttribute("RestraintActive") == true or ride:GetAttribute("Intervening") == true then
 			return
 		end
-		local pool = Dialogue.maskPool(suspicion, Constants.MASK_NEED_SUSPICION)
+		local bandAttr = ride:GetAttribute("Band")
+		local bandName = if typeof(bandAttr) == "string" then bandAttr else "calm"
+		local pool = Dialogue.maskPoolForBand(bandName, suspicion, Constants.MASK_NEED_SUSPICION)
 		local line = Dialogue.pickMask(pool, maskUsed, maskLast, function()
 			return math.random()
 		end)
@@ -6641,6 +7575,39 @@ function Ride.start(car: CarBuilder.BuiltCar)
 		end
 		maskBusy = false
 	end
+
+	-- Single-car slice: one shared gaze (same as Flag / Meta). Only the
+	-- ride owner (metaUserId, else first player) may update it. The id must
+	-- name a real passenger model that is not Hidden.
+	gazeRemote.OnServerEvent:Connect(function(player: Player, passengerId: any)
+		local phase = ride:GetAttribute("Phase")
+		if phase ~= "ride" and phase ~= "stop" and phase ~= "haven" then
+			gazeTarget = nil
+			gazeSince = 0
+			return
+		end
+		local owner = metaUserId
+		if owner == nil then
+			local list = Players:GetPlayers()
+			if #list > 0 then
+				owner = list[1].UserId
+			end
+		end
+		if owner == nil or player.UserId ~= owner then
+			return
+		end
+		local id: string? = nil
+		if typeof(passengerId) == "string" and passengerId ~= "" then
+			local model = car.passengers:FindFirstChild(passengerId)
+			if model ~= nil and model:IsA("Model") and model:GetAttribute("Hidden") ~= true then
+				id = passengerId
+			end
+		end
+		if id ~= gazeTarget then
+			gazeTarget = id
+			gazeSince = 0
+		end
+	end)
 
 	flagRemote.OnServerEvent:Connect(function(player: Player, passengerId: any)
 		if typeof(passengerId) ~= "string" then
@@ -6687,6 +7654,18 @@ function Ride.start(car: CarBuilder.BuiltCar)
 		if verdict == "noticed" then
 			caught = true
 			stopNoticed = true
+			local catchId = if isTell and typeof(tellKind) == "string" then tellKind else "extra"
+			if isTell and typeof(tellKind) == "string" then
+				anomalyTypesSeen[tellKind] = true
+			elseif marked then
+				anomalyTypesSeen["extra"] = true
+			end
+			local stopLabel = ""
+			local stopAttr = ride:GetAttribute("NextStop")
+			if typeof(stopAttr) == "string" then
+				stopLabel = stopAttr
+			end
+			PsychLog.markCaught(psychLog, catchId, stopLabel)
 			showFeedback("caught", Lines.CAUGHT, false)
 		else
 			falseFlags += 1
@@ -6727,7 +7706,12 @@ function Ride.start(car: CarBuilder.BuiltCar)
 		ride:SetAttribute("EndingBadge", def.badge)
 		ride:SetAttribute("EndingNarrative", def.narrative)
 		local restraintLine = if summary.restraintOK then "held" else "failed / skipped"
+		local modeLine = if practiceOn
+			then "Mode             PRACTICE (nothing saved)"
+			elseif nightmareOn then "Mode             NIGHTMARE"
+			else "Mode             Standard"
 		local stats = table.concat({
+			modeLine,
 			"Sanity Retained  " .. tostring(summary.sanPct) .. "%",
 			"Peak Suspicion   " .. tostring(summary.peak),
 			"Anomaly Accuracy " .. tostring(summary.accPct) .. "%  (" .. tostring(accCorrect) .. "/" .. tostring(
@@ -6741,7 +7725,125 @@ function Ride.start(car: CarBuilder.BuiltCar)
 			"False flags      " .. tostring(falseFlags),
 		}, "\n")
 		ride:SetAttribute("ReportStats", stats)
+		ride:SetAttribute("ReportPsych", PsychLog.formatReport(psychLog))
 		ride:SetAttribute("ReportReady", true)
+	end
+
+	local function formatArchive(data: MetaStore.Save): string
+		local endingCount = 0
+		for _ in data.endings do
+			endingCount += 1
+		end
+		local lines = {
+			"CASE FILES",
+			"Runs " .. tostring(data.runsCompleted),
+			"Endings " .. tostring(endingCount),
+			"Achievements " .. tostring(Achievements.count(data.achievements)),
+			"Tapes " .. tostring(#data.tapes),
+			"Album " .. tostring(#data.album),
+		}
+		for _, id in Achievements.IDS do
+			if Achievements.has(data.achievements, id) then
+				table.insert(lines, "• " .. Achievements.definition(id).title)
+			end
+		end
+		for id, entry in data.endings do
+			table.insert(lines, "◇ " .. id .. " ×" .. tostring(entry.count))
+		end
+		return table.concat(lines, "\n")
+	end
+
+	local function refreshMetaPublish()
+		local uid = metaUserId
+		if uid == nil then
+			local list = Players:GetPlayers()
+			if #list > 0 then
+				uid = list[1].UserId
+				metaUserId = uid
+			end
+		end
+		if uid == nil then
+			ride:SetAttribute("NightmareUnlocked", false)
+			ride:SetAttribute("MetaArchive", "CASE FILES\n(no player yet)")
+			return
+		end
+		local data = MetaStore.load(uid)
+		ride:SetAttribute("NightmareUnlocked", data.nightmareUnlocked or data.runsCompleted > 0)
+		ride:SetAttribute("MetaArchive", formatArchive(data))
+	end
+
+	-- Single-car slice: one shared ride. Progress belongs to metaUserId
+	-- (whoever fired MetaStart / MetaAgain). Fallback is first player only.
+	local function persistMeta(def: Endings.EndingDefinition)
+		if Practice.offRecord(practiceOn, false) then
+			return
+		end
+		local uid = metaUserId
+		if uid == nil then
+			local list = Players:GetPlayers()
+			if #list == 0 then
+				return
+			end
+			uid = list[1].UserId
+			metaUserId = uid
+		end
+		local data = MetaStore.load(uid)
+		data.runsCompleted += 1
+		data.nightmareUnlocked = true
+		MetaStore.recordEnding(data, def.id, os.time())
+		local tapes: { MetaStore.TapeEntry } = {}
+		for _, tape in evpState.tapes do
+			table.insert(tapes, {
+				signalId = tape.signalId,
+				title = tape.title,
+				stop = tape.stop,
+				freq = tape.freq,
+				transcript = tape.transcript,
+			})
+		end
+		MetaStore.mergeTapes(data, tapes, Constants.META_TAPE_ARCHIVE_MAX)
+		local album: { MetaStore.PhotoEntry } = {}
+		for _, photo in polaroidPhotos do
+			table.insert(album, { id = photo.id, framed = photo.framed })
+		end
+		MetaStore.mergeAlbum(data, album, Constants.META_ALBUM_ARCHIVE_MAX)
+		for id in anomalyTypesSeen do
+			data.anomalyTypes[id] = true
+		end
+		local now = os.time()
+		if peakSuspicion == 0 then
+			Achievements.unlock(data.achievements, "iron_composure", now, false)
+		end
+		if def.id ~= "civilian_extraction" then
+			Achievements.unlock(data.achievements, "loop_breaker", now, false)
+		end
+		if accCorrect > 0 then
+			Achievements.unlock(data.achievements, "first_anomaly", now, false)
+		end
+		if anomalyTypesSeen["photo"] == true then
+			Achievements.unlock(data.achievements, "photo_evidence", now, false)
+		end
+		if #evpState.tapes >= 3 then
+			Achievements.unlock(data.achievements, "tuning_pro", now, false)
+		end
+		for _, tape in evpState.tapes do
+			if string.sub(tape.signalId, 1, 8) == "station-" then
+				Achievements.unlock(data.achievements, "broadcaster_lore", now, false)
+				break
+			end
+		end
+		if trestleBadgeChecked then
+			Achievements.unlock(data.achievements, "trestle_cross", now, false)
+		end
+		local documented = 0
+		for _ in data.anomalyTypes do
+			documented += 1
+		end
+		if documented >= 6 then
+			Achievements.unlock(data.achievements, "master_archivist", now, false)
+		end
+		MetaStore.save(uid, data)
+		refreshMetaPublish()
 	end
 
 	local function finishScore()
@@ -6771,6 +7873,7 @@ function Ride.start(car: CarBuilder.BuiltCar)
 		local def = Endings.resolve(summary)
 		finishScore()
 		publishReport(def, summary)
+		persistMeta(def)
 		ride:SetAttribute("Phase", "end")
 		ride:SetAttribute("NextStop", Route.stopName(13))
 	end
@@ -6821,15 +7924,16 @@ function Ride.start(car: CarBuilder.BuiltCar)
 			sampleSanity()
 		end
 		bandStop = seg.stop
-		applySanity(Sanity.driftForStop(seg.stop))
+		applySanity(Nightmare.driftDelta(Sanity.driftForStop(seg.stop), nightmareOn))
 
-		local length = Route.segmentLength(seg, Constants.ACCEL, Constants.BRAKE)
+		local cruiseLen = Nightmare.cruiseSeconds(seg.sliceCruise, nightmareOn)
+		local length = Constants.ACCEL + cruiseLen + Constants.BRAKE
 		inFinal = seg.final
 		if seg.final and huntedDim then
 			huntedDim = false
 		end
 		local held = Hold.applies(seg.stop, seg.b, seg.final, Constants.HOLD_STOP_A, Constants.HOLD_STOP_B)
-			and Hold.placed(Constants.HOLD_AT, Constants.HOLD_SECONDS, Constants.ACCEL, seg.sliceCruise)
+			and Hold.placed(Constants.HOLD_AT, Constants.HOLD_SECONDS, Constants.ACCEL, cruiseLen)
 		local holdAt = if held then Constants.HOLD_AT else 0
 		local holdFor = if held then Constants.HOLD_SECONDS else 0
 		beginStretch(seg, holdAt, holdFor)
@@ -6855,6 +7959,14 @@ function Ride.start(car: CarBuilder.BuiltCar)
 		stopNoticed = false
 		stopFalseAlarm = false
 		posterLive = false
+		stareAnomalyCharged = false
+		stareParentCharged = false
+		gazeSince = 0
+		stretchMovedM = 0
+		lastRootPos = nil
+		if picked ~= nil then
+			PsychLog.markSeen(psychLog, picked, Route.stopName(seg.stop))
+		end
 		clearCatalog()
 		local wrongCountdown = picked == "wrong_countdown"
 		setTell(AnomalySystem.COUNTDOWN_ID, wrongCountdown)
@@ -6912,19 +8024,28 @@ function Ride.start(car: CarBuilder.BuiltCar)
 		local chatIndex = seg.chat
 		if chatIndex ~= nil then
 			local exchange = Dialogue.chatFor(chatPlan, chatIndex)
-			if exchange ~= nil then
-				local first = exchange[1]
-				local second = exchange[2]
-				task.delay(Constants.CHAT_AT_1, function()
-					if token ~= segToken or ride:GetAttribute("Phase") ~= "ride" then
-						return
-					end
-					if ride:GetAttribute("MaskActive") == true or ride:GetAttribute("ChoiceActive") == true then
-						return
-					end
-					showSub(Dialogue.chatLine(first.who, first.line), Constants.CHAT_LINE_SECONDS)
-				end)
-				task.delay(Constants.CHAT_AT_2, function()
+			task.delay(Constants.CHAT_AT_1, function()
+				if token ~= segToken or ride:GetAttribute("Phase") ~= "ride" then
+					return
+				end
+				if ride:GetAttribute("MaskActive") == true or ride:GetAttribute("ChoiceActive") == true then
+					return
+				end
+				-- Hunted: swap in a band-tuned parent exchange.
+				local bandAttr = ride:GetAttribute("Band")
+				local use = exchange
+				if bandAttr == "hunted" then
+					use = Dialogue.huntedChat(function()
+						return math.random()
+					end)
+				end
+				if use == nil then
+					return
+				end
+				local first = use[1]
+				local second = use[2]
+				showSub(Dialogue.chatLine(first.who, first.line), Constants.CHAT_LINE_SECONDS)
+				task.delay(Constants.CHAT_AT_2 - Constants.CHAT_AT_1, function()
 					if token ~= segToken or ride:GetAttribute("Phase") ~= "ride" then
 						return
 					end
@@ -6933,7 +8054,7 @@ function Ride.start(car: CarBuilder.BuiltCar)
 					end
 					showSub(Dialogue.chatLine(second.who, second.line), Constants.CHAT_LINE_SECONDS)
 				end)
-			end
+			end)
 		end
 		local maskTimes = seg.masks
 		if maskTimes ~= nil then
@@ -7107,9 +8228,17 @@ function Ride.start(car: CarBuilder.BuiltCar)
 		end
 		local kind = Score.result(stopHadAnomaly, stopNoticed, stopFalseAlarm)
 		applySuspicion(Score.endDelta(kind, Constants.CLEAN_STOP_SUSPICION, Constants.DECAY_SUSPICION))
-		if seg.kind == "false" then
-			applySuspicion(Score.falseStopDelta(playerReactedAtFalseStop(), Constants.FALSE_STOP_REACT_SUSPICION))
+		if kind == "clean" then
+			local still = stretchMovedM < Constants.SITTING_STILL_MOVE_M
+			applySuspicion(Score.sittingStillDelta(still, Constants.SITTING_STILL_SUSPICION))
 		end
+		stretchMovedM = 0
+		lastRootPos = nil
+		stareAnomalyCharged = false
+		stareParentCharged = false
+		gazeSince = 0
+		falseStopReacted = false
+		falseStopOpen = false
 		local feedbackKind, word = stopWord(kind)
 		showFeedback(feedbackKind, word, false)
 		clearTells()
@@ -7159,6 +8288,9 @@ function Ride.start(car: CarBuilder.BuiltCar)
 		at(t0, openAt)
 		setDoorTarget(1)
 		local openedAt = os.clock()
+		if seg.kind == "false" then
+			falseStopOpen = true
+		end
 
 		-- Minimum dwell still runs while the player chooses Stay / Step off.
 		beginDwell(Constants.MIN_DWELL_SECONDS)
@@ -7174,6 +8306,10 @@ function Ride.start(car: CarBuilder.BuiltCar)
 			return
 		end
 		endDwell()
+		if seg.kind == "false" then
+			falseStopOpen = false
+			applySuspicion(Score.falseStopDelta(playerReactedAtFalseStop(), Constants.FALSE_STOP_REACT_SUSPICION))
+		end
 		local outcome = Doors.resolve(
 			seg.kind,
 			seg.forgiving,
@@ -7252,7 +8388,175 @@ function Ride.start(car: CarBuilder.BuiltCar)
 		task.wait(1.2)
 	end
 
-	task.spawn(function()
+	metaStartRemote.OnServerEvent:Connect(function(player: Player, nightmare: any, chapter: any)
+		if ride:GetAttribute("Phase") ~= "menu" then
+			return
+		end
+		if pendingStart ~= nil then
+			return
+		end
+		metaUserId = player.UserId
+		local ch = if typeof(chapter) == "number" then Practice.normalizeChapter(chapter) else 1
+		local data = MetaStore.load(player.UserId)
+		local unlocked = data.nightmareUnlocked or data.runsCompleted > 0
+		if ch > 1 and not unlocked then
+			ch = 1
+		end
+		local nm = nightmare == true and unlocked
+		pendingStart = { nightmare = nm, chapter = ch }
+	end)
+
+	metaAgainRemote.OnServerEvent:Connect(function(player: Player)
+		if ride:GetAttribute("Phase") ~= "end" or ride:GetAttribute("ReportReady") ~= true then
+			return
+		end
+		metaUserId = player.UserId
+		pendingAgain = true
+	end)
+
+	Players.PlayerAdded:Connect(function(player: Player)
+		if metaUserId == nil then
+			metaUserId = player.UserId
+			refreshMetaPublish()
+		end
+	end)
+	for _, player in Players:GetPlayers() do
+		if metaUserId == nil then
+			metaUserId = player.UserId
+		end
+	end
+	refreshMetaPublish()
+
+	local function clearReport()
+		ride:SetAttribute("ReportReady", false)
+		ride:SetAttribute("EndingId", "")
+		ride:SetAttribute("EndingTitle", "")
+		ride:SetAttribute("EndingBadge", "")
+		ride:SetAttribute("EndingNarrative", "")
+		ride:SetAttribute("ReportStats", "")
+		ride:SetAttribute("ReportPsych", "")
+	end
+
+	local function resetRunState()
+		table.clear(flagged)
+		falseFlags = 0
+		caught = false
+		suspicion = 0
+		peakSuspicion = 0
+		sanity = Constants.SANITY_START
+		bandStop = 1
+		table.clear(sanSamples)
+		interventions = 0
+		intervening = false
+		restraintState = nil
+		restraintDone = false
+		restraintOK = false
+		restraintHeld = false
+		table.clear(restraintHidden)
+		table.clear(restraintMomRest)
+		accCorrect = 0
+		accMiss = 0
+		table.clear(trialStops)
+		finalExit = "escalators"
+		pendingExitChoice = nil
+		stopHadAnomaly = false
+		stopNoticed = false
+		stopFalseAlarm = false
+		posterLive = false
+		inFinal = false
+		huntedDim = false
+		table.clear(maskUsed)
+		maskLast = nil
+		maskBusy = false
+		chatPlan = Dialogue.buildChatPlan(function()
+			return math.random()
+		end)
+		hasRecorder = false
+		evpState = Evp.newState(function()
+			return math.random()
+		end)
+		currentSegStop = nil
+		cameraRaised = false
+		albumOpen = false
+		filmLeft = Polaroid.STARTING_FILM
+		nextShotAt = 0
+		table.clear(polaroidPhotos)
+		photoSeq = 0
+		trestleBadgeChecked = false
+		table.clear(anomalyTypesSeen)
+		psychLog = PsychLog.newRide()
+		gazeTarget = nil
+		gazeSince = 0
+		stareAnomalyCharged = false
+		stareParentCharged = false
+		falseStopReacted = false
+		falseStopOpen = false
+		stretchMovedM = 0
+		lastRootPos = nil
+		stretch = nil
+		odo = 0
+		lastOpenAir = -1
+		publishOpenAir(0)
+		setDoorTarget(1)
+		doorOpen = 1
+		clearCatalog()
+		clearTells()
+		clearExtra()
+		clearMaskUi()
+		clearTrialUi()
+		ride:SetAttribute("Suspicion", 0)
+		ride:SetAttribute("PeakSuspicion", 0)
+		publishSanity()
+		ride:SetAttribute("SanityRetained", 0)
+		ride:SetAttribute("Interventions", 0)
+		ride:SetAttribute("Intervening", false)
+		ride:SetAttribute("RestraintActive", false)
+		ride:SetAttribute("RestraintProgress", 0)
+		ride:SetAttribute("RestraintOK", false)
+		ride:SetAttribute("ExitActive", false)
+		ride:SetAttribute("ExitUntil", 0)
+		ride:SetAttribute("HasRecorder", false)
+		ride:SetAttribute("SegStop", 0)
+		ride:SetAttribute("EvpRaised", false)
+		ride:SetAttribute("EvpKhz", 120)
+		ride:SetAttribute("EvpMeter", 0)
+		ride:SetAttribute("EvpLocked", "")
+		ride:SetAttribute("EvpStatus", "")
+		ride:SetAttribute("EvpRecordT", 0)
+		ride:SetAttribute("EvpTapes", "[]")
+		ride:SetAttribute("EvpSaved", "")
+		ride:SetAttribute("EvpPlayId", "")
+		ride:SetAttribute("CameraRaised", false)
+		ride:SetAttribute("AlbumOpen", false)
+		ride:SetAttribute("FilmLeft", Polaroid.STARTING_FILM)
+		ride:SetAttribute("PolaroidAlbum", "[]")
+		ride:SetAttribute("Band", "calm")
+		ride:SetAttribute("FalseStopBonus", 0)
+		ride:SetAttribute("BoardStop", "")
+		ride:SetAttribute("BoardMinutes", 0)
+		ride:SetAttribute("Held", false)
+		ride:SetAttribute("ChoiceActive", false)
+		ride:SetAttribute("MaskActive", false)
+		ride:SetAttribute("TrialActive", false)
+		ride:SetAttribute("PaText", "")
+		ride:SetAttribute("Subtitle", "")
+		ride:SetAttribute("Hint", "")
+		ride:SetAttribute("Feedback", "")
+		ride:SetAttribute("FeedbackKind", "")
+		ride:SetAttribute("NightmareOn", nightmareOn)
+		ride:SetAttribute("PracticeOn", practiceOn)
+		ride:SetAttribute(
+			"PracticeNote",
+			if practiceOn then Lines.META_PRACTICE_NOTE else ""
+		)
+		publishBand()
+		publishEvp()
+		publishCamera()
+		publishRestraint()
+		clearReport()
+	end
+
+	local function runIntro()
 		ride:SetAttribute("Phase", "intro")
 		doorOpen = 1
 		setDoorTarget(1)
@@ -7275,13 +8579,70 @@ function Ride.start(car: CarBuilder.BuiltCar)
 		resolveDeparture(os.clock() - openedAt)
 		setDoorTarget(0)
 		task.wait(1.2)
+	end
 
-		for _, seg in Route.SEGMENTS do
-			runSegment(seg)
-			arrive(seg)
-			if seg.final then
+	local function runPracticeBoard()
+		ride:SetAttribute("Phase", "intro")
+		doorOpen = 1
+		setDoorTarget(1)
+		local originStop = if startChapter == 3 then 10 elseif startChapter == 2 then 5 else 1
+		ride:SetAttribute("NextStop", Route.stopName(originStop + 1))
+		ride:SetAttribute("ChapterLine", Route.chapterLine(originStop))
+		Scenery.setName(leaving, Route.stopName(originStop))
+		showPa(Lines.INTRO_PA, 2.5)
+		showSub(Lines.META_PRACTICE_NOTE, 3.0)
+		if startChapter >= 2 then
+			giveRecorder("practice")
+		end
+		task.wait(2.2)
+		showPa(Lines.STAND_CLEAR, 2)
+		task.wait(1.2)
+		setDoorTarget(0)
+		task.wait(1.0)
+	end
+
+	task.spawn(function()
+		while ride.Parent ~= nil do
+			pendingStart = nil
+			pendingAgain = false
+			clearReport()
+			ride:SetAttribute("NightmareOn", false)
+			ride:SetAttribute("PracticeOn", false)
+			ride:SetAttribute("PracticeNote", "")
+			ride:SetAttribute("Phase", "menu")
+			ride:SetAttribute("Hint", Lines.META_HINT)
+			refreshMetaPublish()
+			while pendingStart == nil and ride.Parent ~= nil do
+				task.wait(0.1)
+			end
+			if ride.Parent == nil or pendingStart == nil then
 				break
 			end
+			local choice = pendingStart
+			pendingStart = nil
+			nightmareOn = choice.nightmare
+			startChapter = choice.chapter
+			practiceOn = Practice.isPractice(startChapter)
+			resetRunState()
+			if practiceOn then
+				runPracticeBoard()
+			else
+				runIntro()
+			end
+			local from = Practice.startIndex(startChapter)
+			for i = from, #Route.SEGMENTS do
+				local seg = Route.SEGMENTS[i]
+				runSegment(seg)
+				arrive(seg)
+				if seg.final then
+					break
+				end
+			end
+			local deadline = os.clock() + Constants.META_REPORT_IDLE_SECONDS
+			while ride.Parent ~= nil and not pendingAgain and os.clock() < deadline do
+				task.wait(0.1)
+			end
+			pendingAgain = false
 		end
 	end)
 end
@@ -7290,7 +8651,7 @@ return Ride
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="30">
+      <Item class="ModuleScript" referent="35">
         <Properties>
           <string name="Name">Scenery</string>
           <string name="Source"><![CDATA[--!strict
@@ -7724,7 +9085,7 @@ return Scenery
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="31">
+      <Item class="ModuleScript" referent="36">
         <Properties>
           <string name="Name">TrialSpace</string>
           <string name="Source"><![CDATA[--!strict
@@ -7984,7 +9345,7 @@ return TrialSpace
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="32">
+      <Item class="ModuleScript" referent="37">
         <Properties>
           <string name="Name">WorldLight</string>
           <string name="Source"><![CDATA[--!strict
@@ -8147,18 +9508,18 @@ return WorldLight
       </Item>
     </Item>
   </Item>
-  <Item class="StarterPlayer" referent="33">
+  <Item class="StarterPlayer" referent="38">
     <Properties>
       <string name="Name">StarterPlayer</string>
       <float name="CameraMaxZoomDistance">0.5</float>
       <float name="CameraMinZoomDistance">0.5</float>
       <token name="CameraMode">1</token>
     </Properties>
-    <Item class="StarterPlayerScripts" referent="34">
+    <Item class="StarterPlayerScripts" referent="39">
       <Properties>
         <string name="Name">StarterPlayerScripts</string>
       </Properties>
-      <Item class="LocalScript" referent="35">
+      <Item class="LocalScript" referent="40">
         <Properties>
           <string name="Name">Client</string>
           <string name="Source"><![CDATA[--!strict
@@ -8175,6 +9536,8 @@ local TrialChoice = require(script.TrialChoice)
 local Exit = require(script.Exit)
 local Evp = require(script.Evp)
 local Polaroid = require(script.Polaroid)
+local Meta = require(script.Meta)
+local Gaze = require(script.Gaze)
 
 Hud.start()
 Flag.start(Hud.flagButton())
@@ -8206,12 +9569,20 @@ Exit.start(
 )
 Evp.start(Hud.recorderButton(), Hud.evidenceButton())
 Polaroid.start(Hud.cameraButton(), Hud.albumButton())
+Meta.start(
+	Hud.setMenuVisible,
+	Hud.setNightmareLabel,
+	Hud.setArchiveText,
+	Hud.setArchiveVisible,
+	Hud.againButton()
+)
 Walk.start()
 Sway.start()
 Glance.start()
+Gaze.start()
 ]]></string>
         </Properties>
-        <Item class="ModuleScript" referent="36">
+        <Item class="ModuleScript" referent="41">
           <Properties>
             <string name="Name">Audio</string>
             <string name="Source"><![CDATA[--!strict
@@ -8506,7 +9877,7 @@ return Audio
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="37">
+        <Item class="ModuleScript" referent="42">
           <Properties>
             <string name="Name">Choice</string>
             <string name="Source"><![CDATA[--!strict
@@ -8594,7 +9965,7 @@ return Choice
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="38">
+        <Item class="ModuleScript" referent="43">
           <Properties>
             <string name="Name">Evp</string>
             <string name="Source"><![CDATA[--!strict
@@ -8965,6 +10336,9 @@ function Evp.start(recorderButton: TextButton, evidenceButton: TextButton)
 		if processed then
 			return
 		end
+		if ride:GetAttribute("Phase") == "menu" then
+			return
+		end
 		if input.KeyCode == Enum.KeyCode.R then
 			toggleRemote:FireServer()
 		elseif input.KeyCode == Enum.KeyCode.Tab then
@@ -9032,7 +10406,7 @@ return Evp
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="39">
+        <Item class="ModuleScript" referent="44">
           <Properties>
             <string name="Name">Exit</string>
             <string name="Source"><![CDATA[--!strict
@@ -9134,7 +10508,7 @@ return Exit
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="40">
+        <Item class="ModuleScript" referent="45">
           <Properties>
             <string name="Name">Flag</string>
             <string name="Source"><![CDATA[--!strict
@@ -9303,7 +10677,95 @@ return Flag
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="41">
+        <Item class="ModuleScript" referent="46">
+          <Properties>
+            <string name="Name">Gaze</string>
+            <string name="Source"><![CDATA[--!strict
+-- Center gaze report for caught-staring. Server owns the meter; this only
+-- raycasts and tells Remotes.Gaze who (if anyone) is under the crosshair.
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+
+local Constants = require(ReplicatedStorage.Shared.Constants)
+
+local Gaze = {}
+
+local function passengerFromHit(inst: Instance): string?
+	local found: string? = nil
+	local hidden = false
+	local current: Instance? = inst
+	while current ~= nil and current ~= workspace do
+		local id = current:GetAttribute("PassengerId")
+		if typeof(id) == "string" then
+			found = id
+		end
+		if current:GetAttribute("Hidden") == true then
+			hidden = true
+		end
+		current = current.Parent
+	end
+	if hidden then
+		return nil
+	end
+	return found
+end
+
+local function gazeId(): string?
+	local camera = workspace.CurrentCamera
+	if camera == nil then
+		return nil
+	end
+	local params = RaycastParams.new()
+	params.FilterType = Enum.RaycastFilterType.Exclude
+	local character = Players.LocalPlayer.Character
+	if character ~= nil then
+		params.FilterDescendantsInstances = { character }
+	end
+	local result =
+		workspace:Raycast(camera.CFrame.Position, camera.CFrame.LookVector * Constants.meters(Constants.FLAG_RANGE_M), params)
+	if result == nil then
+		return nil
+	end
+	return passengerFromHit(result.Instance)
+end
+
+function Gaze.start()
+	local ride = ReplicatedStorage:WaitForChild("Ride")
+	local remotes = ReplicatedStorage:WaitForChild("Remotes")
+	local gazeRemote = remotes:WaitForChild("Gaze") :: RemoteEvent
+	local lastSent: string? = nil
+	local lastAt = 0
+
+	RunService.Heartbeat:Connect(function()
+		local phase = ride:GetAttribute("Phase")
+		if phase ~= "ride" and phase ~= "stop" and phase ~= "haven" then
+			if lastSent ~= nil then
+				lastSent = nil
+				gazeRemote:FireServer(nil)
+			end
+			return
+		end
+		local now = os.clock()
+		if now - lastAt < 0.12 then
+			return
+		end
+		lastAt = now
+		local id = gazeId()
+		if id == lastSent then
+			return
+		end
+		lastSent = id
+		gazeRemote:FireServer(id)
+	end)
+end
+
+return Gaze
+]]></string>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="47">
           <Properties>
             <string name="Name">Glance</string>
             <string name="Source"><![CDATA[--!strict
@@ -9485,7 +10947,7 @@ return Glance
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="42">
+        <Item class="ModuleScript" referent="48">
           <Properties>
             <string name="Name">Hud</string>
             <string name="Source"><![CDATA[--!strict
@@ -9530,6 +10992,11 @@ local reportBadge: TextLabel? = nil
 local reportTitle: TextLabel? = nil
 local reportNarrative: TextLabel? = nil
 local reportStats: TextLabel? = nil
+local reportPsych: TextLabel? = nil
+local againButton: TextButton? = nil
+local metaMenuFrame: Frame? = nil
+local metaArchiveLabel: TextLabel? = nil
+local metaNightmareLabel: TextLabel? = nil
 local recorderButton: TextButton? = nil
 local evidenceButton: TextButton? = nil
 local cameraButton: TextButton? = nil
@@ -9790,6 +11257,39 @@ function Hud.setProgress(ratio: number, holding: boolean)
 		button.BackgroundColor3 = Color3.fromRGB(28, 46, 22)
 	else
 		button.BackgroundColor3 = Color3.fromRGB(8, 8, 8)
+	end
+end
+
+function Hud.againButton(): TextButton
+	assert(againButton ~= nil, "Hud.start must run first")
+	return againButton
+end
+
+function Hud.setMenuVisible(visible: boolean)
+	local frame = metaMenuFrame
+	if frame ~= nil then
+		frame.Visible = visible
+	end
+end
+
+function Hud.setNightmareLabel(text: string, _unlocked: boolean)
+	local lbl = metaNightmareLabel
+	if lbl ~= nil then
+		lbl.Text = text
+	end
+end
+
+function Hud.setArchiveText(text: string)
+	local lbl = metaArchiveLabel
+	if lbl ~= nil then
+		lbl.Text = text
+	end
+end
+
+function Hud.setArchiveVisible(visible: boolean)
+	local lbl = metaArchiveLabel
+	if lbl ~= nil then
+		lbl.Visible = visible
 	end
 end
 
@@ -10351,7 +11851,7 @@ function Hud.start()
 	reportCard.Name = "TravelReport"
 	reportCard.AnchorPoint = Vector2.new(0.5, 0.5)
 	reportCard.Position = UDim2.fromScale(0.5, 0.5)
-	reportCard.Size = UDim2.fromOffset(420, 360)
+	reportCard.Size = UDim2.fromOffset(440, 480)
 	reportCard.BackgroundColor3 = Color3.fromRGB(236, 230, 214)
 	reportCard.BackgroundTransparency = 0.05
 	reportCard.BorderSizePixel = 0
@@ -10395,7 +11895,7 @@ function Hud.start()
 	local narrative = label(reportCard, "", 13, Color3.fromRGB(40, 40, 40))
 	narrative.Name = "Narrative"
 	narrative.Position = UDim2.fromOffset(16, 124)
-	narrative.Size = UDim2.new(1, -32, 0, 110)
+	narrative.Size = UDim2.new(1, -32, 0, 90)
 	narrative.TextYAlignment = Enum.TextYAlignment.Top
 	narrative.ZIndex = 21
 	reportNarrative = narrative
@@ -10403,11 +11903,97 @@ function Hud.start()
 	local stats = label(reportCard, "", 12, Color3.fromRGB(50, 50, 50))
 	stats.Name = "Stats"
 	stats.Font = Enum.Font.Code
-	stats.Position = UDim2.fromOffset(16, 240)
-	stats.Size = UDim2.new(1, -32, 0, 100)
+	stats.Position = UDim2.fromOffset(16, 218)
+	stats.Size = UDim2.new(1, -32, 0, 90)
 	stats.TextYAlignment = Enum.TextYAlignment.Top
 	stats.ZIndex = 21
 	reportStats = stats
+
+	local psych = label(reportCard, "", 11, Color3.fromRGB(60, 55, 48))
+	psych.Name = "Psych"
+	psych.Font = Enum.Font.Code
+	psych.Position = UDim2.fromOffset(16, 312)
+	psych.Size = UDim2.new(1, -32, 0, 88)
+	psych.TextYAlignment = Enum.TextYAlignment.Top
+	psych.ZIndex = 21
+	reportPsych = psych
+
+	local again = Instance.new("TextButton")
+	again.Name = "Again"
+	again.Position = UDim2.fromOffset(16, 410)
+	again.Size = UDim2.new(1, -32, 0, 40)
+	again.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+	again.BorderSizePixel = 0
+	again.Font = Enum.Font.GothamBold
+	again.Text = Lines.META_AGAIN .. "  [Enter]"
+	again.TextSize = 15
+	again.TextColor3 = Color3.fromRGB(236, 230, 214)
+	again.Visible = false
+	again.ZIndex = 22
+	again.Parent = reportCard
+	corner(again, 6)
+	againButton = again
+
+	local menu = Instance.new("Frame")
+	menu.Name = "MetaMenu"
+	menu.AnchorPoint = Vector2.new(0.5, 0.5)
+	menu.Position = UDim2.fromScale(0.5, 0.48)
+	menu.Size = UDim2.fromOffset(460, 520)
+	menu.BackgroundColor3 = Color3.fromRGB(12, 12, 14)
+	menu.BackgroundTransparency = 0.12
+	menu.BorderSizePixel = 0
+	menu.Visible = false
+	menu.ZIndex = 30
+	menu.Parent = gui
+	corner(menu, 8)
+	metaMenuFrame = menu
+
+	local menuTitle = label(menu, Lines.META_TITLE, 28, Color3.fromRGB(236, 230, 214))
+	menuTitle.Font = Enum.Font.GothamBold
+	menuTitle.Position = UDim2.fromOffset(20, 16)
+	menuTitle.Size = UDim2.new(1, -40, 0, 36)
+	menuTitle.TextXAlignment = Enum.TextXAlignment.Center
+	menuTitle.ZIndex = 31
+
+	local menuHint = label(menu, Lines.META_HINT, 13, Color3.fromRGB(180, 176, 168))
+	menuHint.Position = UDim2.fromOffset(20, 56)
+	menuHint.Size = UDim2.new(1, -40, 0, 36)
+	menuHint.TextXAlignment = Enum.TextXAlignment.Center
+	menuHint.ZIndex = 31
+
+	local function menuBtn(name: string, text: string, y: number): TextButton
+		local btn = Instance.new("TextButton")
+		btn.Name = name
+		btn.Position = UDim2.fromOffset(24, y)
+		btn.Size = UDim2.new(1, -48, 0, 36)
+		btn.BackgroundColor3 = Color3.fromRGB(28, 28, 32)
+		btn.BorderSizePixel = 0
+		btn.Font = Enum.Font.GothamMedium
+		btn.Text = text
+		btn.TextSize = 15
+		btn.TextColor3 = Color3.fromRGB(236, 230, 214)
+		btn.ZIndex = 31
+		btn.Parent = menu
+		corner(btn, 6)
+		return btn
+	end
+
+	menuBtn("StartCh1", "[1]  " .. Lines.META_START, 100)
+	menuBtn("StartCh2", "[2]  " .. Lines.META_CH2, 144)
+	menuBtn("StartCh3", "[3]  " .. Lines.META_CH3, 188)
+	local nmBtn = menuBtn("Nightmare", "[N]  " .. Lines.META_NIGHTMARE_LOCKED, 232)
+	metaNightmareLabel = nmBtn
+	menuBtn("Archive", "[Tab]  " .. Lines.META_ARCHIVE, 276)
+
+	local archiveLbl = label(menu, "", 12, Color3.fromRGB(200, 196, 188))
+	archiveLbl.Name = "ArchiveText"
+	archiveLbl.Font = Enum.Font.Code
+	archiveLbl.Position = UDim2.fromOffset(24, 324)
+	archiveLbl.Size = UDim2.new(1, -48, 0, 176)
+	archiveLbl.TextYAlignment = Enum.TextYAlignment.Top
+	archiveLbl.Visible = false
+	archiveLbl.ZIndex = 31
+	metaArchiveLabel = archiveLbl
 
 	local dwellCard = Instance.new("Frame")
 	dwellCard.Name = "Dwell"
@@ -10586,6 +12172,9 @@ function Hud.start()
 			if reportStats ~= nil then
 				reportStats.Text = textOf("ReportStats")
 			end
+			if reportPsych ~= nil then
+				reportPsych.Text = textOf("ReportPsych")
+			end
 		end
 	end
 
@@ -10628,7 +12217,7 @@ return Hud
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="43">
+        <Item class="ModuleScript" referent="49">
           <Properties>
             <string name="Name">Mask</string>
             <string name="Source"><![CDATA[--!strict
@@ -10742,7 +12331,162 @@ return Mask
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="44">
+        <Item class="ModuleScript" referent="50">
+          <Properties>
+            <string name="Name">Meta</string>
+            <string name="Source"><![CDATA[--!strict
+-- Start menu: nightmare toggle, chapter/practice, archive, play again.
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local UserInputService = game:GetService("UserInputService")
+
+local Lines = require(ReplicatedStorage.Shared.Lines)
+
+local Meta = {}
+
+function Meta.start(
+	setMenuVisible: (boolean) -> (),
+	setNightmareLabel: (string, boolean) -> (),
+	setArchiveText: (string) -> (),
+	setArchiveVisible: (boolean) -> (),
+	againButton: TextButton
+)
+	local ride = ReplicatedStorage:WaitForChild("Ride")
+	local remotes = ReplicatedStorage:WaitForChild("Remotes")
+	local startRemote = remotes:WaitForChild("MetaStart") :: RemoteEvent
+	local againRemote = remotes:WaitForChild("MetaAgain") :: RemoteEvent
+
+	local nightmare = false
+	local archiveOpen = false
+	local sent = false
+	local wasMenu = false
+
+	local function menuOn(): boolean
+		return ride:GetAttribute("Phase") == "menu"
+	end
+
+	local function reportOn(): boolean
+		return ride:GetAttribute("ReportReady") == true
+	end
+
+	local function unlocked(): boolean
+		return ride:GetAttribute("NightmareUnlocked") == true
+	end
+
+	local function refresh()
+		local on = menuOn()
+		setMenuVisible(on)
+		-- Only clear the start latch when re-entering the menu, not on every
+		-- attribute tick while still Phase == menu (that re-armed duplicate starts).
+		if on and not wasMenu then
+			sent = false
+		end
+		wasMenu = on
+		if unlocked() then
+			setNightmareLabel(
+				"[N]  " .. Lines.META_NIGHTMARE .. if nightmare then " · ON" else " · off",
+				true
+			)
+		else
+			setNightmareLabel("[N]  " .. Lines.META_NIGHTMARE_LOCKED, false)
+			nightmare = false
+		end
+		local arch = ride:GetAttribute("MetaArchive")
+		if typeof(arch) == "string" then
+			setArchiveText(arch)
+		else
+			setArchiveText("")
+		end
+		setArchiveVisible(on and archiveOpen)
+		againButton.Visible = reportOn()
+	end
+
+	local function fireStart(chapter: number)
+		if not menuOn() or sent then
+			return
+		end
+		if chapter > 1 and not unlocked() then
+			return
+		end
+		sent = true
+		startRemote:FireServer(unlocked() and nightmare, chapter)
+	end
+
+	againButton.MouseButton1Click:Connect(function()
+		if reportOn() then
+			againRemote:FireServer()
+		end
+	end)
+
+	UserInputService.InputBegan:Connect(function(input: InputObject, processed: boolean)
+		if processed then
+			return
+		end
+		if menuOn() then
+			if input.KeyCode == Enum.KeyCode.One or input.KeyCode == Enum.KeyCode.KeypadOne then
+				fireStart(1)
+			elseif input.KeyCode == Enum.KeyCode.Two or input.KeyCode == Enum.KeyCode.KeypadTwo then
+				fireStart(2)
+			elseif input.KeyCode == Enum.KeyCode.Three or input.KeyCode == Enum.KeyCode.KeypadThree then
+				fireStart(3)
+			elseif input.KeyCode == Enum.KeyCode.N then
+				if unlocked() then
+					nightmare = not nightmare
+					refresh()
+				end
+			elseif input.KeyCode == Enum.KeyCode.Tab then
+				archiveOpen = not archiveOpen
+				refresh()
+			end
+		elseif
+			reportOn()
+			and (input.KeyCode == Enum.KeyCode.Return or input.KeyCode == Enum.KeyCode.KeypadEnter)
+		then
+			againRemote:FireServer()
+		end
+	end)
+
+	local gui = Players.LocalPlayer:WaitForChild("PlayerGui"):WaitForChild("LastLocalHud")
+	local menu = gui:WaitForChild("MetaMenu")
+	menu:WaitForChild("StartCh1").MouseButton1Click:Connect(function()
+		fireStart(1)
+	end)
+	menu:WaitForChild("StartCh2").MouseButton1Click:Connect(function()
+		fireStart(2)
+	end)
+	menu:WaitForChild("StartCh3").MouseButton1Click:Connect(function()
+		fireStart(3)
+	end)
+	menu:WaitForChild("Nightmare").MouseButton1Click:Connect(function()
+		if unlocked() then
+			nightmare = not nightmare
+			refresh()
+		end
+	end)
+	menu:WaitForChild("Archive").MouseButton1Click:Connect(function()
+		archiveOpen = not archiveOpen
+		refresh()
+	end)
+
+	ride.AttributeChanged:Connect(function(name: string)
+		if
+			name == "Phase"
+			or name == "NightmareUnlocked"
+			or name == "MetaArchive"
+			or name == "ReportReady"
+		then
+			refresh()
+		end
+	end)
+	refresh()
+end
+
+return Meta
+]]></string>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="51">
           <Properties>
             <string name="Name">Polaroid</string>
             <string name="Source"><![CDATA[--!strict
@@ -11026,7 +12770,7 @@ return Polaroid
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="45">
+        <Item class="ModuleScript" referent="52">
           <Properties>
             <string name="Name">Sway</string>
             <string name="Source"><![CDATA[--!strict
@@ -11107,7 +12851,7 @@ return Sway
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="46">
+        <Item class="ModuleScript" referent="53">
           <Properties>
             <string name="Name">TrialChoice</string>
             <string name="Source"><![CDATA[--!strict
@@ -11240,7 +12984,7 @@ return TrialChoice
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="47">
+        <Item class="ModuleScript" referent="54">
           <Properties>
             <string name="Name">Walk</string>
             <string name="Source"><![CDATA[--!strict
@@ -11373,7 +13117,7 @@ return Walk
       </Item>
     </Item>
   </Item>
-  <Item class="Workspace" referent="48">
+  <Item class="Workspace" referent="55">
     <Properties>
       <string name="Name">Workspace</string>
       <float name="Gravity">196.2</float>
