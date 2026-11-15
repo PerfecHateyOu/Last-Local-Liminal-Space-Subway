@@ -5911,8 +5911,12 @@ function Ride.start(car: CarBuilder.BuiltCar)
 		restraintHeld = held
 	end)
 
-	exitRemote.OnServerEvent:Connect(function(_player: Player, choice: any)
+	exitRemote.OnServerEvent:Connect(function(player: Player, choice: any)
 		if ride:GetAttribute("ExitActive") ~= true then
+			return
+		end
+		-- Single-player slice: ignore Exit from anyone not in the ride.
+		if player.Character == nil then
 			return
 		end
 		if typeof(choice) ~= "string" then
