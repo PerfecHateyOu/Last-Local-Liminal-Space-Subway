@@ -24,6 +24,7 @@ function Meta.start(
 	local nightmare = false
 	local archiveOpen = false
 	local sent = false
+	local wasMenu = false
 
 	local function menuOn(): boolean
 		return ride:GetAttribute("Phase") == "menu"
@@ -40,9 +41,12 @@ function Meta.start(
 	local function refresh()
 		local on = menuOn()
 		setMenuVisible(on)
-		if on then
+		-- Only clear the start latch when re-entering the menu, not on every
+		-- attribute tick while still Phase == menu (that re-armed duplicate starts).
+		if on and not wasMenu then
 			sent = false
 		end
+		wasMenu = on
 		if unlocked() then
 			setNightmareLabel(
 				"[N]  " .. Lines.META_NIGHTMARE .. if nightmare then " · ON" else " · off",

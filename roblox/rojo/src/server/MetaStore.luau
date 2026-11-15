@@ -1,6 +1,8 @@
 --!strict
 -- Player meta progression: endings archive, achievements, tapes, album, run count.
 -- Uses DataStore when available; falls back to an in-memory table (Studio / offline).
+-- Failed GetAsync never seeds an empty save that later SetAsync could clobber cloud data.
+-- Once a key is live in memory for this session, load returns that copy (no delayed overwrite).
 
 local DataStoreService = game:GetService("DataStoreService")
 local HttpService = game:GetService("HttpService")
@@ -22,6 +24,8 @@ export type Save = {
 }
 
 local memory: { [string]: Save } = {}
+-- Keys where GetAsync failed: memory is session-only; skip SetAsync to avoid wiping cloud.
+local cloudBlocked: { [string]: boolean } = {}
 local store: GlobalDataStore? = nil
 
 local function tryStore(): GlobalDataStore?
@@ -54,48 +58,70 @@ local function keyFor(userId: number): string
 	return "u_" .. tostring(userId)
 end
 
+local function fromRaw(raw: any): Save
+	local s = MetaStore.empty()
+	if typeof(raw) ~= "table" then
+		return s
+	end
+	local t = raw :: any
+	if typeof(t.runsCompleted) == "number" then
+		s.runsCompleted = t.runsCompleted
+	end
+	s.nightmareUnlocked = t.nightmareUnlocked == true or s.runsCompleted > 0
+	if typeof(t.endings) == "table" then
+		s.endings = t.endings
+	end
+	if typeof(t.achievements) == "table" then
+		s.achievements = t.achievements
+	end
+	if typeof(t.tapes) == "table" then
+		s.tapes = t.tapes
+	end
+	if typeof(t.album) == "table" then
+		s.album = t.album
+	end
+	if typeof(t.anomalyTypes) == "table" then
+		s.anomalyTypes = t.anomalyTypes
+	end
+	return s
+end
+
 function MetaStore.load(userId: number): Save
 	local k = keyFor(userId)
+	-- Session copy wins: avoids a late GetAsync overwriting in-memory progress.
+	local existing = memory[k]
+	if existing ~= nil then
+		return existing
+	end
 	local ds = tryStore()
 	if ds ~= nil then
 		local ok, raw = pcall(function()
 			return ds:GetAsync(k)
 		end)
-		if ok and typeof(raw) == "table" then
-			local s = MetaStore.empty()
-			local t = raw :: any
-			if typeof(t.runsCompleted) == "number" then
-				s.runsCompleted = t.runsCompleted
-			end
-			s.nightmareUnlocked = t.nightmareUnlocked == true or s.runsCompleted > 0
-			if typeof(t.endings) == "table" then
-				s.endings = t.endings
-			end
-			if typeof(t.achievements) == "table" then
-				s.achievements = t.achievements
-			end
-			if typeof(t.tapes) == "table" then
-				s.tapes = t.tapes
-			end
-			if typeof(t.album) == "table" then
-				s.album = t.album
-			end
-			if typeof(t.anomalyTypes) == "table" then
-				s.anomalyTypes = t.anomalyTypes
-			end
+		if ok then
+			cloudBlocked[k] = nil
+			-- nil raw = first-time player; empty save is safe to persist later.
+			local s = fromRaw(raw)
 			memory[k] = s
 			return s
 		end
+		-- Read failed: session empty only; do not SetAsync until a later load succeeds.
+		cloudBlocked[k] = true
+		local s = MetaStore.empty()
+		memory[k] = s
+		return s
 	end
-	if memory[k] == nil then
-		memory[k] = MetaStore.empty()
-	end
-	return memory[k]
+	local s = MetaStore.empty()
+	memory[k] = s
+	return s
 end
 
 function MetaStore.save(userId: number, data: Save)
 	local k = keyFor(userId)
 	memory[k] = data
+	if cloudBlocked[k] then
+		return
+	end
 	local ds = tryStore()
 	if ds == nil then
 		return

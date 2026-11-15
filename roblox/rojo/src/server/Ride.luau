@@ -1801,6 +1801,8 @@ function Ride.start(car: CarBuilder.BuiltCar)
 		ride:SetAttribute("MetaArchive", formatArchive(data))
 	end
 
+	-- Single-car slice: one shared ride. Progress belongs to metaUserId
+	-- (whoever fired MetaStart / MetaAgain). Fallback is first player only.
 	local function persistMeta(def: Endings.EndingDefinition)
 		if Practice.offRecord(practiceOn, false) then
 			return
