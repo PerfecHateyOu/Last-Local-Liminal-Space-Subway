@@ -220,4 +220,9 @@ Lines.META_ARCHIVE = "Case Files"
 Lines.META_AGAIN = "Back to menu"
 Lines.META_HINT = "Choose a ride. Nightmare unlocks after one full arrival at Court Sq."
 
+-- Caught staring / false-stop react feedback.
+Lines.STARE_CAUGHT = "They saw you looking."
+Lines.STARE_PARENT = "Mom: Don’t stare."
+Lines.FALSE_STOP_REACT = "You moved toward the doors. They noticed."
+
 return Lines

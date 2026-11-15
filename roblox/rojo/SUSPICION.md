@@ -41,17 +41,25 @@ TBD is undecided — do not fill it in from a guess.
 - Tape recorder / EVP after `HasRecorder`: raise, tune, lock, hold-to-record,
   Evidence tape list + playback (TapeGlance may turn a head).
 
+**Added in remaining-suspicion pass**
+
+- Caught-staring: Gaze remote + dwell; +15 while looking at a live anomaly when
+  parents are alert (watched/hunted, or hold `StareIntervalScale` > 1 on uneasy+).
+  Prolonged stare at Mom/Dad is +5. Hold multiplier shortens the dwell need.
+- False-stop react: standing near an open door leaf during a false-stop dwell
+  (+10). Early-departure hook stays **false** on purpose (passenger, no dispatch).
+- Psych Log on the Travel Report (ride-local seen / documented catalog entries).
+  Persistent Case Files remain MetaStore (PR15).
+- Band-tuned parent masks (calm / uneasy–watched / hunted tiers) and hunted chat
+  overlays. Critical **glitch** UI (PARANOID_UI_WORDS) stays out.
+- Sitting-still extra decay on clean stops; flicker tick scales at watched/hunted.
+
 **Still not in this port (TBD)**
 
-- Caught-staring check (and the hold stare-interval multiplier is published only).
-- False-stop reaction and early-departure hooks (functions exist, always false).
-- Psych Log UI.
-- Parents' other lines changing by band (chats/masks are in; band-tuned variants are not).
-- Critical-tier mask glitch UI and nightmare stare timing.
-- Court Square ending variants by final band (trial history not wired to endings).
-- Sitting-still decay from §3 (not wired).
-- Case Files / tape archive persistence across rides.
-- Polaroid camera and polaroid-inside-trial polish.
+- Critical-tier mask glitch UI and nightmare glance/bulb extras beyond cruise/speed/drift.
+- Inventing new Court Square ending variants by final band alone (resolveEnding
+  already uses peak, trials, tapes, exit, restraint, interventions).
+- Polaroid-inside-trial polish.
 
 The player is a passenger: the kid riding with Mom and Dad, the same as the web
 game. Decided. They are not a conductor. See §5.
@@ -101,11 +109,11 @@ Everything below follows that rule: the server decides, the client displays.
 
 | Cause | Amount (starting value) | Notes |
 |---|---|---|
-| Caught staring at an active anomaly | +15 | Not in this port (TBD). The slice can flag a passenger. It does not score a stare. |
+| Caught staring at an active anomaly | +15 | Wired: Gaze dwell while parents are alert (watched/hunted or hold scale). |
 | False alarm — flagging when no anomaly is active | +10 | Applied when a flag lands while no tell is up and the poster has not changed. Flagging the wrong person while a tell or the poster is up does not add this. |
-| Reacting at a false stop | +10 | The amount is in Constants. This port cannot see standing, moving to the doors, or staring, so the hook stays off. |
-| Leaving before the dwell ends | +10 | Stays off. The player is a passenger and cannot depart. The amount stays in Constants for the unused hook. See §5. |
-| Staring at the conductor or a parent for too long | +5 | New. The people in the car notice being watched, anomaly or not. Not wired yet. |
+| Reacting at a false stop | +10 | Wired: near an open door leaf during a false-stop dwell. |
+| Leaving before the dwell ends | +10 | Stays off. The player is a passenger and cannot depart. See §5. |
+| Staring at a parent for too long | +5 | Wired: prolonged Gaze on Mom/Dad. |
 
 ## 3. What lowers suspicion
 
@@ -114,7 +122,7 @@ Everything below follows that rule: the server decides, the client displays.
 | Decay over time | −2 per stop with no incident | Applied on a miss and on a clean stop. A miss does not also raise suspicion. |
 | Correct flag — flagging while an anomaly is active | −5 | Applied when the flag is noticed. The screen still says Caught. |
 | Completing a stop cleanly | −5 | Applied with the decay, so a clean stop is −7. Arrive, dwell, depart, nothing flagged, no anomaly on that stop. |
-| Sitting still and looking away | −2 per stop | New. Not wired yet. |
+| Sitting still and looking away | −2 per stop | Wired on clean stops when movement this stretch is under the threshold. |
 
 ## 4. Per-stop result
 
@@ -146,8 +154,8 @@ leaves the player powerless: the train drives itself.
   keeps the doors open for the full dwell.
 - The early-departure penalty stays off. The player cannot leave early.
   The hook remains in the server, intentionally unused.
-- Reacting at a false stop is still +10 in §2. This port cannot see that
-  reaction, so the hook stays off.
+- Reacting at a false stop is +10 when the player stands near an open door
+  leaf during that dwell.
 - An **Early / Late** timer runs against the schedule. Being late does not
   raise suspicion directly; it raises tension (see §8, TBD).
 
@@ -162,10 +170,8 @@ for a few seconds with no station in sight.
   Myrtle–Willoughby and at 21 St). A hold is not that tick. An anomaly
   from the existing catalog may appear during a hold and clear when the
   train moves again.
-- Staring during a hold is riskier: the caught-staring check runs more
-  often while held (starting value: twice as often). This port has no
-  caught-staring check. The hold publishes that multiplier for when the
-  check exists. It does not watch the player.
+- Staring during a hold is riskier: `StareIntervalScale` shortens the
+  dwell needed to charge a stare while held (starting value: 2×).
 - The hold itself is not an anomaly — it is a pressure moment. The player
   has to decide whether to look. The player cannot start or end a hold.
 
@@ -217,7 +223,7 @@ Cheap, reusable tells that make a stop feel wrong without new models:
 | WATCHED | Heads turn toward you. Announcements glitch (a word repeats, a Ding comes twice). False-stop chance goes up. |
 | HUNTED | The car dims slowly. That dim is not a flicker and not a blackout. The blackout risk rises (see §10). Parents' lines change — TBD which lines and how. |
 
-This port: calm does nothing. Uneasy glances while you walk, and one tube blinks now and then. Watched turns heads toward you and repeats one word of the PA line that is already playing. There is no Ding in this slice, so the glitch is that repeated word, not a second chime. False stops are a fixed table, so the watched false-stop bonus is published and not rolled. Hunted dims the car slowly. Parent lines and a longer blackout stay TBD.
+This port: calm does nothing. Uneasy glances while you walk, and one tube blinks now and then. Watched turns heads toward you and repeats one word of the PA line that is already playing. There is no Ding in this slice, so the glitch is that repeated word, not a second chime. False stops are a fixed table, so the watched false-stop bonus is published and not rolled. Hunted dims the car slowly. Parent mask/chat lines shift by band. Flicker tick lengthens at watched/hunted.
 
 ## 10. The blackout (after Myrtle–Willoughby)
 
@@ -230,7 +236,7 @@ The blackout is already in the slice. Suspicion shapes it:
   blackout event here.
 - Suspicion does not reset at the blackout. It carries into Court Square.
 
-(Blackout duration by band is not wired yet; the flicker tick length is fixed.)
+(Flicker tick scales at watched/hunted; the exact “event in the dark” remains TBD.)
 
 ## 11. The ending (Court Square)
 
@@ -240,8 +246,8 @@ Final suspicion at arrival changes the ending:
 - **WATCHED / HUNTED:** you are watched off the train. TBD what that
   shows.
 
-Exact ending variants are TBD. Do not build them from this draft alone.
-Today the ending is still the sticky Caught/Missed score line only.
+Court Square uses `Endings.resolve` (peak, trials, tapes, exit, restraint,
+interventions). Do not invent extra band-only endings from this draft.
 
 ## 12. Implementation notes (Roblox)
 
@@ -257,10 +263,8 @@ Today the ending is still the sticky Caught/Missed score line only.
   and does not touch the lights. One light strip or tube may flicker. The
   car may dim slowly. Do not add a whole-car flicker for holds, bands, or
   tells.
-- **Psych Log.** Every anomaly, flag, stop result, and band change writes
-  an entry. The log is not in this port (TBD). There is no guide next-step
-  list. The log is the record the player re-reads — and the record a
-  playtester uses to tune.
+- **Psych Log.** Catalog anomalies marked seen / caught this ride appear
+  on the Travel Report. Persistent Case Files stay in MetaStore.
 - **Anomalies are server-picked.** The catalog is `AnomalySystem.types()`
   in `src/server/AnomalySystem.luau`: `poster_changed`, `extra`,
   `wrong_announcement`, `wrong_countdown`, plus expanded entries
@@ -286,8 +290,8 @@ Today the ending is still the sticky Caught/Missed score line only.
 2. ~~Wrong-announcement and wrong-countdown tells.~~ Done.
 3. ~~Held At Signal with one strip or tube flickering, or a slow dim.~~ Done.
 4. ~~False-alarm penalty + per-stop results + HUD meter.~~ Done (meter + Score; Psych Log still TBD).
-5. Band effects — glances / PA glitch / dim are in; parent lines and blackout shaping still open.
-6. Blackout shaping (§10) and ending variants (§11) — only after playtest of 1–5.
+5. Band effects — glances / PA glitch / dim / parent lines / flicker scale are in.
+6. Exact blackout “event in the dark” (§10) — only after playtest; do not invent.
 
 ## 14. Open questions (TBD — do not fill in)
 

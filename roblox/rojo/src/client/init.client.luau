@@ -13,6 +13,7 @@ local Exit = require(script.Exit)
 local Evp = require(script.Evp)
 local Polaroid = require(script.Polaroid)
 local Meta = require(script.Meta)
+local Gaze = require(script.Gaze)
 
 Hud.start()
 Flag.start(Hud.flagButton())
@@ -54,3 +55,4 @@ Meta.start(
 Walk.start()
 Sway.start()
 Glance.start()
+Gaze.start()
