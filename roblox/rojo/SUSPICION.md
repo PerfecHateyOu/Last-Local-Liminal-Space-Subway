@@ -251,18 +251,18 @@ Today the ending is still the sticky Caught/Missed score line only.
   list. The log is the record the player re-reads — and the record a
   playtester uses to tune.
 - **Anomalies are server-picked.** The catalog is `AnomalySystem.types()`
-  in `src/server/AnomalySystem.luau`: `poster_changed`,
-  `wrong_announcement`, and `wrong_countdown`. There is no
-  `GameData.Anomalies`. The server picks at most one per stop from the
-  stop numbers in `src/shared/Constants.luau`. Other stops have none.
-  `poster_changed` is still scheduled from `src/server/Ride.luau` and that
-  poster still clears on arrival. The two tells clear on arrival too.
-  Picking one anomaly for every stop from a larger table is not built
-  (TBD). One strip or tube flickering, a dim platform, and a rat would be
-  further entries in that catalog, not separate systems.
-- **Existing anomaly stays.** `poster_changed` is still the first anomaly.
-  Add the new tells one at a time and playtest each before adding the
-  next.
+  in `src/server/AnomalySystem.luau`: `poster_changed`, `extra`,
+  `wrong_announcement`, `wrong_countdown`, plus expanded entries
+  `lighttemp`, `sticker`, `nearword`, `mapstop`, `moved`, `empty`
+  (`faceturn` / `momface` apply paths exist; stops unused this slice).
+  There is no `GameData.Anomalies`. The server picks at most one per stop
+  from the stop numbers in `src/shared/Constants.luau`. Other stops have
+  none. Close-look props use `NEAR_X` (5 m). Catalog tells clear on
+  arrival with the poster and PA/board plates. Web leftovers (`adswap`,
+  `adcolor`, `stare`, `dadanswer`, forced parent/crit) stay out.
+- **Existing anomaly stays.** `poster_changed` remains first in pick
+  priority. New tells reuse free or false-approach stops so collisions
+  stay rare.
 - **No fail state in the slice.** Suspicion changes what the car does,
   not whether you can finish the ride. Whether the full game gets a fail
   state is TBD. The exporter's suspicion-100 ending conflicts with this
