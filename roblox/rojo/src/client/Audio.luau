@@ -4,12 +4,15 @@
 -- Chime before PA, rumble from stretch speed, door open/close, track clacks.
 -- No ride-music decay, pause music, EVP, heartbeat, or intercom voice.
 -- OpenAir (0–1) fades a wind/rain bed on the Newtown Creek trestle.
+-- SoundIds come from Shared.Assets (place StringValues). Empty → skip play
+-- so unapproved classic rbxasset:// paths never hit Output.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local SoundService = game:GetService("SoundService")
 local UserInputService = game:GetService("UserInputService")
 
+local Assets = require(ReplicatedStorage.Shared.Assets)
 local Constants = require(ReplicatedStorage.Shared.Constants)
 local Hold = require(ReplicatedStorage.Shared.Hold)
 local Lines = require(ReplicatedStorage.Shared.Lines)
@@ -28,10 +31,14 @@ local clackTravel = 0
 local lastSpeedSample = 0
 local openAirLevel = 0
 
-local function makeSound(name: string, id: string, volume: number, looped: boolean): Sound
+local function makeSound(name: string, id: string, volume: number, looped: boolean): Sound?
+	local ready = Assets.normalizeSoundId(id)
+	if ready == "" then
+		return nil
+	end
 	local sound = Instance.new("Sound")
 	sound.Name = name
-	sound.SoundId = id
+	sound.SoundId = ready
 	sound.Volume = volume
 	sound.Looped = looped
 	sound.RollOffMode = Enum.RollOffMode.InverseTapered
@@ -42,11 +49,15 @@ local function makeSound(name: string, id: string, volume: number, looped: boole
 	return sound
 end
 
-local function playOneShot(id: string, volume: number, playback: number?)
+local function playOneShot(key: Assets.SoundKey, volume: number, playback: number?)
 	if muted then
 		return
 	end
+	local id = Assets.soundId(key)
 	local sound = makeSound("OneShot", id, volume, false)
+	if sound == nil then
+		return
+	end
 	if playback ~= nil then
 		sound.PlaybackSpeed = playback
 	end
@@ -62,19 +73,19 @@ local function playOneShot(id: string, volume: number, playback: number?)
 end
 
 local function playChime()
-	-- Two-tone stand-in for the MTA ding using one built-in ping pitched twice.
-	playOneShot(Constants.SOUND_CHIME, Constants.SOUND_CHIME_VOLUME, 1.05)
+	-- Two-tone stand-in for the MTA ding using one clip pitched twice.
+	playOneShot("chime", Constants.SOUND_CHIME_VOLUME, 1.05)
 	task.delay(0.45, function()
-		playOneShot(Constants.SOUND_CHIME, Constants.SOUND_CHIME_VOLUME * 0.9, 0.84)
+		playOneShot("chime", Constants.SOUND_CHIME_VOLUME * 0.9, 0.84)
 	end)
 end
 
 local function playDoor(opening: boolean)
-	playOneShot(Constants.SOUND_DOOR, Constants.SOUND_DOOR_VOLUME, if opening then 1.1 else 0.85)
+	playOneShot("door", Constants.SOUND_DOOR_VOLUME, if opening then 1.1 else 0.85)
 end
 
 local function playClack()
-	playOneShot(Constants.SOUND_CLACK, Constants.SOUND_CLACK_VOLUME, 1.4 + math.random() * 0.2)
+	playOneShot("clack", Constants.SOUND_CLACK_VOLUME, 1.4 + math.random() * 0.2)
 end
 
 local function speedFraction(): number
@@ -156,15 +167,37 @@ function Audio.start(button: TextButton)
 	bus.Parent = SoundService
 	group = bus
 
-	local loop = makeSound("Rumble", Constants.SOUND_RUMBLE, 0, true)
-	loop.PlaybackSpeed = Constants.SOUND_RUMBLE_PLAYBACK
-	loop:Play()
-	rumble = loop
+	local readyCount, total, missing = Assets.soundStatus()
+	if readyCount == 0 then
+		print(
+			"[Last Local] Sound bed silent (no ReplicatedStorage.Assets IDs). Ride continues. See README → Sound bed."
+		)
+	elseif readyCount < total then
+		print(
+			string.format(
+				"[Last Local] Sound bed %d/%d wired; silent without IDs: %s",
+				readyCount,
+				total,
+				table.concat(missing, ", ")
+			)
+		)
+	else
+		print("[Last Local] Sound bed fully wired.")
+	end
 
-	local wind = makeSound("OpenAir", Constants.SOUND_OPEN_AIR, 0, true)
-	wind.PlaybackSpeed = Constants.SOUND_OPEN_AIR_PLAYBACK
-	wind:Play()
-	openAir = wind
+	local loop = makeSound("Rumble", Assets.soundId("rumble"), 0, true)
+	if loop ~= nil then
+		loop.PlaybackSpeed = Constants.SOUND_RUMBLE_PLAYBACK
+		loop:Play()
+		rumble = loop
+	end
+
+	local wind = makeSound("OpenAir", Assets.soundId("openAir"), 0, true)
+	if wind ~= nil then
+		wind.PlaybackSpeed = Constants.SOUND_OPEN_AIR_PLAYBACK
+		wind:Play()
+		openAir = wind
+	end
 
 	local ride = ReplicatedStorage:WaitForChild("Ride")
 	local openAttr = ride:GetAttribute("OpenAir")
@@ -213,7 +246,7 @@ function Audio.start(button: TextButton)
 		elseif name == "EvpRaised" then
 			local on = ride:GetAttribute("EvpRaised") == true
 			if on and not lastEvpRaised then
-				playOneShot(Constants.SOUND_DOOR, 0.15, 1.6)
+				playOneShot("door", 0.15, 1.6)
 			end
 			lastEvpRaised = on
 			local loopSound = rumble
@@ -223,7 +256,7 @@ function Audio.start(button: TextButton)
 		elseif name == "PolaroidFlash" then
 			local stamp = ride:GetAttribute("PolaroidFlash")
 			if typeof(stamp) == "number" and stamp > 0 then
-				playOneShot(Constants.SOUND_POLAROID, Constants.SOUND_POLAROID_VOLUME, 1.35)
+				playOneShot("polaroid", Constants.SOUND_POLAROID_VOLUME, 1.35)
 			end
 		elseif name == "OpenAir" then
 			local level = ride:GetAttribute("OpenAir")
@@ -232,9 +265,9 @@ function Audio.start(button: TextButton)
 			local id = ride:GetAttribute("EvpPlayId")
 			local text = if typeof(id) == "string" then id else ""
 			if text ~= "" and text ~= lastPlayId then
-				playOneShot(Constants.SOUND_CHIME, 0.25, 0.7)
+				playOneShot("chime", 0.25, 0.7)
 				task.delay(0.35, function()
-					playOneShot(Constants.SOUND_CHIME, 0.2, 0.55)
+					playOneShot("chime", 0.2, 0.55)
 				end)
 			end
 			lastPlayId = text

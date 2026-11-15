@@ -16,7 +16,7 @@ The car is built from Parts. People are your Blender models if you import them, 
    - **WASD** walks. The **mouse** looks. You cannot jump.
    - The amber line at the top is the conductor. The words are the ones from the web game.
    - Under the station card, the suspicion meter reads like **0 CALM** (then **25 UNEASY**, **50 WATCHED**, **75 HUNTED** as the number rises). Below it, the sanity meter reads like **100 HIGH** (then MEDIUM / LOW / CRITICAL). Both are 0–100; the server owns the numbers; the HUD only shows them. Reaching suspicion 100 does **not** end the ride. Staring too long at a live anomaly while parents are alert (watched/hunted, or during a hold) raises suspicion; staring at Mom or Dad can too. On a false stop, standing by the open doors is a react. Clean stops reward sitting still.
-   - A two-tone chime plays when the conductor speaks. Tunnel rumble and track clacks follow speed while you are between stations. Doors make a short latch sound when they open or close. Press **M** or the **MUTE** button to silence the bed.
+   - A two-tone chime plays when the conductor speaks **if** sound IDs are wired (see **Sound bed** below). Without IDs the ride stays silent and Output stays clean. Press **M** or the **MUTE** button to silence the bed when sounds are present.
    - After the doors close, put the dot in the middle of the screen on a person and **hold F** (or hold the **FLAG** button). The bar fills in about a second.
    - **Caught** means that person was the wrong one. **False flag:** plus their name means they were ordinary.
    - **C** / **CAM** raises the Polaroid viewfinder. **Space** snaps (uses film; prints land in **P** / **ALBUM** as undeveloped frames). A flash may make a parent glance, or raise suspicion if the band is watched/hunted.
@@ -25,7 +25,33 @@ The car is built from Parts. People are your Blender models if you import them, 
    - The platform stops at the doors. The signs use the station's real name. The view leans a little while you are moving, and it is still at a station.
 6. Press **Stop** (Shift+F5) when you want to quit. Press Play again for a new ride.
 
-The block people are the fallback. Import the FBX files below when you want your sculpts in the seats.
+The block people are the fallback. Import the FBX files below when you want your sculpts in the seats. Classic `rbxasset://sounds/*` clips are **not** used: Studio often rejects them as unapproved. Wire sound IDs under **Sound bed** when you want audio.
+
+## Sound bed (upload or Creator Store IDs)
+
+Play works with **no** sound assets. Empty IDs skip `Sound` creation, so Output does not show `Failed to load sound … Asset is not approved`.
+
+Rojo keeps an empty folder **ReplicatedStorage → Assets** (`$ignoreUnknownInstances`, so your StringValues survive sync). Fill these **StringValue** children with `rbxassetid://…` (or a bare numeric ID) after you own or are allowed to use the clip:
+
+| StringValue name | Used for |
+| --- | --- |
+| `Chime` | PA / trial two-tone ding |
+| `Door` | Door open/close latch (also EVP raise click) |
+| `Clack` | Track clacks while moving |
+| `Rumble` | Looped tunnel rumble (volume follows speed) |
+| `OpenAir` | Newtown Creek trestle wind/rain bed |
+| `Polaroid` | Shutter click |
+
+### Studio steps (your Roblox account)
+
+1. Open `LastLocal.rbxlx` (or connect Rojo) in Edit mode.
+2. In **Explorer**, open **ReplicatedStorage → Assets**.
+3. Upload audio you have rights to: **View → Asset Manager → Bulk Import**, or pick free audio from the **Creator Store** (Toolbox → Creator Store → Audio). Right-click → **Copy Asset ID**.
+4. For each row in the table: right-click **Assets** → **Insert Object → StringValue**, set **Name** exactly (`Chime`, `Door`, …), set **Value** to `rbxassetid://YOUR_ID` (paste the copied ID).
+5. Press **Play**. Output should say `Sound bed fully wired.` or list which keys are still silent. There should be **no** `Failed to load sound` lines from this slice.
+6. Do **not** paste invented private asset IDs into `src/`. Keep IDs in the place folder only so Rojo sync does not overwrite them.
+
+Optional check: after Play, look under **SoundService** for `LastLocal` (SoundGroup) and looping `Rumble` / `OpenAir` only when those StringValues are set.
 
 ## Put your characters in the car
 
@@ -189,4 +215,4 @@ The full per-mesh list is `assets/triangle-counts.json`. Export was Blender 4.0.
 
 ## Not in this version
 
-Cars A and C with walkable gangways are in (Part shells; optional `Car_A` / `Car_C` meshes). The Polaroid is in: **C** / **CAM** raises the viewfinder, **Space** snaps (frames live anomalies privately for the stop score; flash may alert parents on watched/hunted or make them glance), **P** / **ALBUM** shows a minimal undeveloped strip. Case Files photo persistence is not. The tape recorder / EVP is in after Safe Haven unlock (`HasRecorder`): raise with **R**, tune with **[** / **]** or the wheel, hold **REC** / Space on a locked voice, **Tab** for the Evidence tape list and playback (parents may glance). The False Stop Trial is in; ending branches from trial history are not. Parent chats and band-tuned mask prompts are in; Critical-tier mask glitch UI is not. Stay / step-off choice is in. A minimal sound bed is in (chime, rumble, door latch, clacks, mute, trestle wind); ride-music decay, pause music, full EVP hiss bed, heartbeat, and intercom voice are not. Suspicion scoring, bands, HUD meter, staring check, false-stop door react, sitting-still decay, Psych Log on the report, and band-scaled flicker are in. Sanity meter + HUD tier, stop bands/drift, Greenpoint restraint, and Concerned Intervention are in. Court Square exit choice, resolveEnding, Travel Report, and Meta progression (menu / Nightmare / practice / DataStore Case Files) are in. Heart/breath/glitch beds are not. The mid-ride extra passenger is in (far seat on the Bedford–Nostrand stretch). Expanded catalog tells are in (`lighttemp`, `sticker`, `nearword`, `mapstop`, `moved`, `empty`; `faceturn` / `momface` apply paths exist, unscheduled). Web leftovers (`adswap`, `adcolor`, `stare`, `dadanswer`, forced parent/crit) are not. The Newtown Creek trestle is in on the approach to **21 St** (tunnel fades, steel bents / rain / dusk fog / open-air platform, wind bed) and re-enters before Court Sq; full skyline art pass is not. Those are later slices.
+Cars A and C with walkable gangways are in (Part shells; optional `Car_A` / `Car_C` meshes). The Polaroid is in: **C** / **CAM** raises the viewfinder, **Space** snaps (frames live anomalies privately for the stop score; flash may alert parents on watched/hunted or make them glance), **P** / **ALBUM** shows a minimal undeveloped strip. Case Files photo persistence is not. The tape recorder / EVP is in after Safe Haven unlock (`HasRecorder`): raise with **R**, tune with **[** / **]** or the wheel, hold **REC** / Space on a locked voice, **Tab** for the Evidence tape list and playback (parents may glance). The False Stop Trial is in; ending branches from trial history are not. Parent chats and band-tuned mask prompts are in; Critical-tier mask glitch UI is not. Stay / step-off choice is in. A minimal sound bed is in (chime, rumble, door latch, clacks, mute, trestle wind) via place `ReplicatedStorage.Assets` StringValues — silent until you wire IDs; ride-music decay, pause music, full EVP hiss bed, heartbeat, and intercom voice are not. Suspicion scoring, bands, HUD meter, staring check, false-stop door react, sitting-still decay, Psych Log on the report, and band-scaled flicker are in. Sanity meter + HUD tier, stop bands/drift, Greenpoint restraint, and Concerned Intervention are in. Court Square exit choice, resolveEnding, Travel Report, and Meta progression (menu / Nightmare / practice / DataStore Case Files) are in. Heart/breath/glitch beds are not. The mid-ride extra passenger is in (far seat on the Bedford–Nostrand stretch). Expanded catalog tells are in (`lighttemp`, `sticker`, `nearword`, `mapstop`, `moved`, `empty`; `faceturn` / `momface` apply paths exist, unscheduled). Web leftovers (`adswap`, `adcolor`, `stare`, `dadanswer`, forced parent/crit) are not. The Newtown Creek trestle is in on the approach to **21 St** (tunnel fades, steel bents / rain / dusk fog / open-air platform, wind bed) and re-enters before Court Sq; full skyline art pass is not. Those are later slices.
