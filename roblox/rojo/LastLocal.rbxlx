@@ -9362,6 +9362,9 @@ return TrialSpace
 -- The flicker tick and the slow dim still own those. A Held At Signal
 -- pause does not come through here: one strip or a slow dim stays on the
 -- car lamps, and this service never blacks the car out.
+--
+-- Lighting.Technology is a place property only (default.project.json Future).
+-- Runtime writes need RobloxScript and abort server init before Ride.start.
 
 local Lighting = game:GetService("Lighting")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -9431,9 +9434,8 @@ function WorldLight.apply()
 
 	killDefaultSky()
 
-	-- Future so shadows and exposure actually apply. Brightness 0 and
-	-- midnight kill the sun. Scales at 0 kill the skybox fill.
-	Lighting.Technology = Enum.Technology.Future
+	-- Do not write Lighting.Technology (place property / RobloxScript only).
+	-- Brightness 0 and midnight kill the sun. Scales at 0 kill the skybox fill.
 	Lighting.Brightness = 0
 	Lighting.ClockTime = 0
 	Lighting.GeographicLatitude = 0
@@ -9484,14 +9486,31 @@ function WorldLight.setOpenAir(level: number)
 		return
 	end
 	openAir = nextLevel
-	WorldLight.apply()
+	local ok, err = pcall(WorldLight.apply)
+	if not ok then
+		warn("[WorldLight] setOpenAir apply failed: ", err)
+	end
 end
 
 function WorldLight.bind()
-	WorldLight.apply()
+	-- Never let a restricted Lighting write abort server init before Ride.
+	local ok, err = pcall(WorldLight.apply)
+	if not ok then
+		warn("[WorldLight] bind apply failed: ", err)
+	end
 	Lighting.Changed:Connect(function(property: string)
-		if property == "Brightness" or property == "Ambient" or property == "OutdoorAmbient" or property == "ClockTime" or property == "Technology" or property == "ExposureCompensation" or property == "EnvironmentDiffuseScale" then
-			WorldLight.apply()
+		if
+			property == "Brightness"
+			or property == "Ambient"
+			or property == "OutdoorAmbient"
+			or property == "ClockTime"
+			or property == "ExposureCompensation"
+			or property == "EnvironmentDiffuseScale"
+		then
+			local reOk, reErr = pcall(WorldLight.apply)
+			if not reOk then
+				warn("[WorldLight] re-apply failed: ", reErr)
+			end
 		end
 	end)
 	Lighting.ChildAdded:Connect(function(child: Instance)
