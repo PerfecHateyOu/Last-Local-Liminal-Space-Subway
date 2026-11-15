@@ -23,7 +23,13 @@ TBD is undecided — do not fill it in from a guess.
 - Per-stop feedback words: Caught / Missed / False flag / Clean.
 - Parent chats (`Dialogue` / Route `chat`) and first-tier mask prompts: odd
   answers +15 (`MASK_FAIL_SUSPICION`), hesitation +8 (`MASK_TIMEOUT_SUSPICION`).
-  Sanity Ride attribute nudged on fail/timeout; Safe Haven restores +15.
+  Sanity meter + HUD tier (high/medium/low/critical); stop bands + drift;
+  Safe Haven restores +15; mask fail/timeout, trial, restraint, and
+  intervention nudge sanity inside the current stop band.
+- Greenpoint Av **restraint**: hold Space/F for 15s; success raises the
+  11–13 sanity ceiling; fail +15 suspicion. Walk locked while active.
+- Concerned **intervention** at suspicion ≥ 60: parent lines, reset to 40,
+  −5 sanity. Does **not** end the ride (no hard fail at 100).
 - Safe Haven at Myrtle–Willoughby: step off → platform linger + `HasRecorder`;
   stay aboard → `refuseHaven` +10. Train handoff if you skipped the platform.
 - False Stop Trial on non-forgiving false step-offs: path/board rounds, lying
@@ -49,8 +55,10 @@ game. Decided. They are not a conductor. See §5.
 
 `roblox/exporter/` is a different track. Its `addSuspicion` ends the ride when
 suspicion reaches 100 (phase `end`, ending EXPOSED). That conflicts with §12,
-"No fail state in the slice." This is an open question. It is not resolved.
-This Rojo port does not copy that ending.
+"No fail state in the slice." **Resolved for Rojo (PR13):** the product
+decision is **no hard fail at 100**. Suspicion clamps; a Concerned
+Intervention may fire at 60+ (reset to 40, −5 sanity, ride continues).
+`Constants.SUSPICION_HARD_FAIL = false`. The exporter ending is not copied.
 
 ## The slice this is for
 
@@ -264,9 +272,10 @@ Today the ending is still the sticky Caught/Missed score line only.
   priority. New tells reuse free or false-approach stops so collisions
   stay rare.
 - **No fail state in the slice.** Suspicion changes what the car does,
-  not whether you can finish the ride. Whether the full game gets a fail
-  state is TBD. The exporter's suspicion-100 ending conflicts with this
-  and is not resolved (see Port notes and §14).
+  not whether you can finish the ride. **Decided (PR13):** Rojo keeps
+  **no hard fail at 100**. Intervention at 60+ cools the meter; endings
+  that consume intervention count wait for PR14. The exporter's
+  suspicion-100 ending remains out of this tree.
 
 ## 13. Build order (remaining)
 
@@ -284,6 +293,5 @@ Today the ending is still the sticky Caught/Missed score line only.
 - Whether the Early / Late timer should affect suspicion or stay a
   tension layer.
 - Which parents' lines change at HUNTED, and how.
-- Whether the full game gets a fail state.
-- `roblox/exporter/` ends the ride at suspicion 100. §12 says the slice
-  has no fail state. That conflict is not resolved.
+- Whether the full (non-Rojo) game gets a fail state at 100 remains TBD;
+  Rojo's decision is no hard fail (see Port notes / §12).
