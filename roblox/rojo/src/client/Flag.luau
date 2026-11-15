@@ -2,6 +2,8 @@
 -- Hold Flag (F, or the button) while the crosshair is on a passenger.
 -- The hold is 0.7 seconds, the web game's CFG.flagHold. It only fills
 -- during a ride, which is when the web game counts a flag.
+-- During the Greenpoint restraint, the same hold reports to Remotes.Hold
+-- (Space or F) and does not flag.
 -- The server decides caught vs false flag. This script does not.
 
 local Players = game:GetService("Players")
@@ -56,15 +58,18 @@ function Flag.start(button: TextButton)
 	local ride = ReplicatedStorage:WaitForChild("Ride")
 	local remotes = ReplicatedStorage:WaitForChild("Remotes")
 	local flagRemote = remotes:WaitForChild("Flag") :: RemoteEvent
+	local holdRemote = remotes:WaitForChild("Hold") :: RemoteEvent
 
 	local keyDown = false
+	local spaceDown = false
 	local buttonDown = false
 	local locked = false
 	local progress = 0
 	local currentId: string? = nil
+	local lastSentHold: boolean? = nil
 
 	local function holding(): boolean
-		return keyDown or buttonDown
+		return keyDown or spaceDown or buttonDown
 	end
 
 	UserInputService.InputBegan:Connect(function(input: InputObject, processed: boolean)
@@ -73,12 +78,16 @@ function Flag.start(button: TextButton)
 		end
 		if input.KeyCode == Enum.KeyCode.F then
 			keyDown = true
+		elseif input.KeyCode == Enum.KeyCode.Space then
+			spaceDown = true
 		end
 	end)
 
 	UserInputService.InputEnded:Connect(function(input: InputObject)
 		if input.KeyCode == Enum.KeyCode.F then
 			keyDown = false
+		elseif input.KeyCode == Enum.KeyCode.Space then
+			spaceDown = false
 		elseif input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 			buttonDown = false
 		end
@@ -92,8 +101,29 @@ function Flag.start(button: TextButton)
 
 	RunService.RenderStepped:Connect(function(dt: number)
 		local riding = ride:GetAttribute("Phase") == "ride"
+		local restraint = ride:GetAttribute("RestraintActive") == true
+		local intervening = ride:GetAttribute("Intervening") == true
 		local down = holding()
-		if not down then
+
+		if restraint then
+			if lastSentHold ~= down then
+				lastSentHold = down
+				holdRemote:FireServer(down)
+			end
+			local ratioAttr = ride:GetAttribute("RestraintProgress")
+			local ratio = if typeof(ratioAttr) == "number" then ratioAttr else 0
+			Hud.setRestraintMode(true)
+			Hud.setProgress(ratio, down)
+			return
+		end
+
+		if lastSentHold ~= false and lastSentHold ~= nil then
+			lastSentHold = false
+			holdRemote:FireServer(false)
+		end
+		Hud.setRestraintMode(false)
+
+		if intervening or not down then
 			locked = false
 			progress = 0
 			currentId = nil

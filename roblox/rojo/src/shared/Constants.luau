@@ -94,16 +94,32 @@ Constants.MASK_CHOICE_SECONDS = 4
 Constants.MASK_PROMPT_SECONDS = 6
 Constants.MASK_FAIL_SUSPICION = 15
 Constants.MASK_TIMEOUT_SUSPICION = 8
--- Sanity is a Ride attribute stub until restraint / intervention (PR13).
--- Safe Haven restores SAN.haven (15). Mask fail/timeout still nudge it down.
+-- Sanity (web SAN / BANDS / DRIFT). Safe Haven restores +15. Mask / trial /
+-- restraint / intervention nudge it inside the current stop band.
 Constants.SANITY_START = 100
 Constants.SANITY_MIN = 0
 Constants.SANITY_MAX = 100
 Constants.SANITY_HAVEN = 15
 Constants.MASK_FAIL_SANITY = 4
 Constants.MASK_TIMEOUT_SANITY = 2
+Constants.SANITY_INTERVENTION = 5
+Constants.SANITY_RESTRAINT_OK = 8
+Constants.SANITY_RESTRAINT_FAIL = 5
+-- Holding the Greenpoint restraint lifts the 11–13 band ceiling (web RESTRAINT_RAISE).
+Constants.RESTRAINT_RAISE = 6
+Constants.RESTRAINT_START_AT = 8.0
+Constants.RESTRAINT_DURATION = 15.0
+Constants.RESTRAINT_WAIT = 5.0
+Constants.RESTRAINT_GRACE = 2.5
+Constants.RESTRAINT_FAIL_SUSPICION = 15
+-- Concerned intervention (web SUS.intervene). Resets suspicion to 40; does not end the ride.
+Constants.INTERVENE_SUSPICION = 60
+Constants.INTERVENTION_RESET_SUSPICION = 40
 -- needsSus mask lines only appear at or above this suspicion.
 Constants.MASK_NEED_SUSPICION = 10
+-- Product decision (Rojo): reaching suspicion 100 does NOT end the ride.
+-- Intervention can fire at 60+, but there is no hard fail at the cap.
+Constants.SUSPICION_HARD_FAIL = false
 
 -- Bands from the suspicion number. 0–24 calm, 25–49 uneasy, 50–74 watched,
 -- 75–100 hunted.

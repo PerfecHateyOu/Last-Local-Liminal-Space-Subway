@@ -19,12 +19,15 @@ export type Segment = {
 	final: boolean,
 	-- Classon Av only. Mom pulls you back; no trial.
 	forgiving: boolean,
+	-- Greenpoint Av restraint beat (hold Space/F; don't let go).
+	restraint: boolean?,
 	paLie: string?,
 	-- Web SEGS.chat index into CHATS / calm swaps. Nil = no chat on this stretch.
 	chat: number?,
 	-- Seconds into the stretch when a mask check starts (slice-scaled).
 	masks: { number }?,
 	-- Web cruise is 26 unless noted. The slice uses a shorter cruise.
+	-- Stop 11 is longer so the 15 s restraint can finish before arrival.
 	sliceCruise: number,
 }
 
@@ -78,7 +81,22 @@ local SEGMENTS: { Segment } = {
 		sliceCruise = 12,
 	},
 	{ stop = 10, b = false, kind = "real", tick = nil, silent = false, crowd = false, final = false, forgiving = false, paLie = nil, chat = 4, masks = { 12 }, sliceCruise = 12 },
-	{ stop = 11, b = false, kind = "real", tick = nil, silent = false, crowd = false, final = false, forgiving = false, paLie = nil, chat = nil, masks = nil, sliceCruise = 12 },
+	{
+		stop = 11,
+		b = false,
+		kind = "real",
+		tick = nil,
+		silent = false,
+		crowd = false,
+		final = false,
+		forgiving = false,
+		restraint = true,
+		paLie = nil,
+		chat = nil,
+		masks = nil,
+		-- Long enough for RESTRAINT_START_AT + DURATION before brake ends.
+		sliceCruise = 22,
+	},
 	-- 21 St. False stop. Flicker tick: the lights go out for 0.16 s. No "This is".
 	{ stop = 12, b = false, kind = "false", tick = "flicker", silent = false, crowd = false, final = false, forgiving = false, paLie = nil, chat = nil, masks = { 12 }, sliceCruise = 12 },
 	{ stop = 13, b = false, kind = "real", tick = nil, silent = false, crowd = false, final = true, forgiving = false, paLie = nil, chat = nil, masks = nil, sliceCruise = 10 },

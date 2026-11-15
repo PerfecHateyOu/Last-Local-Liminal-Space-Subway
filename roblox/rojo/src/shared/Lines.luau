@@ -158,4 +158,47 @@ function Lines.suspicionMeter(value: number, band: string): string
 	return tostring(n) .. " " .. Lines.bandLabel(band)
 end
 
+-- Sanity HUD. Number is Ride.Sanity; word is Ride.SanityTier.
+Lines.TIER_HIGH = "HIGH"
+Lines.TIER_MEDIUM = "MEDIUM"
+Lines.TIER_LOW = "LOW"
+Lines.TIER_CRITICAL = "CRITICAL"
+
+function Lines.tierLabel(tier: string): string
+	if tier == "medium" then
+		return Lines.TIER_MEDIUM
+	end
+	if tier == "low" then
+		return Lines.TIER_LOW
+	end
+	if tier == "critical" then
+		return Lines.TIER_CRITICAL
+	end
+	return Lines.TIER_HIGH
+end
+
+-- "82 HIGH" — whole number plus the tier word.
+function Lines.sanityMeter(value: number, tier: string): string
+	local n = math.floor(value + 0.5)
+	if n < 0 then
+		n = 0
+	elseif n > 100 then
+		n = 100
+	end
+	return tostring(n) .. " " .. Lines.tierLabel(tier)
+end
+
+-- Restraint (Greenpoint Av). Hold Space or F; same button as Flag.
+Lines.RESTRAINT_HINT = "Hold Space or F. Don't let go. Don't react."
+Lines.RESTRAINT_DAD = "Dad: No. We're not getting off. You know that."
+Lines.RESTRAINT_MOM_MOUTH = "Mom (her mouth doesn't move): You can stop pretending."
+Lines.RESTRAINT_OK = "The lights come back. Everyone is where they were."
+Lines.RESTRAINT_FAIL = "You flinch. Dad sees it."
+Lines.RESTRAINT_FAIL_WAIT = "You couldn't keep it together"
+
+-- Concerned intervention (suspicion ≥ intervene threshold). Does not end the ride.
+Lines.INTERVENTION_DAD = "Dad: Hey. Look at me. Both of us, right now."
+Lines.INTERVENTION_MOM = "Mom: Talk to us. What is going on with you?"
+Lines.INTERVENTION_YOU = "You: Nothing. I'm okay. I promise."
+
 return Lines

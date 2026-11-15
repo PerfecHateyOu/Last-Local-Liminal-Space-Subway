@@ -30,6 +30,8 @@ local Haven = require(ReplicatedStorage.Shared.Haven)
 local Trial = require(ReplicatedStorage.Shared.Trial)
 local Evp = require(ReplicatedStorage.Shared.Evp)
 local Polaroid = require(ReplicatedStorage.Shared.Polaroid)
+local Sanity = require(ReplicatedStorage.Shared.Sanity)
+local Restraint = require(ReplicatedStorage.Shared.Restraint)
 local Lines = require(ReplicatedStorage.Shared.Lines)
 local Score = require(ReplicatedStorage.Shared.Score)
 local Band = require(ReplicatedStorage.Shared.Band)
@@ -79,6 +81,9 @@ function Ride.start(car: CarBuilder.BuiltCar)
 	local polaroidAlbumRemote = Instance.new("RemoteEvent")
 	polaroidAlbumRemote.Name = "PolaroidAlbum"
 	polaroidAlbumRemote.Parent = remotes
+	local holdRemote = Instance.new("RemoteEvent")
+	holdRemote.Name = "Hold"
+	holdRemote.Parent = remotes
 
 	ride:SetAttribute("Phase", "intro")
 	ride:SetAttribute("PaText", "")
@@ -90,7 +95,15 @@ function Ride.start(car: CarBuilder.BuiltCar)
 	ride:SetAttribute("ChapterLine", Route.chapterLine(1))
 	ride:SetAttribute("DwellUntil", 0)
 	ride:SetAttribute("Suspicion", 0)
+	ride:SetAttribute("PeakSuspicion", 0)
 	ride:SetAttribute("Sanity", Constants.SANITY_START)
+	ride:SetAttribute("SanityTier", Sanity.tierOf(Constants.SANITY_START))
+	ride:SetAttribute("SanityRetained", 0)
+	ride:SetAttribute("Interventions", 0)
+	ride:SetAttribute("Intervening", false)
+	ride:SetAttribute("RestraintActive", false)
+	ride:SetAttribute("RestraintProgress", 0)
+	ride:SetAttribute("RestraintOK", false)
 	ride:SetAttribute("HasRecorder", false)
 	ride:SetAttribute("SegStop", 0)
 	ride:SetAttribute("EvpRaised", false)
@@ -350,7 +363,18 @@ function Ride.start(car: CarBuilder.BuiltCar)
 	local falseFlags = 0
 	local caught = false
 	local suspicion = 0
+	local peakSuspicion = 0
 	local sanity = Constants.SANITY_START
+	local bandStop = 1
+	local sanSamples: { number } = {}
+	local interventions = 0
+	local intervening = false
+	local restraintState: Restraint.State? = nil
+	local restraintDone = false
+	local restraintOK = false
+	local restraintHeld = false
+	local restraintHidden: { string } = {}
+	local restraintMomRest: { [BasePart]: Color3 } = {}
 	local stopHadAnomaly = false
 	local stopNoticed = false
 	local stopFalseAlarm = false
@@ -376,9 +400,35 @@ function Ride.start(car: CarBuilder.BuiltCar)
 	local polaroidPhotos: { Polaroid.Photo } = {}
 	local photoSeq = 0
 
-	local function applySanity(delta: number)
-		sanity = Haven.restoreSanity(sanity, delta, Constants.SANITY_MIN, Constants.SANITY_MAX)
+	local function publishSanity()
 		ride:SetAttribute("Sanity", sanity)
+		ride:SetAttribute("SanityTier", Sanity.tierOf(sanity))
+	end
+
+	local function applySanity(delta: number)
+		local lo, hi = Sanity.bandForStop(bandStop, restraintOK, Constants.RESTRAINT_RAISE)
+		sanity = Sanity.apply(sanity, delta, lo, hi)
+		publishSanity()
+	end
+
+	local function sampleSanity()
+		local lo, hi = Sanity.bandForStop(bandStop, restraintOK, Constants.RESTRAINT_RAISE)
+		table.insert(sanSamples, Sanity.bandPosition(sanity, lo, hi))
+		ride:SetAttribute("SanityRetained", Sanity.retainedPercent(sanSamples))
+	end
+
+	local function setWalkLocked(locked: boolean)
+		for _, player in game:GetService("Players"):GetPlayers() do
+			local character = player.Character
+			local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+			if humanoid ~= nil then
+				if locked then
+					humanoid.WalkSpeed = 0
+				else
+					humanoid.WalkSpeed = Constants.WALK_SPEED_MPS * Constants.STUDS_PER_METER
+				end
+			end
+		end
 	end
 
 	local function publishEvp()
@@ -408,6 +458,8 @@ function Ride.start(car: CarBuilder.BuiltCar)
 			or ride:GetAttribute("MaskActive") == true
 			or ride:GetAttribute("TrialActive") == true
 			or ride:GetAttribute("Phase") == "trial"
+			or ride:GetAttribute("RestraintActive") == true
+			or ride:GetAttribute("Intervening") == true
 	end
 
 	local function lowerCamera()
@@ -602,11 +654,216 @@ function Ride.start(car: CarBuilder.BuiltCar)
 		end
 	end
 
+	local maybeIntervene: () -> ()
+
 	local function applySuspicion(delta: number)
 		suspicion = Score.apply(suspicion, delta, Constants.SUSPICION_MIN, Constants.SUSPICION_MAX)
+		-- Product decision: clamp at 100, never end the ride (SUSPICION_HARD_FAIL = false).
+		if suspicion > peakSuspicion then
+			peakSuspicion = suspicion
+			ride:SetAttribute("PeakSuspicion", peakSuspicion)
+		end
 		ride:SetAttribute("Suspicion", suspicion)
 		publishBand()
+		maybeIntervene()
 	end
+
+	local function publishRestraint()
+		local active = restraintState ~= nil
+		ride:SetAttribute("RestraintActive", active)
+		ride:SetAttribute("RestraintProgress", if restraintState ~= nil then Restraint.progress(restraintState) else 0)
+		ride:SetAttribute("RestraintOK", restraintOK)
+		setWalkLocked(active or intervening)
+	end
+
+	local function restoreRestraintVisuals()
+		local mom = car.passengers:FindFirstChild(AnomalySystem.MOMFACE_ID)
+		if mom ~= nil and mom:IsA("Model") then
+			for part, color in restraintMomRest do
+				part.Color = color
+			end
+		end
+		table.clear(restraintMomRest)
+		for _, id in restraintHidden do
+			CarBuilder.setPassengerShown(car.passengers, id, true)
+		end
+		table.clear(restraintHidden)
+	end
+
+	local function endRestraint(ok: boolean, why: string)
+		restraintState = nil
+		restraintDone = true
+		restraintOK = ok
+		restraintHeld = false
+		restoreRestraintVisuals()
+		beginDim(1, 1.2)
+		publishRestraint()
+		if ok then
+			applySanity(Constants.SANITY_RESTRAINT_OK)
+			showSub(Lines.RESTRAINT_OK, 3.0)
+		else
+			applySuspicion(Constants.RESTRAINT_FAIL_SUSPICION)
+			applySanity(-Constants.SANITY_RESTRAINT_FAIL)
+			showSub(if why ~= "" then why else Lines.RESTRAINT_FAIL, 3.0)
+		end
+		ride:SetAttribute("RestraintOK", restraintOK)
+	end
+
+	local function startRestraintMoment()
+		if restraintState ~= nil or restraintDone then
+			return
+		end
+		if intervening or maskBusy or ride:GetAttribute("ChoiceActive") == true then
+			return
+		end
+		if cameraRaised then
+			cameraRaised = false
+			albumOpen = false
+			publishCamera()
+		end
+		if evpState.raised then
+			Evp.lower(evpState)
+			publishEvp()
+		end
+		restraintState = Restraint.newState(Constants.RESTRAINT_DURATION)
+		publishRestraint()
+		showHint(Lines.RESTRAINT_HINT, 6.0)
+	end
+
+	local function updateRestraint(dt: number)
+		local state = restraintState
+		if state == nil then
+			return
+		end
+		local outcome = Restraint.tick(state, dt, restraintHeld)
+		ride:SetAttribute("RestraintProgress", Restraint.progress(state))
+		if outcome == "fail_wait" then
+			endRestraint(false, Lines.RESTRAINT_FAIL_WAIT)
+			return
+		end
+		if outcome == "fail_release" then
+			endRestraint(false, Lines.RESTRAINT_FAIL)
+			return
+		end
+		if outcome == "ok" then
+			endRestraint(true, "Held")
+			return
+		end
+		if outcome == "holding" then
+			dim = Restraint.dimFraction(state.t)
+			applyLights()
+			if Restraint.shouldFireBeat(state, Restraint.BEAT_MOM) then
+				local mom = car.passengers:FindFirstChild(AnomalySystem.MOMFACE_ID)
+				if mom ~= nil and mom:IsA("Model") then
+					for _, desc in mom:GetDescendants() do
+						if desc:IsA("BasePart") and (desc.Name == "Head" or desc.Name == "Hair" or desc.Name == "Eye") then
+							restraintMomRest[desc] = desc.Color
+							if desc.Name == "Eye" then
+								desc.Color = Color3.fromRGB(20, 20, 28)
+							else
+								desc.Color = Color3.fromRGB(223, 217, 206)
+							end
+						end
+					end
+				end
+			end
+			if Restraint.shouldFireBeat(state, Restraint.BEAT_DAD) then
+				showSub(Lines.RESTRAINT_DAD, 3.2)
+			end
+			if Restraint.shouldFireBeat(state, Restraint.BEAT_EMPTY) then
+				for _, id in { "s1", "s2", "s3", AnomalySystem.EXTRA_ID, "c1", "c2", "c3", "c4", "c5" } do
+					local model = car.passengers:FindFirstChild(id)
+					if model ~= nil and model:GetAttribute("Hidden") ~= true then
+						table.insert(restraintHidden, id)
+						CarBuilder.setPassengerShown(car.passengers, id, false)
+					end
+				end
+			end
+			if Restraint.shouldFireBeat(state, Restraint.BEAT_MOUTH) then
+				showSub(Lines.RESTRAINT_MOM_MOUTH, 3.4)
+			end
+		end
+	end
+
+	local function triggerConcernedIntervention()
+		if intervening or restraintState ~= nil then
+			return
+		end
+		if ride:GetAttribute("ChoiceActive") == true or ride:GetAttribute("MaskActive") == true then
+			return
+		end
+		if suspicion < Constants.INTERVENE_SUSPICION then
+			return
+		end
+		intervening = true
+		interventions += 1
+		ride:SetAttribute("Intervening", true)
+		ride:SetAttribute("Interventions", interventions)
+		setWalkLocked(true)
+		restraintHeld = false
+		if cameraRaised then
+			cameraRaised = false
+			publishCamera()
+		end
+		if evpState.raised then
+			Evp.lower(evpState)
+			publishEvp()
+		end
+		showSub(Lines.INTERVENTION_DAD, 2.6)
+		task.delay(2.7, function()
+			if not intervening then
+				return
+			end
+			showSub(Lines.INTERVENTION_MOM, 3.0)
+		end)
+		task.delay(5.9, function()
+			if not intervening then
+				return
+			end
+			showSub(Lines.INTERVENTION_YOU, 2.4)
+		end)
+		task.delay(8.4, function()
+			if not intervening then
+				return
+			end
+			intervening = false
+			ride:SetAttribute("Intervening", false)
+			setWalkLocked(restraintState ~= nil)
+			applySanity(-Constants.SANITY_INTERVENTION)
+			suspicion = Constants.INTERVENTION_RESET_SUSPICION
+			ride:SetAttribute("Suspicion", suspicion)
+			publishBand()
+			-- No hard fail: intervention cools the meter; the ride continues.
+		end)
+	end
+
+	maybeIntervene = function()
+		-- Rojo product decision: no hard fail at suspicion 100. Intervention
+		-- cools the meter at INTERVENE_SUSPICION; the ride always continues.
+		if Constants.SUSPICION_HARD_FAIL then
+			return
+		end
+		if suspicion >= Constants.INTERVENE_SUSPICION then
+			triggerConcernedIntervention()
+		end
+	end
+
+	holdRemote.OnServerEvent:Connect(function(_player: Player, held: any)
+		if typeof(held) ~= "boolean" then
+			return
+		end
+		if restraintState == nil then
+			restraintHeld = false
+			return
+		end
+		restraintHeld = held
+	end)
+
+	RunService.Heartbeat:Connect(function(dt: number)
+		if restraintState ~= nil then
+			updateRestraint(dt)
+		end
+	end)
 
 	polaroidSnapRemote.OnServerEvent:Connect(function(
 		_player: Player,
@@ -1282,6 +1539,9 @@ function Ride.start(car: CarBuilder.BuiltCar)
 		if ride:GetAttribute("ChoiceActive") == true then
 			return
 		end
+		if ride:GetAttribute("RestraintActive") == true or ride:GetAttribute("Intervening") == true then
+			return
+		end
 		local pool = Dialogue.maskPool(suspicion, Constants.MASK_NEED_SUSPICION)
 		local line = Dialogue.pickMask(pool, maskUsed, maskLast, function()
 			return math.random()
@@ -1320,6 +1580,9 @@ function Ride.start(car: CarBuilder.BuiltCar)
 			return
 		end
 		if ride:GetAttribute("Phase") ~= "ride" then
+			return
+		end
+		if ride:GetAttribute("RestraintActive") == true or ride:GetAttribute("Intervening") == true then
 			return
 		end
 		if flagged[passengerId] then
@@ -1417,6 +1680,12 @@ function Ride.start(car: CarBuilder.BuiltCar)
 		CarBuilder.setCrowd(car.passengers, seg.crowd)
 		clearExtra()
 		setDoorTarget(0)
+
+		if not seg.b then
+			sampleSanity()
+		end
+		bandStop = seg.stop
+		applySanity(Sanity.driftForStop(seg.stop))
 
 		local length = Route.segmentLength(seg, Constants.ACCEL, Constants.BRAKE)
 		inFinal = seg.final
@@ -1646,7 +1915,31 @@ function Ride.start(car: CarBuilder.BuiltCar)
 				end)
 			end)
 		end
+		if seg.restraint == true then
+			task.delay(Constants.RESTRAINT_START_AT, function()
+				if token ~= segToken then
+					return
+				end
+				if ride:GetAttribute("Phase") ~= "ride" then
+					return
+				end
+				startRestraintMoment()
+			end)
+		end
 		task.wait(Hold.wallDuration(length, held, holdFor))
+		-- Web waits for the restraint to finish before arrival.
+		if token == segToken and seg.restraint == true and not restraintDone then
+			if restraintState == nil then
+				startRestraintMoment()
+			end
+			local deadline = os.clock() + Constants.RESTRAINT_DURATION + Constants.RESTRAINT_WAIT + 2
+			while token == segToken and restraintState ~= nil and os.clock() < deadline do
+				task.wait(0.05)
+			end
+			if restraintState ~= nil then
+				endRestraint(false, Lines.RESTRAINT_FAIL_WAIT)
+			end
+		end
 	end
 
 	local function at(t0: number, t: number)

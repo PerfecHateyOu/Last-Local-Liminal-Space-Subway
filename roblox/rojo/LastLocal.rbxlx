@@ -226,16 +226,32 @@ Constants.MASK_CHOICE_SECONDS = 4
 Constants.MASK_PROMPT_SECONDS = 6
 Constants.MASK_FAIL_SUSPICION = 15
 Constants.MASK_TIMEOUT_SUSPICION = 8
--- Sanity is a Ride attribute stub until restraint / intervention (PR13).
--- Safe Haven restores SAN.haven (15). Mask fail/timeout still nudge it down.
+-- Sanity (web SAN / BANDS / DRIFT). Safe Haven restores +15. Mask / trial /
+-- restraint / intervention nudge it inside the current stop band.
 Constants.SANITY_START = 100
 Constants.SANITY_MIN = 0
 Constants.SANITY_MAX = 100
 Constants.SANITY_HAVEN = 15
 Constants.MASK_FAIL_SANITY = 4
 Constants.MASK_TIMEOUT_SANITY = 2
+Constants.SANITY_INTERVENTION = 5
+Constants.SANITY_RESTRAINT_OK = 8
+Constants.SANITY_RESTRAINT_FAIL = 5
+-- Holding the Greenpoint restraint lifts the 11–13 band ceiling (web RESTRAINT_RAISE).
+Constants.RESTRAINT_RAISE = 6
+Constants.RESTRAINT_START_AT = 8.0
+Constants.RESTRAINT_DURATION = 15.0
+Constants.RESTRAINT_WAIT = 5.0
+Constants.RESTRAINT_GRACE = 2.5
+Constants.RESTRAINT_FAIL_SUSPICION = 15
+-- Concerned intervention (web SUS.intervene). Resets suspicion to 40; does not end the ride.
+Constants.INTERVENE_SUSPICION = 60
+Constants.INTERVENTION_RESET_SUSPICION = 40
 -- needsSus mask lines only appear at or above this suspicion.
 Constants.MASK_NEED_SUSPICION = 10
+-- Product decision (Rojo): reaching suspicion 100 does NOT end the ride.
+-- Intervention can fire at 60+, but there is no hard fail at the cap.
+Constants.SUSPICION_HARD_FAIL = false
 
 -- Bands from the suspicion number. 0–24 calm, 25–49 uneasy, 50–74 watched,
 -- 75–100 hunted.
@@ -1592,6 +1608,49 @@ function Lines.suspicionMeter(value: number, band: string): string
 	return tostring(n) .. " " .. Lines.bandLabel(band)
 end
 
+-- Sanity HUD. Number is Ride.Sanity; word is Ride.SanityTier.
+Lines.TIER_HIGH = "HIGH"
+Lines.TIER_MEDIUM = "MEDIUM"
+Lines.TIER_LOW = "LOW"
+Lines.TIER_CRITICAL = "CRITICAL"
+
+function Lines.tierLabel(tier: string): string
+	if tier == "medium" then
+		return Lines.TIER_MEDIUM
+	end
+	if tier == "low" then
+		return Lines.TIER_LOW
+	end
+	if tier == "critical" then
+		return Lines.TIER_CRITICAL
+	end
+	return Lines.TIER_HIGH
+end
+
+-- "82 HIGH" — whole number plus the tier word.
+function Lines.sanityMeter(value: number, tier: string): string
+	local n = math.floor(value + 0.5)
+	if n < 0 then
+		n = 0
+	elseif n > 100 then
+		n = 100
+	end
+	return tostring(n) .. " " .. Lines.tierLabel(tier)
+end
+
+-- Restraint (Greenpoint Av). Hold Space or F; same button as Flag.
+Lines.RESTRAINT_HINT = "Hold Space or F. Don't let go. Don't react."
+Lines.RESTRAINT_DAD = "Dad: No. We're not getting off. You know that."
+Lines.RESTRAINT_MOM_MOUTH = "Mom (her mouth doesn't move): You can stop pretending."
+Lines.RESTRAINT_OK = "The lights come back. Everyone is where they were."
+Lines.RESTRAINT_FAIL = "You flinch. Dad sees it."
+Lines.RESTRAINT_FAIL_WAIT = "You couldn't keep it together"
+
+-- Concerned intervention (suspicion ≥ intervene threshold). Does not end the ride.
+Lines.INTERVENTION_DAD = "Dad: Hey. Look at me. Both of us, right now."
+Lines.INTERVENTION_MOM = "Mom: Talk to us. What is going on with you?"
+Lines.INTERVENTION_YOU = "You: Nothing. I'm okay. I promise."
+
 return Lines
 ]]></string>
         </Properties>
@@ -2053,6 +2112,115 @@ return Polaroid
       </Item>
       <Item class="ModuleScript" referent="17">
         <Properties>
+          <string name="Name">Restraint</string>
+          <string name="Source"><![CDATA[--!strict
+-- Greenpoint Av restraint beat (web gameState startRestraintMoment /
+-- updateRestraint / endRestraint). Pure helpers; Ride owns the live state.
+
+local Restraint = {}
+
+Restraint.START_AT = 8.0
+Restraint.WAIT_TIMEOUT = 5.0
+Restraint.DURATION = 15.0
+Restraint.GRACE = 2.5
+
+Restraint.BEAT_MOM = 1.5
+Restraint.BEAT_DAD = 4.0
+Restraint.BEAT_EMPTY = 7.0
+Restraint.BEAT_MOUTH = 10.5
+
+export type State = {
+	t: number,
+	started: boolean,
+	wait: number,
+	dur: number,
+	beats: number,
+	grace: number,
+}
+
+function Restraint.newState(duration: number): State
+	return {
+		t = 0,
+		started = false,
+		wait = 0,
+		dur = duration,
+		beats = 0,
+		grace = 0,
+	}
+end
+
+function Restraint.shouldStart(segRestraint: boolean, done: boolean, elapsed: number, startAt: number, busy: boolean): boolean
+	if not segRestraint or done or busy then
+		return false
+	end
+	return elapsed >= startAt
+end
+
+-- Advance one tick. Returns "wait" | "holding" | "fail_wait" | "fail_release" | "ok".
+function Restraint.tick(state: State, dt: number, held: boolean): string
+	if state.grace > 0 then
+		state.grace = math.max(0, state.grace - dt)
+		if not held then
+			return "wait"
+		end
+	end
+
+	if not state.started then
+		state.wait += dt
+		if held then
+			state.started = true
+			return "holding"
+		end
+		if state.wait > Restraint.WAIT_TIMEOUT then
+			return "fail_wait"
+		end
+		return "wait"
+	end
+
+	if not held and state.t < state.dur then
+		return "fail_release"
+	end
+
+	state.t += dt
+	if state.t >= state.dur then
+		return "ok"
+	end
+	return "holding"
+end
+
+function Restraint.progress(state: State): number
+	if not state.started then
+		return 0
+	end
+	if state.dur <= 0 then
+		return 1
+	end
+	return math.clamp(state.t / state.dur, 0, 1)
+end
+
+function Restraint.dimFraction(t: number): number
+	-- Web: dim = max(0.4, min(1, 1 - t/6))
+	return math.clamp(1 - t / 6, 0.4, 1)
+end
+
+function Restraint.shouldFireBeat(state: State, at: number): boolean
+	if state.t >= at and state.beats < at then
+		state.beats = at
+		return true
+	end
+	return false
+end
+
+function Restraint.grantGrace(state: State, seconds: number)
+	state.grace = math.max(state.grace, seconds)
+end
+
+return Restraint
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="18">
+        <Properties>
           <string name="Name">Route</string>
           <string name="Source"><![CDATA[--!strict
 -- G train stops and the stretch table from src/constants.ts (STOPS, SEGS,
@@ -2075,12 +2243,15 @@ export type Segment = {
 	final: boolean,
 	-- Classon Av only. Mom pulls you back; no trial.
 	forgiving: boolean,
+	-- Greenpoint Av restraint beat (hold Space/F; don't let go).
+	restraint: boolean?,
 	paLie: string?,
 	-- Web SEGS.chat index into CHATS / calm swaps. Nil = no chat on this stretch.
 	chat: number?,
 	-- Seconds into the stretch when a mask check starts (slice-scaled).
 	masks: { number }?,
 	-- Web cruise is 26 unless noted. The slice uses a shorter cruise.
+	-- Stop 11 is longer so the 15 s restraint can finish before arrival.
 	sliceCruise: number,
 }
 
@@ -2134,7 +2305,22 @@ local SEGMENTS: { Segment } = {
 		sliceCruise = 12,
 	},
 	{ stop = 10, b = false, kind = "real", tick = nil, silent = false, crowd = false, final = false, forgiving = false, paLie = nil, chat = 4, masks = { 12 }, sliceCruise = 12 },
-	{ stop = 11, b = false, kind = "real", tick = nil, silent = false, crowd = false, final = false, forgiving = false, paLie = nil, chat = nil, masks = nil, sliceCruise = 12 },
+	{
+		stop = 11,
+		b = false,
+		kind = "real",
+		tick = nil,
+		silent = false,
+		crowd = false,
+		final = false,
+		forgiving = false,
+		restraint = true,
+		paLie = nil,
+		chat = nil,
+		masks = nil,
+		-- Long enough for RESTRAINT_START_AT + DURATION before brake ends.
+		sliceCruise = 22,
+	},
 	-- 21 St. False stop. Flicker tick: the lights go out for 0.16 s. No "This is".
 	{ stop = 12, b = false, kind = "false", tick = "flicker", silent = false, crowd = false, final = false, forgiving = false, paLie = nil, chat = nil, masks = { 12 }, sliceCruise = 12 },
 	{ stop = 13, b = false, kind = "real", tick = nil, silent = false, crowd = false, final = true, forgiving = false, paLie = nil, chat = nil, masks = nil, sliceCruise = 10 },
@@ -2191,7 +2377,118 @@ return Route
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="18">
+      <Item class="ModuleScript" referent="19">
+        <Properties>
+          <string name="Name">Sanity</string>
+          <string name="Source"><![CDATA[--!strict
+-- Sanity bands, tiers, and clamps from src/constants.ts / engineVitals.ts.
+-- The Ride attribute is absolute 0–100; each stretch clamps into that stop's
+-- band. Holding the Greenpoint restraint raises the ceiling for stops 11–13.
+
+local Sanity = {}
+
+Sanity.TIER_HIGH = "high"
+Sanity.TIER_MEDIUM = "medium"
+Sanity.TIER_LOW = "low"
+Sanity.TIER_CRITICAL = "critical"
+
+-- Web BANDS by stop number.
+local BANDS: { [number]: { number } } = {
+	[1] = { 80, 100 },
+	[2] = { 80, 100 },
+	[3] = { 80, 100 },
+	[4] = { 70, 95 },
+	[5] = { 50, 85 },
+	[6] = { 50, 85 },
+	[7] = { 30, 70 },
+	[8] = { 30, 70 },
+	[9] = { 30, 70 },
+	[10] = { 5, 30 },
+	[11] = { 0, 9 },
+	[12] = { 0, 9 },
+	[13] = { 0, 9 },
+}
+
+-- Web DRIFT: only where the band ceiling drops.
+local DRIFT: { [number]: number } = {
+	[2] = 0,
+	[3] = 0,
+	[4] = -5,
+	[5] = -5,
+	[6] = 0,
+	[7] = -5,
+	[8] = 0,
+	[9] = 0,
+	[10] = -5,
+	[11] = -5,
+	[12] = 0,
+	[13] = 0,
+}
+
+function Sanity.tierOf(san: number): string
+	if san >= 75 then
+		return Sanity.TIER_HIGH
+	end
+	if san >= 40 then
+		return Sanity.TIER_MEDIUM
+	end
+	if san >= 10 then
+		return Sanity.TIER_LOW
+	end
+	return Sanity.TIER_CRITICAL
+end
+
+function Sanity.bandForStop(stop: number, restraintOk: boolean, raise: number): (number, number)
+	local pair = BANDS[stop]
+	local lo = if pair ~= nil then pair[1] else 0
+	local hi = if pair ~= nil then pair[2] else 9
+	if stop >= 11 and restraintOk then
+		hi += raise
+	end
+	return lo, hi
+end
+
+function Sanity.driftForStop(stop: number): number
+	local d = DRIFT[stop]
+	if d == nil then
+		return -5
+	end
+	return d
+end
+
+function Sanity.clamp(value: number, lo: number, hi: number): number
+	return math.clamp(value, lo, hi)
+end
+
+-- Apply a delta inside the current stop band (web addSanity).
+function Sanity.apply(current: number, delta: number, lo: number, hi: number): number
+	return Sanity.clamp(current + delta, lo, hi)
+end
+
+-- Position inside the band, 0–1, for Sanity Retained (PR14 report).
+function Sanity.bandPosition(san: number, lo: number, hi: number): number
+	if hi <= lo then
+		return 1
+	end
+	return math.clamp((san - lo) / (hi - lo), 0, 1)
+end
+
+function Sanity.retainedPercent(samples: { number }): number
+	if #samples == 0 then
+		return 0
+	end
+	local sum = 0
+	for _, pos in samples do
+		sum += pos
+	end
+	return math.floor((100 * sum) / #samples + 0.5)
+end
+
+return Sanity
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="20">
         <Properties>
           <string name="Name">Score</string>
           <string name="Source"><![CDATA[--!strict
@@ -2259,7 +2556,7 @@ return Score
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="19">
+      <Item class="ModuleScript" referent="21">
         <Properties>
           <string name="Name">Trestle</string>
           <string name="Source"><![CDATA[--!strict
@@ -2345,7 +2642,7 @@ return Trestle
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="20">
+      <Item class="ModuleScript" referent="22">
         <Properties>
           <string name="Name">Trial</string>
           <string name="Source"><![CDATA[--!strict
@@ -2578,11 +2875,11 @@ return Trial
       </Item>
     </Item>
   </Item>
-  <Item class="ServerScriptService" referent="21">
+  <Item class="ServerScriptService" referent="23">
     <Properties>
       <string name="Name">ServerScriptService</string>
     </Properties>
-    <Item class="Script" referent="22">
+    <Item class="Script" referent="24">
       <Properties>
         <string name="Name">Server</string>
         <token name="RunContext">0</token>
@@ -2641,7 +2938,7 @@ for _, player in Players:GetPlayers() do
 end
 ]]></string>
       </Properties>
-      <Item class="ModuleScript" referent="23">
+      <Item class="ModuleScript" referent="25">
         <Properties>
           <string name="Name">AnomalySystem</string>
           <string name="Source"><![CDATA[--!strict
@@ -2794,7 +3091,7 @@ return AnomalySystem
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="24">
+      <Item class="ModuleScript" referent="26">
         <Properties>
           <string name="Name">CarBuilder</string>
           <string name="Source"><![CDATA[--!strict
@@ -4003,7 +4300,7 @@ return CarBuilder
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="25">
+      <Item class="ModuleScript" referent="27">
         <Properties>
           <string name="Name">Consist</string>
           <string name="Source"><![CDATA[--!strict
@@ -4485,7 +4782,7 @@ return Consist
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="26">
+      <Item class="ModuleScript" referent="28">
         <Properties>
           <string name="Name">Ride</string>
           <string name="Source"><![CDATA[--!strict
@@ -4520,6 +4817,8 @@ local Haven = require(ReplicatedStorage.Shared.Haven)
 local Trial = require(ReplicatedStorage.Shared.Trial)
 local Evp = require(ReplicatedStorage.Shared.Evp)
 local Polaroid = require(ReplicatedStorage.Shared.Polaroid)
+local Sanity = require(ReplicatedStorage.Shared.Sanity)
+local Restraint = require(ReplicatedStorage.Shared.Restraint)
 local Lines = require(ReplicatedStorage.Shared.Lines)
 local Score = require(ReplicatedStorage.Shared.Score)
 local Band = require(ReplicatedStorage.Shared.Band)
@@ -4569,6 +4868,9 @@ function Ride.start(car: CarBuilder.BuiltCar)
 	local polaroidAlbumRemote = Instance.new("RemoteEvent")
 	polaroidAlbumRemote.Name = "PolaroidAlbum"
 	polaroidAlbumRemote.Parent = remotes
+	local holdRemote = Instance.new("RemoteEvent")
+	holdRemote.Name = "Hold"
+	holdRemote.Parent = remotes
 
 	ride:SetAttribute("Phase", "intro")
 	ride:SetAttribute("PaText", "")
@@ -4580,7 +4882,15 @@ function Ride.start(car: CarBuilder.BuiltCar)
 	ride:SetAttribute("ChapterLine", Route.chapterLine(1))
 	ride:SetAttribute("DwellUntil", 0)
 	ride:SetAttribute("Suspicion", 0)
+	ride:SetAttribute("PeakSuspicion", 0)
 	ride:SetAttribute("Sanity", Constants.SANITY_START)
+	ride:SetAttribute("SanityTier", Sanity.tierOf(Constants.SANITY_START))
+	ride:SetAttribute("SanityRetained", 0)
+	ride:SetAttribute("Interventions", 0)
+	ride:SetAttribute("Intervening", false)
+	ride:SetAttribute("RestraintActive", false)
+	ride:SetAttribute("RestraintProgress", 0)
+	ride:SetAttribute("RestraintOK", false)
 	ride:SetAttribute("HasRecorder", false)
 	ride:SetAttribute("SegStop", 0)
 	ride:SetAttribute("EvpRaised", false)
@@ -4840,7 +5150,18 @@ function Ride.start(car: CarBuilder.BuiltCar)
 	local falseFlags = 0
 	local caught = false
 	local suspicion = 0
+	local peakSuspicion = 0
 	local sanity = Constants.SANITY_START
+	local bandStop = 1
+	local sanSamples: { number } = {}
+	local interventions = 0
+	local intervening = false
+	local restraintState: Restraint.State? = nil
+	local restraintDone = false
+	local restraintOK = false
+	local restraintHeld = false
+	local restraintHidden: { string } = {}
+	local restraintMomRest: { [BasePart]: Color3 } = {}
 	local stopHadAnomaly = false
 	local stopNoticed = false
 	local stopFalseAlarm = false
@@ -4866,9 +5187,35 @@ function Ride.start(car: CarBuilder.BuiltCar)
 	local polaroidPhotos: { Polaroid.Photo } = {}
 	local photoSeq = 0
 
-	local function applySanity(delta: number)
-		sanity = Haven.restoreSanity(sanity, delta, Constants.SANITY_MIN, Constants.SANITY_MAX)
+	local function publishSanity()
 		ride:SetAttribute("Sanity", sanity)
+		ride:SetAttribute("SanityTier", Sanity.tierOf(sanity))
+	end
+
+	local function applySanity(delta: number)
+		local lo, hi = Sanity.bandForStop(bandStop, restraintOK, Constants.RESTRAINT_RAISE)
+		sanity = Sanity.apply(sanity, delta, lo, hi)
+		publishSanity()
+	end
+
+	local function sampleSanity()
+		local lo, hi = Sanity.bandForStop(bandStop, restraintOK, Constants.RESTRAINT_RAISE)
+		table.insert(sanSamples, Sanity.bandPosition(sanity, lo, hi))
+		ride:SetAttribute("SanityRetained", Sanity.retainedPercent(sanSamples))
+	end
+
+	local function setWalkLocked(locked: boolean)
+		for _, player in game:GetService("Players"):GetPlayers() do
+			local character = player.Character
+			local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+			if humanoid ~= nil then
+				if locked then
+					humanoid.WalkSpeed = 0
+				else
+					humanoid.WalkSpeed = Constants.WALK_SPEED_MPS * Constants.STUDS_PER_METER
+				end
+			end
+		end
 	end
 
 	local function publishEvp()
@@ -4898,6 +5245,8 @@ function Ride.start(car: CarBuilder.BuiltCar)
 			or ride:GetAttribute("MaskActive") == true
 			or ride:GetAttribute("TrialActive") == true
 			or ride:GetAttribute("Phase") == "trial"
+			or ride:GetAttribute("RestraintActive") == true
+			or ride:GetAttribute("Intervening") == true
 	end
 
 	local function lowerCamera()
@@ -5092,11 +5441,216 @@ function Ride.start(car: CarBuilder.BuiltCar)
 		end
 	end
 
+	local maybeIntervene: () -> ()
+
 	local function applySuspicion(delta: number)
 		suspicion = Score.apply(suspicion, delta, Constants.SUSPICION_MIN, Constants.SUSPICION_MAX)
+		-- Product decision: clamp at 100, never end the ride (SUSPICION_HARD_FAIL = false).
+		if suspicion > peakSuspicion then
+			peakSuspicion = suspicion
+			ride:SetAttribute("PeakSuspicion", peakSuspicion)
+		end
 		ride:SetAttribute("Suspicion", suspicion)
 		publishBand()
+		maybeIntervene()
 	end
+
+	local function publishRestraint()
+		local active = restraintState ~= nil
+		ride:SetAttribute("RestraintActive", active)
+		ride:SetAttribute("RestraintProgress", if restraintState ~= nil then Restraint.progress(restraintState) else 0)
+		ride:SetAttribute("RestraintOK", restraintOK)
+		setWalkLocked(active or intervening)
+	end
+
+	local function restoreRestraintVisuals()
+		local mom = car.passengers:FindFirstChild(AnomalySystem.MOMFACE_ID)
+		if mom ~= nil and mom:IsA("Model") then
+			for part, color in restraintMomRest do
+				part.Color = color
+			end
+		end
+		table.clear(restraintMomRest)
+		for _, id in restraintHidden do
+			CarBuilder.setPassengerShown(car.passengers, id, true)
+		end
+		table.clear(restraintHidden)
+	end
+
+	local function endRestraint(ok: boolean, why: string)
+		restraintState = nil
+		restraintDone = true
+		restraintOK = ok
+		restraintHeld = false
+		restoreRestraintVisuals()
+		beginDim(1, 1.2)
+		publishRestraint()
+		if ok then
+			applySanity(Constants.SANITY_RESTRAINT_OK)
+			showSub(Lines.RESTRAINT_OK, 3.0)
+		else
+			applySuspicion(Constants.RESTRAINT_FAIL_SUSPICION)
+			applySanity(-Constants.SANITY_RESTRAINT_FAIL)
+			showSub(if why ~= "" then why else Lines.RESTRAINT_FAIL, 3.0)
+		end
+		ride:SetAttribute("RestraintOK", restraintOK)
+	end
+
+	local function startRestraintMoment()
+		if restraintState ~= nil or restraintDone then
+			return
+		end
+		if intervening or maskBusy or ride:GetAttribute("ChoiceActive") == true then
+			return
+		end
+		if cameraRaised then
+			cameraRaised = false
+			albumOpen = false
+			publishCamera()
+		end
+		if evpState.raised then
+			Evp.lower(evpState)
+			publishEvp()
+		end
+		restraintState = Restraint.newState(Constants.RESTRAINT_DURATION)
+		publishRestraint()
+		showHint(Lines.RESTRAINT_HINT, 6.0)
+	end
+
+	local function updateRestraint(dt: number)
+		local state = restraintState
+		if state == nil then
+			return
+		end
+		local outcome = Restraint.tick(state, dt, restraintHeld)
+		ride:SetAttribute("RestraintProgress", Restraint.progress(state))
+		if outcome == "fail_wait" then
+			endRestraint(false, Lines.RESTRAINT_FAIL_WAIT)
+			return
+		end
+		if outcome == "fail_release" then
+			endRestraint(false, Lines.RESTRAINT_FAIL)
+			return
+		end
+		if outcome == "ok" then
+			endRestraint(true, "Held")
+			return
+		end
+		if outcome == "holding" then
+			dim = Restraint.dimFraction(state.t)
+			applyLights()
+			if Restraint.shouldFireBeat(state, Restraint.BEAT_MOM) then
+				local mom = car.passengers:FindFirstChild(AnomalySystem.MOMFACE_ID)
+				if mom ~= nil and mom:IsA("Model") then
+					for _, desc in mom:GetDescendants() do
+						if desc:IsA("BasePart") and (desc.Name == "Head" or desc.Name == "Hair" or desc.Name == "Eye") then
+							restraintMomRest[desc] = desc.Color
+							if desc.Name == "Eye" then
+								desc.Color = Color3.fromRGB(20, 20, 28)
+							else
+								desc.Color = Color3.fromRGB(223, 217, 206)
+							end
+						end
+					end
+				end
+			end
+			if Restraint.shouldFireBeat(state, Restraint.BEAT_DAD) then
+				showSub(Lines.RESTRAINT_DAD, 3.2)
+			end
+			if Restraint.shouldFireBeat(state, Restraint.BEAT_EMPTY) then
+				for _, id in { "s1", "s2", "s3", AnomalySystem.EXTRA_ID, "c1", "c2", "c3", "c4", "c5" } do
+					local model = car.passengers:FindFirstChild(id)
+					if model ~= nil and model:GetAttribute("Hidden") ~= true then
+						table.insert(restraintHidden, id)
+						CarBuilder.setPassengerShown(car.passengers, id, false)
+					end
+				end
+			end
+			if Restraint.shouldFireBeat(state, Restraint.BEAT_MOUTH) then
+				showSub(Lines.RESTRAINT_MOM_MOUTH, 3.4)
+			end
+		end
+	end
+
+	local function triggerConcernedIntervention()
+		if intervening or restraintState ~= nil then
+			return
+		end
+		if ride:GetAttribute("ChoiceActive") == true or ride:GetAttribute("MaskActive") == true then
+			return
+		end
+		if suspicion < Constants.INTERVENE_SUSPICION then
+			return
+		end
+		intervening = true
+		interventions += 1
+		ride:SetAttribute("Intervening", true)
+		ride:SetAttribute("Interventions", interventions)
+		setWalkLocked(true)
+		restraintHeld = false
+		if cameraRaised then
+			cameraRaised = false
+			publishCamera()
+		end
+		if evpState.raised then
+			Evp.lower(evpState)
+			publishEvp()
+		end
+		showSub(Lines.INTERVENTION_DAD, 2.6)
+		task.delay(2.7, function()
+			if not intervening then
+				return
+			end
+			showSub(Lines.INTERVENTION_MOM, 3.0)
+		end)
+		task.delay(5.9, function()
+			if not intervening then
+				return
+			end
+			showSub(Lines.INTERVENTION_YOU, 2.4)
+		end)
+		task.delay(8.4, function()
+			if not intervening then
+				return
+			end
+			intervening = false
+			ride:SetAttribute("Intervening", false)
+			setWalkLocked(restraintState ~= nil)
+			applySanity(-Constants.SANITY_INTERVENTION)
+			suspicion = Constants.INTERVENTION_RESET_SUSPICION
+			ride:SetAttribute("Suspicion", suspicion)
+			publishBand()
+			-- No hard fail: intervention cools the meter; the ride continues.
+		end)
+	end
+
+	maybeIntervene = function()
+		-- Rojo product decision: no hard fail at suspicion 100. Intervention
+		-- cools the meter at INTERVENE_SUSPICION; the ride always continues.
+		if Constants.SUSPICION_HARD_FAIL then
+			return
+		end
+		if suspicion >= Constants.INTERVENE_SUSPICION then
+			triggerConcernedIntervention()
+		end
+	end
+
+	holdRemote.OnServerEvent:Connect(function(_player: Player, held: any)
+		if typeof(held) ~= "boolean" then
+			return
+		end
+		if restraintState == nil then
+			restraintHeld = false
+			return
+		end
+		restraintHeld = held
+	end)
+
+	RunService.Heartbeat:Connect(function(dt: number)
+		if restraintState ~= nil then
+			updateRestraint(dt)
+		end
+	end)
 
 	polaroidSnapRemote.OnServerEvent:Connect(function(
 		_player: Player,
@@ -5772,6 +6326,9 @@ function Ride.start(car: CarBuilder.BuiltCar)
 		if ride:GetAttribute("ChoiceActive") == true then
 			return
 		end
+		if ride:GetAttribute("RestraintActive") == true or ride:GetAttribute("Intervening") == true then
+			return
+		end
 		local pool = Dialogue.maskPool(suspicion, Constants.MASK_NEED_SUSPICION)
 		local line = Dialogue.pickMask(pool, maskUsed, maskLast, function()
 			return math.random()
@@ -5810,6 +6367,9 @@ function Ride.start(car: CarBuilder.BuiltCar)
 			return
 		end
 		if ride:GetAttribute("Phase") ~= "ride" then
+			return
+		end
+		if ride:GetAttribute("RestraintActive") == true or ride:GetAttribute("Intervening") == true then
 			return
 		end
 		if flagged[passengerId] then
@@ -5907,6 +6467,12 @@ function Ride.start(car: CarBuilder.BuiltCar)
 		CarBuilder.setCrowd(car.passengers, seg.crowd)
 		clearExtra()
 		setDoorTarget(0)
+
+		if not seg.b then
+			sampleSanity()
+		end
+		bandStop = seg.stop
+		applySanity(Sanity.driftForStop(seg.stop))
 
 		local length = Route.segmentLength(seg, Constants.ACCEL, Constants.BRAKE)
 		inFinal = seg.final
@@ -6136,7 +6702,31 @@ function Ride.start(car: CarBuilder.BuiltCar)
 				end)
 			end)
 		end
+		if seg.restraint == true then
+			task.delay(Constants.RESTRAINT_START_AT, function()
+				if token ~= segToken then
+					return
+				end
+				if ride:GetAttribute("Phase") ~= "ride" then
+					return
+				end
+				startRestraintMoment()
+			end)
+		end
 		task.wait(Hold.wallDuration(length, held, holdFor))
+		-- Web waits for the restraint to finish before arrival.
+		if token == segToken and seg.restraint == true and not restraintDone then
+			if restraintState == nil then
+				startRestraintMoment()
+			end
+			local deadline = os.clock() + Constants.RESTRAINT_DURATION + Constants.RESTRAINT_WAIT + 2
+			while token == segToken and restraintState ~= nil and os.clock() < deadline do
+				task.wait(0.05)
+			end
+			if restraintState ~= nil then
+				endRestraint(false, Lines.RESTRAINT_FAIL_WAIT)
+			end
+		end
 	end
 
 	local function at(t0: number, t: number)
@@ -6346,7 +6936,7 @@ return Ride
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="27">
+      <Item class="ModuleScript" referent="29">
         <Properties>
           <string name="Name">Scenery</string>
           <string name="Source"><![CDATA[--!strict
@@ -6780,7 +7370,7 @@ return Scenery
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="28">
+      <Item class="ModuleScript" referent="30">
         <Properties>
           <string name="Name">TrialSpace</string>
           <string name="Source"><![CDATA[--!strict
@@ -7040,7 +7630,7 @@ return TrialSpace
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="29">
+      <Item class="ModuleScript" referent="31">
         <Properties>
           <string name="Name">WorldLight</string>
           <string name="Source"><![CDATA[--!strict
@@ -7203,18 +7793,18 @@ return WorldLight
       </Item>
     </Item>
   </Item>
-  <Item class="StarterPlayer" referent="30">
+  <Item class="StarterPlayer" referent="32">
     <Properties>
       <string name="Name">StarterPlayer</string>
       <float name="CameraMaxZoomDistance">0.5</float>
       <float name="CameraMinZoomDistance">0.5</float>
       <token name="CameraMode">1</token>
     </Properties>
-    <Item class="StarterPlayerScripts" referent="31">
+    <Item class="StarterPlayerScripts" referent="33">
       <Properties>
         <string name="Name">StarterPlayerScripts</string>
       </Properties>
-      <Item class="LocalScript" referent="32">
+      <Item class="LocalScript" referent="34">
         <Properties>
           <string name="Name">Client</string>
           <string name="Source"><![CDATA[--!strict
@@ -7258,7 +7848,7 @@ Sway.start()
 Glance.start()
 ]]></string>
         </Properties>
-        <Item class="ModuleScript" referent="33">
+        <Item class="ModuleScript" referent="35">
           <Properties>
             <string name="Name">Audio</string>
             <string name="Source"><![CDATA[--!strict
@@ -7553,7 +8143,7 @@ return Audio
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="34">
+        <Item class="ModuleScript" referent="36">
           <Properties>
             <string name="Name">Choice</string>
             <string name="Source"><![CDATA[--!strict
@@ -7641,7 +8231,7 @@ return Choice
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="35">
+        <Item class="ModuleScript" referent="37">
           <Properties>
             <string name="Name">Evp</string>
             <string name="Source"><![CDATA[--!strict
@@ -8079,13 +8669,15 @@ return Evp
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="36">
+        <Item class="ModuleScript" referent="38">
           <Properties>
             <string name="Name">Flag</string>
             <string name="Source"><![CDATA[--!strict
 -- Hold Flag (F, or the button) while the crosshair is on a passenger.
 -- The hold is 0.7 seconds, the web game's CFG.flagHold. It only fills
 -- during a ride, which is when the web game counts a flag.
+-- During the Greenpoint restraint, the same hold reports to Remotes.Hold
+-- (Space or F) and does not flag.
 -- The server decides caught vs false flag. This script does not.
 
 local Players = game:GetService("Players")
@@ -8140,15 +8732,18 @@ function Flag.start(button: TextButton)
 	local ride = ReplicatedStorage:WaitForChild("Ride")
 	local remotes = ReplicatedStorage:WaitForChild("Remotes")
 	local flagRemote = remotes:WaitForChild("Flag") :: RemoteEvent
+	local holdRemote = remotes:WaitForChild("Hold") :: RemoteEvent
 
 	local keyDown = false
+	local spaceDown = false
 	local buttonDown = false
 	local locked = false
 	local progress = 0
 	local currentId: string? = nil
+	local lastSentHold: boolean? = nil
 
 	local function holding(): boolean
-		return keyDown or buttonDown
+		return keyDown or spaceDown or buttonDown
 	end
 
 	UserInputService.InputBegan:Connect(function(input: InputObject, processed: boolean)
@@ -8157,12 +8752,16 @@ function Flag.start(button: TextButton)
 		end
 		if input.KeyCode == Enum.KeyCode.F then
 			keyDown = true
+		elseif input.KeyCode == Enum.KeyCode.Space then
+			spaceDown = true
 		end
 	end)
 
 	UserInputService.InputEnded:Connect(function(input: InputObject)
 		if input.KeyCode == Enum.KeyCode.F then
 			keyDown = false
+		elseif input.KeyCode == Enum.KeyCode.Space then
+			spaceDown = false
 		elseif input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 			buttonDown = false
 		end
@@ -8176,8 +8775,29 @@ function Flag.start(button: TextButton)
 
 	RunService.RenderStepped:Connect(function(dt: number)
 		local riding = ride:GetAttribute("Phase") == "ride"
+		local restraint = ride:GetAttribute("RestraintActive") == true
+		local intervening = ride:GetAttribute("Intervening") == true
 		local down = holding()
-		if not down then
+
+		if restraint then
+			if lastSentHold ~= down then
+				lastSentHold = down
+				holdRemote:FireServer(down)
+			end
+			local ratioAttr = ride:GetAttribute("RestraintProgress")
+			local ratio = if typeof(ratioAttr) == "number" then ratioAttr else 0
+			Hud.setRestraintMode(true)
+			Hud.setProgress(ratio, down)
+			return
+		end
+
+		if lastSentHold ~= false and lastSentHold ~= nil then
+			lastSentHold = false
+			holdRemote:FireServer(false)
+		end
+		Hud.setRestraintMode(false)
+
+		if intervening or not down then
 			locked = false
 			progress = 0
 			currentId = nil
@@ -8212,7 +8832,7 @@ return Flag
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="37">
+        <Item class="ModuleScript" referent="39">
           <Properties>
             <string name="Name">Glance</string>
             <string name="Source"><![CDATA[--!strict
@@ -8394,14 +9014,14 @@ return Glance
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="38">
+        <Item class="ModuleScript" referent="40">
           <Properties>
             <string name="Name">Hud</string>
             <string name="Source"><![CDATA[--!strict
 -- On-screen text. The words come from the server (Shared.Lines). This file
 -- only places them: the amber PA line, the station card, the suspicion
--- meter, the flag button. Suspicion number and band are Ride attributes;
--- Score and Band stay on the server.
+-- and sanity meters, the flag/hold button. Suspicion, Sanity, and band /
+-- tier are Ride attributes; scoring stays on the server.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -8434,6 +9054,8 @@ local evidenceButton: TextButton? = nil
 local cameraButton: TextButton? = nil
 local albumButton: TextButton? = nil
 local progressFill: Frame? = nil
+local flagHoldHint: TextLabel? = nil
+local restraintMode = false
 
 local function corner(parent: Instance, radius: number)
 	local ui = Instance.new("UICorner")
@@ -8600,6 +9222,26 @@ function Hud.albumButton(): TextButton
 	return albumButton
 end
 
+function Hud.setRestraintMode(active: boolean)
+	restraintMode = active
+	local button = flagButton
+	local hint = flagHoldHint
+	if button == nil or hint == nil then
+		return
+	end
+	if active then
+		button.Text = "HOLD"
+		hint.Text = "don't let go"
+		hint.TextColor3 = Constants.COLOR.warn
+		button.BackgroundColor3 = Color3.fromRGB(36, 28, 12)
+	else
+		button.Text = "FLAG"
+		hint.Text = "hold to catch"
+		hint.TextColor3 = Color3.fromRGB(210, 206, 196)
+		button.BackgroundColor3 = Color3.fromRGB(8, 8, 8)
+	end
+end
+
 function Hud.setProgress(ratio: number, holding: boolean)
 	local fill = progressFill
 	local button = flagButton
@@ -8609,6 +9251,16 @@ function Hud.setProgress(ratio: number, holding: boolean)
 	local clamped = math.clamp(ratio, 0, 1)
 	fill.Size = UDim2.fromScale(clamped, 1)
 	fill.BackgroundTransparency = if clamped > 0 then 0 else 1
+	if restraintMode then
+		fill.BackgroundColor3 = Constants.COLOR.warn
+		if holding then
+			button.BackgroundColor3 = Color3.fromRGB(48, 36, 14)
+		else
+			button.BackgroundColor3 = Color3.fromRGB(36, 28, 12)
+		end
+		return
+	end
+	fill.BackgroundColor3 = Constants.COLOR.gLine
 	if holding and clamped > 0 then
 		button.BackgroundColor3 = Color3.fromRGB(28, 46, 22)
 	else
@@ -8707,6 +9359,46 @@ function Hud.start()
 	susBarFill.BorderSizePixel = 0
 	susBarFill.Parent = susBarBack
 	corner(susBarFill, 2)
+
+	local sanCard = Instance.new("Frame")
+	sanCard.Name = "Sanity"
+	sanCard.AnchorPoint = Vector2.new(0, 0)
+	sanCard.Position = UDim2.fromOffset(12, 132)
+	sanCard.Size = UDim2.fromOffset(168, 48)
+	sanCard.BackgroundColor3 = Color3.new(0, 0, 0)
+	sanCard.BackgroundTransparency = 0.35
+	sanCard.BorderSizePixel = 0
+	sanCard.Parent = gui
+	corner(sanCard, 10)
+
+	local sanTitle = label(sanCard, "SANITY", 11, Color3.fromRGB(180, 176, 166))
+	sanTitle.Name = "Title"
+	sanTitle.Font = Enum.Font.Code
+	sanTitle.Position = UDim2.fromOffset(10, 4)
+	sanTitle.Size = UDim2.new(1, -20, 0, 14)
+
+	local sanValue = label(sanCard, Lines.sanityMeter(100, "high"), 16, Constants.COLOR.cream)
+	sanValue.Name = "Value"
+	sanValue.Font = Enum.Font.GothamBold
+	sanValue.Position = UDim2.fromOffset(10, 18)
+	sanValue.Size = UDim2.new(1, -20, 0, 18)
+
+	local sanBarBack = Instance.new("Frame")
+	sanBarBack.Name = "Bar"
+	sanBarBack.Position = UDim2.fromOffset(10, 38)
+	sanBarBack.Size = UDim2.new(1, -20, 0, 4)
+	sanBarBack.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+	sanBarBack.BorderSizePixel = 0
+	sanBarBack.Parent = sanCard
+	corner(sanBarBack, 2)
+
+	local sanBarFill = Instance.new("Frame")
+	sanBarFill.Name = "Fill"
+	sanBarFill.Size = UDim2.fromScale(1, 1)
+	sanBarFill.BackgroundColor3 = Constants.COLOR.gLine
+	sanBarFill.BorderSizePixel = 0
+	sanBarFill.Parent = sanBarBack
+	corner(sanBarFill, 2)
 
 	local pa = Instance.new("TextLabel")
 	pa.Name = "PA"
@@ -8912,6 +9604,7 @@ function Hud.start()
 	hold.Size = UDim2.new(1, -8, 0, 28)
 	hold.TextXAlignment = Enum.TextXAlignment.Center
 	hold.Font = Enum.Font.Gotham
+	flagHoldHint = hold
 	local buttonScale = Instance.new("UIScale")
 	buttonScale.Parent = button
 	flagButton = button
@@ -9184,6 +9877,29 @@ function Hud.start()
 			susBarFill.BackgroundColor3 = Constants.COLOR.gLine
 		end
 
+		local sanAttr = ride:GetAttribute("Sanity")
+		local san = if typeof(sanAttr) == "number" then sanAttr else 100
+		local tier = textOf("SanityTier")
+		if tier == "" then
+			tier = "high"
+		end
+		sanValue.Text = Lines.sanityMeter(san, tier)
+		local sanRatio = math.clamp(san / 100, 0, 1)
+		sanBarFill.Size = UDim2.fromScale(sanRatio, 1)
+		if tier == "critical" then
+			sanValue.TextColor3 = Color3.fromRGB(220, 96, 72)
+			sanBarFill.BackgroundColor3 = Color3.fromRGB(220, 96, 72)
+		elseif tier == "low" then
+			sanValue.TextColor3 = Constants.COLOR.warn
+			sanBarFill.BackgroundColor3 = Constants.COLOR.warn
+		elseif tier == "medium" then
+			sanValue.TextColor3 = Color3.fromRGB(210, 190, 140)
+			sanBarFill.BackgroundColor3 = Color3.fromRGB(180, 160, 90)
+		else
+			sanValue.TextColor3 = Constants.COLOR.cream
+			sanBarFill.BackgroundColor3 = Constants.COLOR.gLine
+		end
+
 		local boardStop = textOf("BoardStop")
 		local minutesValue = ride:GetAttribute("BoardMinutes")
 		local minutes = if typeof(minutesValue) == "number" then minutesValue else nil
@@ -9255,7 +9971,7 @@ return Hud
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="39">
+        <Item class="ModuleScript" referent="41">
           <Properties>
             <string name="Name">Mask</string>
             <string name="Source"><![CDATA[--!strict
@@ -9369,7 +10085,7 @@ return Mask
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="40">
+        <Item class="ModuleScript" referent="42">
           <Properties>
             <string name="Name">Polaroid</string>
             <string name="Source"><![CDATA[--!strict
@@ -9653,7 +10369,7 @@ return Polaroid
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="41">
+        <Item class="ModuleScript" referent="43">
           <Properties>
             <string name="Name">Sway</string>
             <string name="Source"><![CDATA[--!strict
@@ -9734,7 +10450,7 @@ return Sway
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="42">
+        <Item class="ModuleScript" referent="44">
           <Properties>
             <string name="Name">TrialChoice</string>
             <string name="Source"><![CDATA[--!strict
@@ -9867,7 +10583,7 @@ return TrialChoice
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="43">
+        <Item class="ModuleScript" referent="45">
           <Properties>
             <string name="Name">Walk</string>
             <string name="Source"><![CDATA[--!strict
@@ -10000,7 +10716,7 @@ return Walk
       </Item>
     </Item>
   </Item>
-  <Item class="Workspace" referent="44">
+  <Item class="Workspace" referent="46">
     <Properties>
       <string name="Name">Workspace</string>
       <float name="Gravity">196.2</float>

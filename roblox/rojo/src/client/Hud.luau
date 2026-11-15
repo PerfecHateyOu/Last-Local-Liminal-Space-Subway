@@ -1,8 +1,8 @@
 --!strict
 -- On-screen text. The words come from the server (Shared.Lines). This file
 -- only places them: the amber PA line, the station card, the suspicion
--- meter, the flag button. Suspicion number and band are Ride attributes;
--- Score and Band stay on the server.
+-- and sanity meters, the flag/hold button. Suspicion, Sanity, and band /
+-- tier are Ride attributes; scoring stays on the server.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -35,6 +35,8 @@ local evidenceButton: TextButton? = nil
 local cameraButton: TextButton? = nil
 local albumButton: TextButton? = nil
 local progressFill: Frame? = nil
+local flagHoldHint: TextLabel? = nil
+local restraintMode = false
 
 local function corner(parent: Instance, radius: number)
 	local ui = Instance.new("UICorner")
@@ -201,6 +203,26 @@ function Hud.albumButton(): TextButton
 	return albumButton
 end
 
+function Hud.setRestraintMode(active: boolean)
+	restraintMode = active
+	local button = flagButton
+	local hint = flagHoldHint
+	if button == nil or hint == nil then
+		return
+	end
+	if active then
+		button.Text = "HOLD"
+		hint.Text = "don't let go"
+		hint.TextColor3 = Constants.COLOR.warn
+		button.BackgroundColor3 = Color3.fromRGB(36, 28, 12)
+	else
+		button.Text = "FLAG"
+		hint.Text = "hold to catch"
+		hint.TextColor3 = Color3.fromRGB(210, 206, 196)
+		button.BackgroundColor3 = Color3.fromRGB(8, 8, 8)
+	end
+end
+
 function Hud.setProgress(ratio: number, holding: boolean)
 	local fill = progressFill
 	local button = flagButton
@@ -210,6 +232,16 @@ function Hud.setProgress(ratio: number, holding: boolean)
 	local clamped = math.clamp(ratio, 0, 1)
 	fill.Size = UDim2.fromScale(clamped, 1)
 	fill.BackgroundTransparency = if clamped > 0 then 0 else 1
+	if restraintMode then
+		fill.BackgroundColor3 = Constants.COLOR.warn
+		if holding then
+			button.BackgroundColor3 = Color3.fromRGB(48, 36, 14)
+		else
+			button.BackgroundColor3 = Color3.fromRGB(36, 28, 12)
+		end
+		return
+	end
+	fill.BackgroundColor3 = Constants.COLOR.gLine
 	if holding and clamped > 0 then
 		button.BackgroundColor3 = Color3.fromRGB(28, 46, 22)
 	else
@@ -308,6 +340,46 @@ function Hud.start()
 	susBarFill.BorderSizePixel = 0
 	susBarFill.Parent = susBarBack
 	corner(susBarFill, 2)
+
+	local sanCard = Instance.new("Frame")
+	sanCard.Name = "Sanity"
+	sanCard.AnchorPoint = Vector2.new(0, 0)
+	sanCard.Position = UDim2.fromOffset(12, 132)
+	sanCard.Size = UDim2.fromOffset(168, 48)
+	sanCard.BackgroundColor3 = Color3.new(0, 0, 0)
+	sanCard.BackgroundTransparency = 0.35
+	sanCard.BorderSizePixel = 0
+	sanCard.Parent = gui
+	corner(sanCard, 10)
+
+	local sanTitle = label(sanCard, "SANITY", 11, Color3.fromRGB(180, 176, 166))
+	sanTitle.Name = "Title"
+	sanTitle.Font = Enum.Font.Code
+	sanTitle.Position = UDim2.fromOffset(10, 4)
+	sanTitle.Size = UDim2.new(1, -20, 0, 14)
+
+	local sanValue = label(sanCard, Lines.sanityMeter(100, "high"), 16, Constants.COLOR.cream)
+	sanValue.Name = "Value"
+	sanValue.Font = Enum.Font.GothamBold
+	sanValue.Position = UDim2.fromOffset(10, 18)
+	sanValue.Size = UDim2.new(1, -20, 0, 18)
+
+	local sanBarBack = Instance.new("Frame")
+	sanBarBack.Name = "Bar"
+	sanBarBack.Position = UDim2.fromOffset(10, 38)
+	sanBarBack.Size = UDim2.new(1, -20, 0, 4)
+	sanBarBack.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+	sanBarBack.BorderSizePixel = 0
+	sanBarBack.Parent = sanCard
+	corner(sanBarBack, 2)
+
+	local sanBarFill = Instance.new("Frame")
+	sanBarFill.Name = "Fill"
+	sanBarFill.Size = UDim2.fromScale(1, 1)
+	sanBarFill.BackgroundColor3 = Constants.COLOR.gLine
+	sanBarFill.BorderSizePixel = 0
+	sanBarFill.Parent = sanBarBack
+	corner(sanBarFill, 2)
 
 	local pa = Instance.new("TextLabel")
 	pa.Name = "PA"
@@ -513,6 +585,7 @@ function Hud.start()
 	hold.Size = UDim2.new(1, -8, 0, 28)
 	hold.TextXAlignment = Enum.TextXAlignment.Center
 	hold.Font = Enum.Font.Gotham
+	flagHoldHint = hold
 	local buttonScale = Instance.new("UIScale")
 	buttonScale.Parent = button
 	flagButton = button
@@ -783,6 +856,29 @@ function Hud.start()
 		else
 			susValue.TextColor3 = Constants.COLOR.cream
 			susBarFill.BackgroundColor3 = Constants.COLOR.gLine
+		end
+
+		local sanAttr = ride:GetAttribute("Sanity")
+		local san = if typeof(sanAttr) == "number" then sanAttr else 100
+		local tier = textOf("SanityTier")
+		if tier == "" then
+			tier = "high"
+		end
+		sanValue.Text = Lines.sanityMeter(san, tier)
+		local sanRatio = math.clamp(san / 100, 0, 1)
+		sanBarFill.Size = UDim2.fromScale(sanRatio, 1)
+		if tier == "critical" then
+			sanValue.TextColor3 = Color3.fromRGB(220, 96, 72)
+			sanBarFill.BackgroundColor3 = Color3.fromRGB(220, 96, 72)
+		elseif tier == "low" then
+			sanValue.TextColor3 = Constants.COLOR.warn
+			sanBarFill.BackgroundColor3 = Constants.COLOR.warn
+		elseif tier == "medium" then
+			sanValue.TextColor3 = Color3.fromRGB(210, 190, 140)
+			sanBarFill.BackgroundColor3 = Color3.fromRGB(180, 160, 90)
+		else
+			sanValue.TextColor3 = Constants.COLOR.cream
+			sanBarFill.BackgroundColor3 = Constants.COLOR.gLine
 		end
 
 		local boardStop = textOf("BoardStop")
