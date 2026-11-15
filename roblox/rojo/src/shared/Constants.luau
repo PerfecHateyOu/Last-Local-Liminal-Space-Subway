@@ -123,7 +123,9 @@ Constants.SANITY_RESTRAINT_FAIL = 5
 Constants.RESTRAINT_RAISE = 6
 Constants.RESTRAINT_START_AT = 8.0
 Constants.RESTRAINT_DURATION = 15.0
-Constants.RESTRAINT_WAIT = 5.0
+-- Web grab window is 5s; Studio Play needs longer for Space/F to register
+-- after the HOLD prompt appears. Fail still soft (suspicion bump, ride continues).
+Constants.RESTRAINT_WAIT = 10.0
 Constants.RESTRAINT_GRACE = 2.5
 Constants.RESTRAINT_FAIL_SUSPICION = 15
 -- Concerned intervention (web SUS.intervene). Resets suspicion to 40; does not end the ride.

@@ -20,7 +20,8 @@ check("not when busy", not Restraint.shouldStart(true, false, 9.0, 8.0, true))
 
 local waiting = Restraint.newState(15)
 check("wait tick", Restraint.tick(waiting, 1.0, false) == "wait")
-check("fail wait", Restraint.tick(waiting, 4.1, false) == "fail_wait")
+check("wait still open", Restraint.tick(waiting, 8.0, false) == "wait")
+check("fail wait", Restraint.tick(waiting, 1.1, false) == "fail_wait")
 
 local hold = Restraint.newState(15)
 check("start hold", Restraint.tick(hold, 0.2, true) == "holding")
