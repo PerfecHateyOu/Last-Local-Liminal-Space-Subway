@@ -11,10 +11,9 @@ local WorldLight = require(script.WorldLight)
 local Constants = require(ReplicatedStorage.Shared.Constants)
 
 Players.CharacterAutoLoads = false
--- StreamingEnabled is a place property only (default.project.json). Runtime
--- writes throw PluginOrOpenCloud and abort before Ride is created.
-workspace.Gravity = 196.2
-workspace.FallenPartsDestroyHeight = -50
+-- Workspace place properties (Gravity, StreamingEnabled, FallenPartsDestroyHeight)
+-- live only in default.project.json. Runtime writes need PluginOrOpenCloud and
+-- abort this script before Ride is created.
 
 -- Forced again if Studio resets Lighting when play starts.
 WorldLight.bind()
