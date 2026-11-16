@@ -1206,14 +1206,21 @@ function Ride.start(car: CarBuilder.BuiltCar)
 	end
 
 	RunService.Heartbeat:Connect(function(dt: number)
-		for _, player in Players:GetPlayers() do
+		-- Same owner as gaze: metaUserId, else the first player. Guests are still tracked.
+		local players = Players:GetPlayers()
+		local ownerId = metaUserId
+		if ownerId == nil and #players > 0 then
+			ownerId = players[1].UserId
+		end
+		for _, player in players do
 			local character = player.Character
 			local root = if character ~= nil then character:FindFirstChild("HumanoidRootPart") else nil
 			if root ~= nil and root:IsA("BasePart") then
 				local userId = player.UserId
 				if hasRootPos[userId] then
 					local previous = lastRootPos[userId]
-					stretchMovedM += (root.Position - previous).Magnitude / Constants.STUDS_PER_METER
+					local distanceM = (root.Position - previous).Magnitude / Constants.STUDS_PER_METER
+					stretchMovedM = Motion.addOwnerMove(stretchMovedM, userId, ownerId, distanceM)
 				end
 				hasRootPos[userId] = true
 				lastRootPos[userId] = root.Position

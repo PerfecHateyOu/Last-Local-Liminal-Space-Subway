@@ -53,4 +53,12 @@ function Motion.segmentDistance(accel: number, cruise: number, brake: number, to
 	return top * (accel / 2 + cruise + brake / 2)
 end
 
+-- Shared sitting-still total. Only the ride owner's steps count.
+function Motion.addOwnerMove(total: number, userId: number, ownerId: number?, distanceM: number): number
+	if ownerId ~= nil and userId == ownerId then
+		return total + distanceM
+	end
+	return total
+end
+
 return Motion
