@@ -468,7 +468,9 @@ function Ride.start(car: CarBuilder.BuiltCar)
 	local falseStopReacted = false
 	local falseStopOpen = false
 	local stretchMovedM = 0
-	local lastRootPos: Vector3? = nil
+	-- Per player. One shared position adds the distance between riders every frame.
+	local lastRootPos: { [number]: Vector3 } = {}
+	local hasRootPos: { [number]: boolean } = {}
 
 	local function publishSanity()
 		ride:SetAttribute("Sanity", sanity)
@@ -1208,10 +1210,13 @@ function Ride.start(car: CarBuilder.BuiltCar)
 			local character = player.Character
 			local root = if character ~= nil then character:FindFirstChild("HumanoidRootPart") else nil
 			if root ~= nil and root:IsA("BasePart") then
-				if lastRootPos ~= nil then
-					stretchMovedM += (root.Position - lastRootPos).Magnitude / Constants.STUDS_PER_METER
+				local userId = player.UserId
+				if hasRootPos[userId] then
+					local previous = lastRootPos[userId]
+					stretchMovedM += (root.Position - previous).Magnitude / Constants.STUDS_PER_METER
 				end
-				lastRootPos = root.Position
+				hasRootPos[userId] = true
+				lastRootPos[userId] = root.Position
 			end
 		end
 		if falseStopOpen and not falseStopReacted and playerNearDoors() then
@@ -2179,7 +2184,8 @@ function Ride.start(car: CarBuilder.BuiltCar)
 		stareParentCharged = false
 		gazeSince = 0
 		stretchMovedM = 0
-		lastRootPos = nil
+		table.clear(lastRootPos)
+		table.clear(hasRootPos)
 		if picked ~= nil then
 			PsychLog.markSeen(psychLog, picked, Route.stopName(seg.stop))
 		end
@@ -2449,7 +2455,8 @@ function Ride.start(car: CarBuilder.BuiltCar)
 			applySuspicion(Score.sittingStillDelta(still, Constants.SITTING_STILL_SUSPICION))
 		end
 		stretchMovedM = 0
-		lastRootPos = nil
+		table.clear(lastRootPos)
+		table.clear(hasRootPos)
 		stareAnomalyCharged = false
 		stareParentCharged = false
 		gazeSince = 0
@@ -2708,7 +2715,8 @@ function Ride.start(car: CarBuilder.BuiltCar)
 		falseStopReacted = false
 		falseStopOpen = false
 		stretchMovedM = 0
-		lastRootPos = nil
+		table.clear(lastRootPos)
+		table.clear(hasRootPos)
 		stretch = nil
 		odo = 0
 		lastOpenAir = -1
