@@ -36,11 +36,13 @@ Rojo keeps an empty folder **ReplicatedStorage → Assets** (`$ignoreUnknownInst
 | StringValue name | Used for |
 | --- | --- |
 | `Chime` | PA / trial two-tone ding |
-| `Door` | Door open/close latch (also EVP raise click) |
+| `Door` | Door open/close scenes (also EVP raise attack). Recommended: `rbxassetid://9117093785` (~8.15s NYC subway door). Empty stays silent. |
 | `Clack` | Track clacks while moving |
 | `Rumble` | Looped tunnel rumble (volume follows speed) |
 | `OpenAir` | Newtown Creek trestle wind/rain bed |
 | `Polaroid` | Shutter click |
+
+**Door scenes** (when `Door` is the recommended subway clip, or any clip ≥ 6s): **open** plays 0–4.45s (door open, air release, muffled conductor PA); **close** plays 4.45s→end (door close + pull-away). A short platform dwell does **not** cut the open scene — close starts a second instance on top; both run to their ends. Clips shorter than 6s (simple latch) still play start→end on either edge. Raising the recorder uses only the 0.75–1.10s attack slice of the same `Door` asset.
 
 ### Studio steps (your Roblox account)
 

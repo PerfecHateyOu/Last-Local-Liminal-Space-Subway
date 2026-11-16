@@ -28,6 +28,11 @@ Assets.SOUND_VALUE_NAMES = {
 -- Ordered for one-line status logs.
 Assets.SOUND_ORDER = { "chime", "door", "clack", "rumble", "openAir", "polaroid" } :: { SoundKey }
 
+-- Verified public NYC subway door scene (~8.15s). Paste into place
+-- ReplicatedStorage.Assets.Door when you want open/close scenes. Not a
+-- silent-override fallback: empty Door stays silent (no invented private IDs).
+Assets.RECOMMENDED_DOOR_ID = "rbxassetid://9117093785"
+
 -- Strip whitespace; accept bare digits as rbxassetid://N; reject classic
 -- rbxasset://sounds/* paths that Roblox often blocks for experiences.
 function Assets.normalizeSoundId(raw: string?): string
