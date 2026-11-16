@@ -215,6 +215,11 @@ Assets.SOUND_VALUE_NAMES = {
 -- Ordered for one-line status logs.
 Assets.SOUND_ORDER = { "chime", "door", "clack", "rumble", "openAir", "polaroid" } :: { SoundKey }
 
+-- Verified public NYC subway door scene (~8.15s). Paste into place
+-- ReplicatedStorage.Assets.Door when you want open/close scenes. Not a
+-- silent-override fallback: empty Door stays silent (no invented private IDs).
+Assets.RECOMMENDED_DOOR_ID = "rbxassetid://9117093785"
+
 -- Strip whitespace; accept bare digits as rbxassetid://N; reject classic
 -- rbxasset://sounds/* paths that Roblox often blocks for experiences.
 function Assets.normalizeSoundId(raw: string?): string
@@ -663,6 +668,15 @@ Constants.SOUND_CLACK_VOLUME = 0.12
 Constants.SOUND_RUMBLE_MIN = 0.02
 Constants.SOUND_RUMBLE_MAX = 0.14
 Constants.SOUND_RUMBLE_PLAYBACK = 0.35
+-- Door scene (verified rbxassetid://9117093785, ~8.15s). Open 0–4.45;
+-- close 4.45–end. Clips shorter than SCENE_MIN play full on either edge.
+-- Dwell (~2.6s) must not cut the open scene; close starts a second instance.
+Constants.SOUND_DOOR_OPEN_END = 4.45
+Constants.SOUND_DOOR_SCENE_MIN_LENGTH = 6.0
+Constants.SOUND_DOOR_EVP_START = 0.75
+Constants.SOUND_DOOR_EVP_END = 1.10
+-- Safety destroy for one-shots; door scenes use region lifetime instead.
+Constants.SOUND_ONESHOT_MAX_LIFE = 8
 -- Metres of travel between track clacks at top speed (client integrates speed).
 Constants.CLACK_SPACING_M = 9
 
@@ -1103,6 +1117,50 @@ return Dialogue
       </Item>
       <Item class="ModuleScript" referent="10">
         <Properties>
+          <string name="Name">DoorSound</string>
+          <string name="Source"><![CDATA[--!strict
+-- Door clip windows for the sound bed (client Audio plays the regions).
+-- Verified Studio scene rbxassetid://9117093785 (~8.15s): open 0–4.45,
+-- close 4.45–end. Short latch clips (< SCENE_MIN) play start→end on either edge.
+
+local Constants = require(script.Parent.Constants)
+
+local DoorSound = {}
+
+-- (startTime, endTime) in seconds on the asset timeline.
+function DoorSound.edgeWindow(length: number, opening: boolean): (number, number)
+	if length <= 0 then
+		return 0, 0
+	end
+	if length < Constants.SOUND_DOOR_SCENE_MIN_LENGTH then
+		return 0, length
+	end
+	local split = math.min(Constants.SOUND_DOOR_OPEN_END, length)
+	if opening then
+		return 0, split
+	end
+	return split, length
+end
+
+-- EVP raise click: attack slice only (0.75–1.10 on the long scene).
+function DoorSound.evpAttackWindow(length: number): (number, number)
+	if length <= 0 then
+		return 0, 0
+	end
+	local startAt = math.min(Constants.SOUND_DOOR_EVP_START, length)
+	local endAt = math.min(Constants.SOUND_DOOR_EVP_END, length)
+	if endAt <= startAt then
+		return 0, length
+	end
+	return startAt, endAt
+end
+
+return DoorSound
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="11">
+        <Properties>
           <string name="Name">Doors</string>
           <string name="Source"><![CDATA[--!strict
 -- Stay / step-off outcomes. Mirrors web resolveDoors (gameState.ts).
@@ -1228,7 +1286,7 @@ return Doors
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="11">
+      <Item class="ModuleScript" referent="12">
         <Properties>
           <string name="Name">Dwell</string>
           <string name="Source"><![CDATA[--!strict
@@ -1269,7 +1327,7 @@ return Dwell
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="12">
+      <Item class="ModuleScript" referent="13">
         <Properties>
           <string name="Name">Endings</string>
           <string name="Source"><![CDATA[--!strict
@@ -1498,7 +1556,7 @@ return Endings
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="13">
+      <Item class="ModuleScript" referent="14">
         <Properties>
           <string name="Name">Evp</string>
           <string name="Source"><![CDATA[--!strict
@@ -1915,7 +1973,7 @@ return Evp
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="14">
+      <Item class="ModuleScript" referent="15">
         <Properties>
           <string name="Name">Haven</string>
           <string name="Source"><![CDATA[--!strict
@@ -1953,7 +2011,7 @@ return Haven
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="15">
+      <Item class="ModuleScript" referent="16">
         <Properties>
           <string name="Name">Hold</string>
           <string name="Source"><![CDATA[--!strict
@@ -2051,7 +2109,7 @@ return Hold
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="16">
+      <Item class="ModuleScript" referent="17">
         <Properties>
           <string name="Name">KeepOut</string>
           <string name="Source"><![CDATA[--!strict
@@ -2113,7 +2171,7 @@ return KeepOut
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="17">
+      <Item class="ModuleScript" referent="18">
         <Properties>
           <string name="Name">Lines</string>
           <string name="Source"><![CDATA[--!strict
@@ -2349,7 +2407,7 @@ return Lines
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="18">
+      <Item class="ModuleScript" referent="19">
         <Properties>
           <string name="Name">Motion</string>
           <string name="Source"><![CDATA[--!strict
@@ -2411,7 +2469,7 @@ return Motion
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="19">
+      <Item class="ModuleScript" referent="20">
         <Properties>
           <string name="Name">Nightmare</string>
           <string name="Source"><![CDATA[--!strict
@@ -2454,7 +2512,7 @@ return Nightmare
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="20">
+      <Item class="ModuleScript" referent="21">
         <Properties>
           <string name="Name">Passengers</string>
           <string name="Source"><![CDATA[--!strict
@@ -2773,7 +2831,7 @@ return Passengers
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="21">
+      <Item class="ModuleScript" referent="22">
         <Properties>
           <string name="Name">Polaroid</string>
           <string name="Source"><![CDATA[--!strict
@@ -2847,7 +2905,7 @@ return Polaroid
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="22">
+      <Item class="ModuleScript" referent="23">
         <Properties>
           <string name="Name">Practice</string>
           <string name="Source"><![CDATA[--!strict
@@ -2888,7 +2946,7 @@ return Practice
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="23">
+      <Item class="ModuleScript" referent="24">
         <Properties>
           <string name="Name">PsychLog</string>
           <string name="Source"><![CDATA[--!strict
@@ -3043,7 +3101,7 @@ return PsychLog
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="24">
+      <Item class="ModuleScript" referent="25">
         <Properties>
           <string name="Name">Restraint</string>
           <string name="Source"><![CDATA[--!strict
@@ -3154,7 +3212,7 @@ return Restraint
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="25">
+      <Item class="ModuleScript" referent="26">
         <Properties>
           <string name="Name">Route</string>
           <string name="Source"><![CDATA[--!strict
@@ -3312,7 +3370,7 @@ return Route
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="26">
+      <Item class="ModuleScript" referent="27">
         <Properties>
           <string name="Name">Sanity</string>
           <string name="Source"><![CDATA[--!strict
@@ -3424,7 +3482,7 @@ return Sanity
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="27">
+      <Item class="ModuleScript" referent="28">
         <Properties>
           <string name="Name">Score</string>
           <string name="Source"><![CDATA[--!strict
@@ -3507,7 +3565,7 @@ return Score
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="28">
+      <Item class="ModuleScript" referent="29">
         <Properties>
           <string name="Name">Trestle</string>
           <string name="Source"><![CDATA[--!strict
@@ -3593,7 +3651,7 @@ return Trestle
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="29">
+      <Item class="ModuleScript" referent="30">
         <Properties>
           <string name="Name">Trial</string>
           <string name="Source"><![CDATA[--!strict
@@ -3826,11 +3884,11 @@ return Trial
       </Item>
     </Item>
   </Item>
-  <Item class="ServerScriptService" referent="30">
+  <Item class="ServerScriptService" referent="31">
     <Properties>
       <string name="Name">ServerScriptService</string>
     </Properties>
-    <Item class="Script" referent="31">
+    <Item class="Script" referent="32">
       <Properties>
         <string name="Name">Server</string>
         <token name="RunContext">0</token>
@@ -3889,7 +3947,7 @@ for _, player in Players:GetPlayers() do
 end
 ]]></string>
       </Properties>
-      <Item class="ModuleScript" referent="32">
+      <Item class="ModuleScript" referent="33">
         <Properties>
           <string name="Name">AnomalySystem</string>
           <string name="Source"><![CDATA[--!strict
@@ -4042,7 +4100,7 @@ return AnomalySystem
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="33">
+      <Item class="ModuleScript" referent="34">
         <Properties>
           <string name="Name">CarBuilder</string>
           <string name="Source"><![CDATA[--!strict
@@ -5264,7 +5322,7 @@ return CarBuilder
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="34">
+      <Item class="ModuleScript" referent="35">
         <Properties>
           <string name="Name">Consist</string>
           <string name="Source"><![CDATA[--!strict
@@ -5760,7 +5818,7 @@ return Consist
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="35">
+      <Item class="ModuleScript" referent="36">
         <Properties>
           <string name="Name">MetaStore</string>
           <string name="Source"><![CDATA[--!strict
@@ -5938,7 +5996,7 @@ return MetaStore
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="36">
+      <Item class="ModuleScript" referent="37">
         <Properties>
           <string name="Name">Ride</string>
           <string name="Source"><![CDATA[--!strict
@@ -8810,7 +8868,7 @@ return Ride
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="37">
+      <Item class="ModuleScript" referent="38">
         <Properties>
           <string name="Name">Scenery</string>
           <string name="Source"><![CDATA[--!strict
@@ -9244,7 +9302,7 @@ return Scenery
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="38">
+      <Item class="ModuleScript" referent="39">
         <Properties>
           <string name="Name">TrialSpace</string>
           <string name="Source"><![CDATA[--!strict
@@ -9504,7 +9562,7 @@ return TrialSpace
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="39">
+      <Item class="ModuleScript" referent="40">
         <Properties>
           <string name="Name">WorldLight</string>
           <string name="Source"><![CDATA[--!strict
@@ -9686,18 +9744,18 @@ return WorldLight
       </Item>
     </Item>
   </Item>
-  <Item class="StarterPlayer" referent="40">
+  <Item class="StarterPlayer" referent="41">
     <Properties>
       <string name="Name">StarterPlayer</string>
       <float name="CameraMaxZoomDistance">0.5</float>
       <float name="CameraMinZoomDistance">0.5</float>
       <token name="CameraMode">1</token>
     </Properties>
-    <Item class="StarterPlayerScripts" referent="41">
+    <Item class="StarterPlayerScripts" referent="42">
       <Properties>
         <string name="Name">StarterPlayerScripts</string>
       </Properties>
-      <Item class="LocalScript" referent="42">
+      <Item class="LocalScript" referent="43">
         <Properties>
           <string name="Name">Client</string>
           <string name="Source"><![CDATA[--!strict
@@ -9760,14 +9818,17 @@ Glance.start()
 Gaze.start()
 ]]></string>
         </Properties>
-        <Item class="ModuleScript" referent="43">
+        <Item class="ModuleScript" referent="44">
           <Properties>
             <string name="Name">Audio</string>
             <string name="Source"><![CDATA[--!strict
 -- Minimal sound bed. Client only. Phase, stretch timing, Held, DoorTarget,
 -- and PaText stay server-owned; this module listens and plays.
--- Chime before PA, rumble from stretch speed, door open/close, track clacks.
--- No ride-music decay, pause music, EVP, heartbeat, or intercom voice.
+-- Chime before PA, rumble from stretch speed, door open/close scenes, track
+-- clacks. Door uses Shared.DoorSound windows (long scene open 0–4.45 / close
+-- 4.45–end; short latch full clip). Open and close are separate instances so
+-- a short dwell does not cut the open scene. EVP raise uses the 0.75–1.10
+-- attack only. No ride-music decay, pause music, heartbeat, or intercom voice.
 -- OpenAir (0–1) fades a wind/rain bed on the Newtown Creek trestle.
 -- SoundIds come from Shared.Assets (place StringValues). Empty → skip play
 -- so unapproved classic rbxasset:// paths never hit Output.
@@ -9779,6 +9840,7 @@ local UserInputService = game:GetService("UserInputService")
 
 local Assets = require(ReplicatedStorage.Shared.Assets)
 local Constants = require(ReplicatedStorage.Shared.Constants)
+local DoorSound = require(ReplicatedStorage.Shared.DoorSound)
 local Hold = require(ReplicatedStorage.Shared.Hold)
 local Lines = require(ReplicatedStorage.Shared.Lines)
 local Motion = require(ReplicatedStorage.Shared.Motion)
@@ -9814,6 +9876,45 @@ local function makeSound(name: string, id: string, volume: number, looped: boole
 	return sound
 end
 
+local function destroySound(sound: Sound)
+	if sound.Parent ~= nil then
+		sound:Stop()
+		sound:Destroy()
+	end
+end
+
+local function whenSoundReady(sound: Sound, onReady: (length: number) -> ())
+	local function finish(length: number)
+		if sound.Parent == nil then
+			return
+		end
+		onReady(length)
+	end
+
+	if sound.IsLoaded and sound.TimeLength > 0 then
+		finish(sound.TimeLength)
+		return
+	end
+
+	local conn: RBXScriptConnection? = nil
+	conn = sound.Loaded:Connect(function()
+		local c = conn
+		if c ~= nil then
+			c:Disconnect()
+		end
+		finish(sound.TimeLength)
+	end)
+	task.delay(Constants.SOUND_ONESHOT_MAX_LIFE, function()
+		local c = conn
+		if c ~= nil and c.Connected then
+			c:Disconnect()
+		end
+		if sound.Parent ~= nil and not sound.IsPlaying then
+			destroySound(sound)
+		end
+	end)
+end
+
 local function playOneShot(key: Assets.SoundKey, volume: number, playback: number?)
 	if muted then
 		return
@@ -9828,12 +9929,49 @@ local function playOneShot(key: Assets.SoundKey, volume: number, playback: numbe
 	end
 	sound:Play()
 	sound.Ended:Once(function()
-		sound:Destroy()
+		destroySound(sound)
 	end)
-	task.delay(4, function()
-		if sound.Parent ~= nil then
-			sound:Destroy()
+	task.delay(Constants.SOUND_ONESHOT_MAX_LIFE, function()
+		destroySound(sound)
+	end)
+end
+
+-- Play [startAt, endAt) on the Door asset. New instance per call so a 2.6s
+-- dwell does not cut the open scene when close starts on top.
+local function playDoorSlice(
+	name: string,
+	volume: number,
+	windowFor: (length: number) -> (number, number)
+)
+	if muted then
+		return
+	end
+	local id = Assets.soundId("door")
+	local sound = makeSound(name, id, volume, false)
+	if sound == nil then
+		return
+	end
+
+	whenSoundReady(sound, function(length: number)
+		if length <= 0 then
+			destroySound(sound)
+			return
 		end
+		local startAt, endAt = windowFor(length)
+		local finish = math.clamp(endAt, 0, length)
+		local start = math.clamp(startAt, 0, finish)
+		if finish <= start then
+			destroySound(sound)
+			return
+		end
+		local speed = math.max(sound.PlaybackSpeed, 0.05)
+		local life = (finish - start) / speed
+		sound.TimePosition = start
+		sound:Play()
+		-- Stop at the scene end (do not wait for full-asset Ended / old 4s cutoff).
+		task.delay(life + 0.05, function()
+			destroySound(sound)
+		end)
 	end)
 end
 
@@ -9846,7 +9984,13 @@ local function playChime()
 end
 
 local function playDoor(opening: boolean)
-	playOneShot("door", Constants.SOUND_DOOR_VOLUME, if opening then 1.1 else 0.85)
+	playDoorSlice(if opening then "DoorOpen" else "DoorClose", Constants.SOUND_DOOR_VOLUME, function(length: number)
+		return DoorSound.edgeWindow(length, opening)
+	end)
+end
+
+local function playDoorEvpAttack()
+	playDoorSlice("DoorEvp", 0.15, DoorSound.evpAttackWindow)
 end
 
 local function playClack()
@@ -10011,7 +10155,7 @@ function Audio.start(button: TextButton)
 		elseif name == "EvpRaised" then
 			local on = ride:GetAttribute("EvpRaised") == true
 			if on and not lastEvpRaised then
-				playOneShot("door", 0.15, 1.6)
+				playDoorEvpAttack()
 			end
 			lastEvpRaised = on
 			local loopSound = rumble
@@ -10088,7 +10232,7 @@ return Audio
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="44">
+        <Item class="ModuleScript" referent="45">
           <Properties>
             <string name="Name">Choice</string>
             <string name="Source"><![CDATA[--!strict
@@ -10176,7 +10320,7 @@ return Choice
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="45">
+        <Item class="ModuleScript" referent="46">
           <Properties>
             <string name="Name">Evp</string>
             <string name="Source"><![CDATA[--!strict
@@ -10617,7 +10761,7 @@ return Evp
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="46">
+        <Item class="ModuleScript" referent="47">
           <Properties>
             <string name="Name">Exit</string>
             <string name="Source"><![CDATA[--!strict
@@ -10719,7 +10863,7 @@ return Exit
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="47">
+        <Item class="ModuleScript" referent="48">
           <Properties>
             <string name="Name">Flag</string>
             <string name="Source"><![CDATA[--!strict
@@ -10888,7 +11032,7 @@ return Flag
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="48">
+        <Item class="ModuleScript" referent="49">
           <Properties>
             <string name="Name">Gaze</string>
             <string name="Source"><![CDATA[--!strict
@@ -10976,7 +11120,7 @@ return Gaze
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="49">
+        <Item class="ModuleScript" referent="50">
           <Properties>
             <string name="Name">Glance</string>
             <string name="Source"><![CDATA[--!strict
@@ -11158,7 +11302,7 @@ return Glance
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="50">
+        <Item class="ModuleScript" referent="51">
           <Properties>
             <string name="Name">Hud</string>
             <string name="Source"><![CDATA[--!strict
@@ -12428,7 +12572,7 @@ return Hud
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="51">
+        <Item class="ModuleScript" referent="52">
           <Properties>
             <string name="Name">Mask</string>
             <string name="Source"><![CDATA[--!strict
@@ -12542,7 +12686,7 @@ return Mask
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="52">
+        <Item class="ModuleScript" referent="53">
           <Properties>
             <string name="Name">Meta</string>
             <string name="Source"><![CDATA[--!strict
@@ -12697,7 +12841,7 @@ return Meta
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="53">
+        <Item class="ModuleScript" referent="54">
           <Properties>
             <string name="Name">Polaroid</string>
             <string name="Source"><![CDATA[--!strict
@@ -12981,7 +13125,7 @@ return Polaroid
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="54">
+        <Item class="ModuleScript" referent="55">
           <Properties>
             <string name="Name">Sway</string>
             <string name="Source"><![CDATA[--!strict
@@ -13062,7 +13206,7 @@ return Sway
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="55">
+        <Item class="ModuleScript" referent="56">
           <Properties>
             <string name="Name">TrialChoice</string>
             <string name="Source"><![CDATA[--!strict
@@ -13195,7 +13339,7 @@ return TrialChoice
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="56">
+        <Item class="ModuleScript" referent="57">
           <Properties>
             <string name="Name">Walk</string>
             <string name="Source"><![CDATA[--!strict
@@ -13328,7 +13472,7 @@ return Walk
       </Item>
     </Item>
   </Item>
-  <Item class="Workspace" referent="57">
+  <Item class="Workspace" referent="58">
     <Properties>
       <string name="Name">Workspace</string>
       <float name="FallenPartsDestroyHeight">-50</float>

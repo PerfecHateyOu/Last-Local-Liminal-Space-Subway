@@ -1,8 +1,11 @@
 --!strict
 -- Minimal sound bed. Client only. Phase, stretch timing, Held, DoorTarget,
 -- and PaText stay server-owned; this module listens and plays.
--- Chime before PA, rumble from stretch speed, door open/close, track clacks.
--- No ride-music decay, pause music, EVP, heartbeat, or intercom voice.
+-- Chime before PA, rumble from stretch speed, door open/close scenes, track
+-- clacks. Door uses Shared.DoorSound windows (long scene open 0–4.45 / close
+-- 4.45–end; short latch full clip). Open and close are separate instances so
+-- a short dwell does not cut the open scene. EVP raise uses the 0.75–1.10
+-- attack only. No ride-music decay, pause music, heartbeat, or intercom voice.
 -- OpenAir (0–1) fades a wind/rain bed on the Newtown Creek trestle.
 -- SoundIds come from Shared.Assets (place StringValues). Empty → skip play
 -- so unapproved classic rbxasset:// paths never hit Output.
@@ -14,6 +17,7 @@ local UserInputService = game:GetService("UserInputService")
 
 local Assets = require(ReplicatedStorage.Shared.Assets)
 local Constants = require(ReplicatedStorage.Shared.Constants)
+local DoorSound = require(ReplicatedStorage.Shared.DoorSound)
 local Hold = require(ReplicatedStorage.Shared.Hold)
 local Lines = require(ReplicatedStorage.Shared.Lines)
 local Motion = require(ReplicatedStorage.Shared.Motion)
@@ -49,6 +53,45 @@ local function makeSound(name: string, id: string, volume: number, looped: boole
 	return sound
 end
 
+local function destroySound(sound: Sound)
+	if sound.Parent ~= nil then
+		sound:Stop()
+		sound:Destroy()
+	end
+end
+
+local function whenSoundReady(sound: Sound, onReady: (length: number) -> ())
+	local function finish(length: number)
+		if sound.Parent == nil then
+			return
+		end
+		onReady(length)
+	end
+
+	if sound.IsLoaded and sound.TimeLength > 0 then
+		finish(sound.TimeLength)
+		return
+	end
+
+	local conn: RBXScriptConnection? = nil
+	conn = sound.Loaded:Connect(function()
+		local c = conn
+		if c ~= nil then
+			c:Disconnect()
+		end
+		finish(sound.TimeLength)
+	end)
+	task.delay(Constants.SOUND_ONESHOT_MAX_LIFE, function()
+		local c = conn
+		if c ~= nil and c.Connected then
+			c:Disconnect()
+		end
+		if sound.Parent ~= nil and not sound.IsPlaying then
+			destroySound(sound)
+		end
+	end)
+end
+
 local function playOneShot(key: Assets.SoundKey, volume: number, playback: number?)
 	if muted then
 		return
@@ -63,12 +106,49 @@ local function playOneShot(key: Assets.SoundKey, volume: number, playback: numbe
 	end
 	sound:Play()
 	sound.Ended:Once(function()
-		sound:Destroy()
+		destroySound(sound)
 	end)
-	task.delay(4, function()
-		if sound.Parent ~= nil then
-			sound:Destroy()
+	task.delay(Constants.SOUND_ONESHOT_MAX_LIFE, function()
+		destroySound(sound)
+	end)
+end
+
+-- Play [startAt, endAt) on the Door asset. New instance per call so a 2.6s
+-- dwell does not cut the open scene when close starts on top.
+local function playDoorSlice(
+	name: string,
+	volume: number,
+	windowFor: (length: number) -> (number, number)
+)
+	if muted then
+		return
+	end
+	local id = Assets.soundId("door")
+	local sound = makeSound(name, id, volume, false)
+	if sound == nil then
+		return
+	end
+
+	whenSoundReady(sound, function(length: number)
+		if length <= 0 then
+			destroySound(sound)
+			return
 		end
+		local startAt, endAt = windowFor(length)
+		local finish = math.clamp(endAt, 0, length)
+		local start = math.clamp(startAt, 0, finish)
+		if finish <= start then
+			destroySound(sound)
+			return
+		end
+		local speed = math.max(sound.PlaybackSpeed, 0.05)
+		local life = (finish - start) / speed
+		sound.TimePosition = start
+		sound:Play()
+		-- Stop at the scene end (do not wait for full-asset Ended / old 4s cutoff).
+		task.delay(life + 0.05, function()
+			destroySound(sound)
+		end)
 	end)
 end
 
@@ -81,7 +161,13 @@ local function playChime()
 end
 
 local function playDoor(opening: boolean)
-	playOneShot("door", Constants.SOUND_DOOR_VOLUME, if opening then 1.1 else 0.85)
+	playDoorSlice(if opening then "DoorOpen" else "DoorClose", Constants.SOUND_DOOR_VOLUME, function(length: number)
+		return DoorSound.edgeWindow(length, opening)
+	end)
+end
+
+local function playDoorEvpAttack()
+	playDoorSlice("DoorEvp", 0.15, DoorSound.evpAttackWindow)
 end
 
 local function playClack()
@@ -246,7 +332,7 @@ function Audio.start(button: TextButton)
 		elseif name == "EvpRaised" then
 			local on = ride:GetAttribute("EvpRaised") == true
 			if on and not lastEvpRaised then
-				playOneShot("door", 0.15, 1.6)
+				playDoorEvpAttack()
 			end
 			lastEvpRaised = on
 			local loopSound = rumble

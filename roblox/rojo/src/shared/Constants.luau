@@ -264,6 +264,15 @@ Constants.SOUND_CLACK_VOLUME = 0.12
 Constants.SOUND_RUMBLE_MIN = 0.02
 Constants.SOUND_RUMBLE_MAX = 0.14
 Constants.SOUND_RUMBLE_PLAYBACK = 0.35
+-- Door scene (verified rbxassetid://9117093785, ~8.15s). Open 0–4.45;
+-- close 4.45–end. Clips shorter than SCENE_MIN play full on either edge.
+-- Dwell (~2.6s) must not cut the open scene; close starts a second instance.
+Constants.SOUND_DOOR_OPEN_END = 4.45
+Constants.SOUND_DOOR_SCENE_MIN_LENGTH = 6.0
+Constants.SOUND_DOOR_EVP_START = 0.75
+Constants.SOUND_DOOR_EVP_END = 1.10
+-- Safety destroy for one-shots; door scenes use region lifetime instead.
+Constants.SOUND_ONESHOT_MAX_LIFE = 8
 -- Metres of travel between track clacks at top speed (client integrates speed).
 Constants.CLACK_SPACING_M = 9
 

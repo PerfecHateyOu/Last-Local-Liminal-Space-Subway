@@ -46,6 +46,11 @@ check("Rumble value name", Assets.SOUND_VALUE_NAMES.rumble == "Rumble")
 check("OpenAir value name", Assets.SOUND_VALUE_NAMES.openAir == "OpenAir")
 check("Polaroid value name", Assets.SOUND_VALUE_NAMES.polaroid == "Polaroid")
 check("six sound keys", #Assets.SOUND_ORDER == 6)
+check(
+	"recommended Door id documented",
+	Assets.RECOMMENDED_DOOR_ID == "rbxassetid://9117093785"
+)
+check("recommended Door is ready form", Assets.isSoundIdReady(Assets.RECOMMENDED_DOOR_ID) == true)
 
 -- Without a DataModel Assets folder, every key is silent.
 local ready, total, missing = Assets.soundStatus()
