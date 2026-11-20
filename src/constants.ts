@@ -3,6 +3,7 @@
  * Directly sourced from LAST LOCAL Master Project Document v5.1 (October 2026)
  */
 import { SegmentDef } from './types';
+import { SUSPICION_DELTAS } from './game/suspicion';
 
 export const V = 14;
 
@@ -150,12 +151,12 @@ export const GLITCH_TIERS: Array<GlitchTier | null> = [
 ];
 
 export const SUS = {
-  falsePos: 20,
-  maskFail: 15,
-  timeout: 8,
-  visible: 10,
-  clean: -5,
-  refuseHaven: 10,
+  falsePos: SUSPICION_DELTAS.FALSE_POSITIVE,
+  maskFail: SUSPICION_DELTAS.FAILED_MASK_PROMPT,
+  timeout: SUSPICION_DELTAS.PROMPT_TIMEOUT,
+  visible: SUSPICION_DELTAS.VISIBLE_REACTION,
+  clean: SUSPICION_DELTAS.CLEAN_STOP,
+  refuseHaven: SUSPICION_DELTAS.REFUSE_SAFE_HAVEN,
   intervene: 60,
 };
 

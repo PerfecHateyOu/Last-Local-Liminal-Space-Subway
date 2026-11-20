@@ -20,6 +20,7 @@ import {
 import { audioEngine } from "../audio/audioEngine";
 import type { PersonObject, SegmentDef } from "../types";
 import type { GameEngine } from "./gameState";
+import { clampSuspicion } from "./suspicion";
 
 export function getBand(G: GameEngine, stop: number): [number, number] {
   const base = BANDS[stop] || [0, 9];
@@ -44,7 +45,7 @@ export function addSus(
   reason: string,
   watcher?: PersonObject,
 ) {
-  G.sus = Math.max(0, Math.min(100, G.sus + n));
+  G.sus = clampSuspicion(G.sus + n);
   if (n > 0) {
     G.peak = Math.max(G.peak, G.sus);
     G.susLog.push({ t: G.GT, n, reason, stop: G.seg ? G.seg.stop : 1 });
