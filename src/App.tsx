@@ -114,9 +114,17 @@ export default function App() {
     s: false,
     d: false,
   });
+  // Movement keys forgotten with the look keys. A repeat of the same hold stays ignored.
+  const forgottenMoveRef = useRef(new Set<string>());
   // Forget held look and movement keys (pause, lost focus): their key-ups may never arrive.
   const releaseHeldKeys = useCallback(() => {
     keyLookRef.current.clear();
+    const down = keysDownRef.current;
+    const forgotten = forgottenMoveRef.current;
+    if (down.w) forgotten.add('KeyW');
+    if (down.a) forgotten.add('KeyA');
+    if (down.s) forgotten.add('KeyS');
+    if (down.d) forgotten.add('KeyD');
     keysDownRef.current = { w: false, a: false, s: false, d: false };
     engineRef.current?.setMoveInput(0, 0);
     evp.setRecording(false);
@@ -754,12 +762,14 @@ export default function App() {
 
       // Player Movement (WASD) across connected subway cars
       if (!G.choice && !G.restraint) {
-        if (e.code === 'KeyW') keysDownRef.current.w = true;
-        if (e.code === 'KeyS') keysDownRef.current.s = true;
-        if (e.code === 'KeyA') keysDownRef.current.a = true;
-        if (e.code === 'KeyD') keysDownRef.current.d = true;
-
-        if (['KeyW', 'KeyS', 'KeyA', 'KeyD'].includes(e.code)) {
+        const moveKey =
+          e.code === 'KeyW' ? 'w' : e.code === 'KeyA' ? 'a' : e.code === 'KeyS' ? 's' : e.code === 'KeyD' ? 'd' : null;
+        if (moveKey) {
+          // Pause and blur forget the hold. The browser's auto-repeat is still that hold.
+          if (!(e.repeat && forgottenMoveRef.current.has(e.code))) {
+            forgottenMoveRef.current.delete(e.code);
+            keysDownRef.current[moveKey] = true;
+          }
           const fwd = (keysDownRef.current.w ? 1 : 0) - (keysDownRef.current.s ? 1 : 0);
           const right = (keysDownRef.current.d ? 1 : 0) - (keysDownRef.current.a ? 1 : 0);
           G.setMoveInput(fwd, right);
@@ -769,7 +779,7 @@ export default function App() {
       // Keyboard look (arrow keys): held keys turn the view smoothly in the render loop.
       if (KeyLook.isLookKey(e.code)) {
         e.preventDefault();
-        keyLookRef.current.press(e.code);
+        keyLookRef.current.press(e.code, e.repeat);
         return;
       }
 
@@ -794,6 +804,7 @@ export default function App() {
     const handleKeyUp = (e: KeyboardEvent) => {
       const G = engineRef.current;
       if (!G) return;
+      forgottenMoveRef.current.delete(e.code);
       keyLookRef.current.release(e.code);
 
       // WASD key release
