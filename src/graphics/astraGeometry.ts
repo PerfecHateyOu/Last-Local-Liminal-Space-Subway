@@ -60,12 +60,12 @@ export class Parts {
     return obj;
   }
 
-  rod(a: Point, b: Point, r: number, mat: THREE.Material, target?: string, sides = 12) {
+  rod(a: Point, b: Point, r: number, mat: THREE.Material, target?: string, sides = 6) {
     const p = new THREE.Vector3(...a);
     const q = new THREE.Vector3(...b);
     const delta = q.clone().sub(p);
     const center = p.add(q).multiplyScalar(0.5);
-    const geo = new THREE.CylinderGeometry(r, r, delta.length(), sides);
+    const geo = new THREE.CylinderGeometry(r, r, delta.length(), sides, 1, true);
     const obj = this.mesh(geo, mat, center.x, center.y, center.z, target);
     obj.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), delta.normalize());
     return obj;
@@ -77,7 +77,8 @@ export class Parts {
       closed,
       'centripetal'
     );
-    return this.mesh(new THREE.TubeGeometry(curve, points.length * 4, r, 8, closed), mat, 0, 0, 0, target);
+    const tubular = closed ? points.length : Math.max(6, points.length * 2);
+    return this.mesh(new THREE.TubeGeometry(curve, tubular, r, 5, closed), mat, 0, 0, 0, target);
   }
 
   /**
@@ -86,13 +87,12 @@ export class Parts {
    * the group doesn't get the axis swap twice.
    */
   batch(bakeAxis = true) {
-    const bins = new Map<string, { material: THREE.Material; target: string; geometries: THREE.BufferGeometry[] }>();
+    const bins = new Map<string, { material: THREE.Material; geometries: THREE.BufferGeometry[] }>();
     for (const child of this.group.children) {
       if (!(child instanceof THREE.Mesh)) continue;
       const mat = child.material as THREE.Material;
-      const target = (child.userData.target as string) ?? '';
-      const key = mat.uuid + target;
-      if (!bins.has(key)) bins.set(key, { material: mat, target, geometries: [] });
+      const key = mat.uuid;
+      if (!bins.has(key)) bins.set(key, { material: mat, geometries: [] });
       child.updateMatrix();
       const geo = child.geometry.index ? child.geometry.toNonIndexed() : child.geometry.clone();
       geo.applyMatrix4(child.matrix);
@@ -107,7 +107,6 @@ export class Parts {
       const geo = mergeGeometries(data.geometries, false);
       if (!geo) throw new Error('Incompatible subway geometry');
       const mesh = new THREE.Mesh(geo, data.material);
-      if (data.target) mesh.userData.target = data.target;
       this.group.add(mesh);
       data.geometries.forEach((g) => g.dispose());
     }
@@ -116,18 +115,24 @@ export class Parts {
 }
 
 export function standard(color: THREE.ColorRepresentation, metalness = 0, roughness = 0.64) {
-  return new THREE.MeshStandardMaterial({ color, metalness, roughness });
+  if (metalness < 0.5 && roughness >= 0.45) {
+    return new THREE.MeshLambertMaterial({ color });
+  }
+  return new THREE.MeshPhongMaterial({
+    color,
+    shininess: Math.round((1 - roughness) * 85 + 15),
+    specular: metalness >= 0.6 ? 0x8a8c86 : 0x3c3a35,
+  });
 }
 
-/** Scooped fiberglass seat shell from Astra's seatShell(). */
+/** Scooped fiberglass seat shell from Astra's seatShell(), simplified for software WebGL. */
 export function seatShell() {
   const contours = [
-    [0.08, 1.01], [0.105, 1.025], [0.133, 0.99], [0.132, 0.933], [0.137, 0.856], [0.143, 0.77],
-    [0.157, 0.692], [0.177, 0.629], [0.202, 0.569], [0.245, 0.516], [0.302, 0.487], [0.367, 0.473],
-    [0.432, 0.47], [0.498, 0.476], [0.548, 0.482], [0.572, 0.463], [0.574, 0.431], [0.556, 0.409],
-    [0.505, 0.402], [0.399, 0.4], [0.288, 0.408], [0.182, 0.446], [0.11, 0.525], [0.075, 0.702], [0.054, 0.975], [0.08, 1.01],
+    [0.08, 1.01], [0.105, 1.025], [0.133, 0.99], [0.137, 0.856], [0.157, 0.692],
+    [0.202, 0.569], [0.302, 0.487], [0.432, 0.47], [0.498, 0.476], [0.548, 0.482],
+    [0.572, 0.463], [0.574, 0.431], [0.556, 0.409], [0.399, 0.4], [0.11, 0.525], [0.054, 0.975], [0.08, 1.01],
   ];
-  const n = 16;
+  const n = 8;
   const p: number[] = [];
   const idx: number[] = [];
   const uv: number[] = [];
@@ -136,8 +141,8 @@ export function seatShell() {
     for (let i = 0; i <= n; i++) {
       const v = (i / n) * 2 - 1;
       const lip = Math.pow(Math.abs(v), 2.4);
-      const sideHeight = lip * (j < 14 ? 0.041 : 0.023);
-      p.push(d + lip * (j < 8 ? 0.075 : 0.014), h + sideHeight, 0.231 * v);
+      const sideHeight = lip * (j < 9 ? 0.041 : 0.023);
+      p.push(d + lip * (j < 5 ? 0.075 : 0.014), h + sideHeight, 0.231 * v);
       uv.push(i / n, j / (contours.length - 1));
     }
     if (j > 0) {
@@ -176,5 +181,5 @@ export function windowGasket(w: number, h: number, thickness: number, radius: nu
   round(shape, w, h, radius);
   round(hole, w - 2 * thickness, h - 2 * thickness, Math.max(0.015, radius - thickness));
   shape.holes.push(hole);
-  return new THREE.ShapeGeometry(shape, 5);
+  return new THREE.ShapeGeometry(shape, 2);
 }

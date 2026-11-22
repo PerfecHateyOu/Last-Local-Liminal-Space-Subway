@@ -48,6 +48,9 @@ export function createAstraCar(): AstraCar {
   const shoe = standard('#7f7f72', 0.7, 0.31);
   const seatMats = ['#cc6428', '#d58934', '#e5ab48', '#c66b2d'].map((col) => standard(col, 0.1, 0.245));
   const sideGlass = glassMaterial();
+  const doorGlass = new THREE.MeshBasicMaterial({
+    color: '#3f514c', transparent: true, opacity: 0.24, depthWrite: false, side: THREE.DoubleSide,
+  });
   const floor = parts.face(0, -0.002, 0, 3.32, carLength, 0, floorMaterial());
   floor.rotation.x = -Math.PI / 2;
   const shell = seatShell();
@@ -65,7 +68,7 @@ export function createAstraCar(): AstraCar {
       parts.box(0, 2.606, z, 1.7, 0.012, 0.015, joint);
       for (const x of [-0.72, 0, 0.72]) parts.box(x, 2.6, z + 0.035, 0.012, 0.012, 0.017, dark);
       const grate = parts.box(s * 0.64, 2.599, z + 0.19, 0.25, 0.014, 0.31, trim);
-      for (let b = 0; b < 9; b++) parts.box(grate.position.x, 2.587, z + 0.072 + b * 0.031, 0.2, 0.005, 0.009, dark);
+      for (let b = 0; b < 3; b++) parts.box(grate.position.x, 2.587, z + 0.095 + b * 0.095, 0.2, 0.005, 0.014, dark);
     }
     parts.rod([s * 0.98, 2.16, -11.79], [s * 0.98, 2.16, 11.79], 0.02, chrome);
     parts.rod([s * 1.49, 1.9, -11.79], [s * 1.49, 1.9, 11.79], 0.012, chrome);
@@ -144,38 +147,35 @@ export function createAstraCar(): AstraCar {
       parts.box(side * 1.602, 2.05, z, 0.09, 0.35, width, brushed);
       parts.box(side * 1.526, 1.965, z, 0.1, 0.05, width + 0.055, trim, 'doors');
       parts.box(side * 1.524, 2.21, z, 0.08, 0.182, 1.17, dark, 'doors');
-      const display = addWallPane(parts, side, 1.477, 2.21, z, 1.1, 0.121, led, 'doors');
-      // Pull the sign out of the batch so it stays a readable quad, then place it on our axis.
-      parts.group.remove(display);
-      placeInMain(display);
-      root.add(display);
+      addWallPane(parts, side, 1.477, 2.21, z, 1.1, 0.121, led, 'doors');
       for (const d of [-1, 1]) {
         parts.box(side * 1.6, 0.973, z + d * 0.755, 0.134, 1.95, 0.046, brushed, 'doors');
         parts.box(side * 1.61, 0.018, z, 0.3, 0.028, width, trim, 'doors');
-        const door = new Parts();
+        // Only the platform side (Astra +X, our far wall) slides. Near leaves batch into the shell.
+        const isPlatform = side > 0;
+        const door = isPlatform ? new Parts() : parts;
         const center = d * 0.367;
+        const cz = isPlatform ? center : z + center;
         const ww = 0.734;
-        door.box(side * 1.587, 0.438, center, 0.075, 0.876, ww, brushed, 'doors');
-        door.box(side * 1.587, 1.845, center, 0.075, 0.2, ww, brushed, 'doors');
-        for (const e of [-1, 1]) door.box(side * 1.587, 1.31, center + e * 0.298, 0.075, 0.88, 0.135, brushed, 'doors');
+        door.box(side * 1.587, 0.438, cz, 0.075, 0.876, ww, brushed, 'doors');
+        door.box(side * 1.587, 1.845, cz, 0.075, 0.2, ww, brushed, 'doors');
+        for (const e of [-1, 1]) door.box(side * 1.587, 1.31, cz + e * 0.298, 0.075, 0.88, 0.135, brushed, 'doors');
         for (const v of [-1, 1]) {
-          door.box(side * 1.541, 1.305 + v * 0.44, center, 0.032, 0.039, 0.508, rubber, 'doors');
-          door.box(side * 1.541, 1.305, center + v * 0.253, 0.032, 0.898, 0.039, rubber, 'doors');
+          door.box(side * 1.541, 1.305 + v * 0.44, cz, 0.032, 0.039, 0.508, rubber, 'doors');
+          door.box(side * 1.541, 1.305, cz + v * 0.253, 0.032, 0.898, 0.039, rubber, 'doors');
         }
-        const glass = new THREE.MeshStandardMaterial({
-          color: '#3f514c', transparent: true, opacity: 0.23, metalness: 0.69, roughness: 0.16, depthWrite: false, side: THREE.DoubleSide,
-        });
-        addWallPane(door, side, 1.586, 1.31, center, 0.478, 0.849, glass, 'doors');
-        door.box(side * 1.54, 0.969, center - d * 0.358, 0.034, 1.91, 0.019, seal, 'doors');
-        door.box(side * 1.542, 0.139, center, 0.022, 0.264, 0.701, trim, 'doors');
-        addWallPane(door, side, 1.542, 0.738, center, 0.318, 0.047, stickers, 'doors');
-        for (const e of [-1, 1]) door.box(side * 1.535, 0.713, center + e * 0.168, 0.009, 0.009, 0.009, dark, 'doors');
-        const obj = door.batch(false);
-        obj.position.z = z;
-        placeDoor(obj);
-        root.add(obj);
-        // Only the platform side (Astra +X, our far wall) slides. Near leaves stay shut.
-        if (side > 0) leaves.push({ g: obj, x0: z, side: d });
+        addWallPane(door, side, 1.586, 1.31, cz, 0.478, 0.849, doorGlass, 'doors');
+        door.box(side * 1.54, 0.969, cz - d * 0.358, 0.034, 1.91, 0.019, seal, 'doors');
+        door.box(side * 1.542, 0.139, cz, 0.022, 0.264, 0.701, trim, 'doors');
+        addWallPane(door, side, 1.542, 0.738, cz, 0.318, 0.047, stickers, 'doors');
+        for (const e of [-1, 1]) door.box(side * 1.535, 0.713, cz + e * 0.168, 0.009, 0.009, 0.009, dark, 'doors');
+        if (isPlatform) {
+          const obj = door.batch(false);
+          obj.position.z = z;
+          placeDoor(obj);
+          root.add(obj);
+          leaves.push({ g: obj, x0: z, side: d });
+        }
       }
     }
     for (let k = 0; k < 15; k++) {
@@ -191,19 +191,20 @@ export function createAstraCar(): AstraCar {
   }
 
   // End LED headers over the gangway openings. The ends stay open so Cars A and C stay walkable.
-  const darkHeader = standard('#353933', 0.45, 0.54);
   for (const far of [-1, 1] as const) {
     const z = far * 11.88;
     const ry = far === -1 ? 0 : Math.PI;
-    parts.box(0, 2.236, z - far * 0.08, 1.59, 0.257, 0.13, darkHeader);
+    parts.box(0, 2.236, z - far * 0.08, 1.59, 0.257, 0.13, dark);
     parts.face(0, 2.24, z - far * 0.153, 1.49, 0.188, ry, led);
   }
 
   root.add(parts.batch());
+  shell.dispose();
 
+  const tubeGeo = new THREE.BoxGeometry(lightWidth, 0.047, 2.503);
   const tubes = tubeSpots.map(({ s, z }) => {
     const mat = new THREE.MeshBasicMaterial({ color: 0xfff4de });
-    const mesh = new THREE.Mesh(new THREE.BoxGeometry(lightWidth, 0.047, 2.503), mat);
+    const mesh = new THREE.Mesh(tubeGeo, mat);
     mesh.position.set(s * 1.21, 2.405, z);
     mesh.rotation.z = -s * 0.38;
     placeInMain(mesh);

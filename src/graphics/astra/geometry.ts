@@ -29,27 +29,27 @@ export class Parts {
     obj.rotation.y=ry
     return obj
   }
-  rod(a:Point,b:Point,r:number,mat:T.Material,target?:string,sides=12){
+  rod(a:Point,b:Point,r:number,mat:T.Material,target?:string,sides=5){
     const p=new T.Vector3(...a), q=new T.Vector3(...b)
     const delta=q.clone().sub(p)
     const center=p.add(q).multiplyScalar(.5)
-    const geo=new T.CylinderGeometry(r,r,delta.length(),sides)
+    const geo=new T.CylinderGeometry(r,r,delta.length(),sides,1,true)
     const obj=this.mesh(geo,mat,center.x,center.y,center.z,target)
     obj.quaternion.setFromUnitVectors(new T.Vector3(0,1,0),delta.normalize())
     return obj
   }
   pipe(points:Point[],r:number,mat:T.Material,target?:string,closed=false){
     const curve=new T.CatmullRomCurve3(points.map(p=>new T.Vector3(...p)),closed,'centripetal')
-    return this.mesh(new T.TubeGeometry(curve,points.length*4,r,8,closed),mat,0,0,0,target)
+    const tubular=closed?points.length:Math.max(6,points.length*2)
+    return this.mesh(new T.TubeGeometry(curve,tubular,r,4,closed),mat,0,0,0,target)
   }
   batch(){
-    const bins=new Map<string,{material:T.Material, target:string, geometries:T.BufferGeometry[]}>()
+    const bins=new Map<string,{material:T.Material, geometries:T.BufferGeometry[]}>()
     for(const child of this.group.children){
       if(!(child instanceof T.Mesh))continue
       const mat=child.material as T.Material
-      const target=child.userData.target??''
-      const key=mat.uuid+target
-      if(!bins.has(key)) bins.set(key,{material:mat,target,geometries:[]})
+      const key=mat.uuid
+      if(!bins.has(key)) bins.set(key,{material:mat,geometries:[]})
       child.updateMatrix()
       const geo=child.geometry.index?child.geometry.toNonIndexed():child.geometry.clone()
       geo.applyMatrix4(child.matrix)
@@ -61,7 +61,6 @@ export class Parts {
       const geo=mergeGeometries(data.geometries,false)
       if(!geo)throw new Error('Incompatible subway geometry')
       const mesh=new T.Mesh(geo,data.material)
-      if(data.target)mesh.userData.target=data.target
       this.group.add(mesh)
       data.geometries.forEach(g=>g.dispose())
     }
@@ -69,26 +68,25 @@ export class Parts {
   }
 }
 
-export function standard(color:T.ColorRepresentation, metalness=0,roughness=.64){
-  return new T.MeshStandardMaterial({color,metalness,roughness})
+export function standard(color:T.ColorRepresentation){
+  return new T.MeshLambertMaterial({color})
 }
 
-export function seatShell(){
+export function seatShell(n=10){
   // The rim rises on either side of a continuous scoop from the backrest to the front lip.
   const contours=[
-    [.08,1.01],[.105,1.025],[.133,.99],[.132,.933],[.137,.856],[.143,.77],
-    [.157,.692],[.177,.629],[.202,.569],[.245,.516],[.302,.487],[.367,.473],
-    [.432,.470],[.498,.476],[.548,.482],[.572,.463],[.574,.431],[.556,.409],
-    [.505,.402],[.399,.400],[.288,.408],[.182,.446],[.110,.525],[.075,.702],[.054,.975],[.08,1.01],
+    [.08,1.01],[.105,1.025],[.133,.99],[.137,.856],[.157,.692],
+    [.202,.569],[.302,.487],[.432,.470],[.498,.476],[.548,.482],
+    [.572,.463],[.574,.431],[.556,.409],[.399,.400],[.110,.525],[.054,.975],[.08,1.01],
   ]
-  const n=16, p:number[]=[], idx:number[]=[],uv:number[]=[]
+  const p:number[]=[], idx:number[]=[],uv:number[]=[]
   for(let j=0;j<contours.length;j++){
     const [d,h]=contours[j]
     for(let i=0;i<=n;i++){
       const v=i/n*2-1
       const lip=Math.pow(Math.abs(v),2.4)
-      const sideHeight=lip*(j<14?.041:.023)
-      p.push(d+lip*(j<8?.075:.014),h+sideHeight,.231*v)
+      const sideHeight=lip*(j<9?.041:.023)
+      p.push(d+lip*(j<5?.075:.014),h+sideHeight,.231*v)
       uv.push(i/n,j/(contours.length-1))
     }
     if(j>0)for(let i=0;i<n;i++){
@@ -119,5 +117,5 @@ export function windowGasket(w:number,h:number,thickness:number,radius:number) {
   round(shape,w,h,radius)
   round(hole,w-2*thickness,h-2*thickness,Math.max(.015,radius-thickness))
   shape.holes.push(hole)
-  return new T.ShapeGeometry(shape,5)
+  return new T.ShapeGeometry(shape,1)
 }
