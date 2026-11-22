@@ -401,7 +401,7 @@ export const HUD: React.FC<HUDProps> = ({
       {G.paText && (
         <div
           data-testid="pa-toast"
-          className="pointer-events-none absolute z-30 left-1/2 top-[calc(var(--hud-h,9rem)+0.5rem)] sm:top-16 -translate-x-1/2 w-max max-w-[min(90vw,640px)]"
+          className="pointer-events-none absolute z-30 left-1/2 top-28 max-sm:portrait:top-[calc(var(--hud-h,9rem)+0.5rem)] sm:top-16 -translate-x-1/2 max-sm:portrait:w-max max-w-[min(90vw,640px)]"
         >
           <div className="relative overflow-hidden px-4 py-2 rounded bg-[#120d05] border border-warn/60 text-warn text-center font-bold text-sm sm:text-base tracking-wide shadow-[0_0_18px_rgba(227,168,58,0.25)] transit-sign-flicker">
             <div className="absolute inset-0 pointer-events-none transit-sign-raster opacity-30" />
@@ -432,7 +432,7 @@ export const HUD: React.FC<HUDProps> = ({
       {G.subHtml && (
         <div
           data-testid="hud-subtitle"
-          className={`absolute left-1/2 -translate-x-1/2 w-max max-w-[min(92vw,680px)] px-4 py-2.5 rounded bg-black/80 border border-white/10 text-center text-sm sm:text-base text-cream leading-relaxed shadow-lg transit-sign-flicker-subtle transition-all duration-300 ${
+          className={`absolute left-1/2 -translate-x-1/2 max-sm:portrait:w-max max-w-[min(92vw,680px)] px-4 py-2.5 rounded bg-black/80 border border-white/10 text-center text-sm sm:text-base text-cream leading-relaxed shadow-lg transit-sign-flicker-subtle transition-all duration-300 ${
             showChoices ? 'bottom-28 touch:bottom-56 short-land:bottom-28' : isRestraint ? 'bottom-32' : 'bottom-16 max-sm:portrait:bottom-36'
           }`}
           dangerouslySetInnerHTML={{ __html: G.subHtml }}
