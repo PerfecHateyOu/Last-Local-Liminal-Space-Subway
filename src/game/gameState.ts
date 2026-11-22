@@ -32,6 +32,7 @@ import {
 } from '../constants';
 import { recordRide, PsychLogResult, entryState } from './psychLog';
 import { audioEngine } from '../audio/audioEngine';
+import { DOOR_SLIDE } from '../graphics/astraCar';
 import { SubwayCarBuilder } from '../graphics/subwayCarBuilder';
 import { TrialBuilder } from '../graphics/trialBuilder';
 import { AnomalyManager } from './anomalyManager';
@@ -1944,28 +1945,28 @@ export class GameEngine {
         let nextX = this.eyePos.x + dx;
         let nextZ = this.eyePos.z + dz;
 
-        // Front gangway door collision (x = -9.0)
+        // Gangway doors sit on Car B's ends (Astra car, ±11.9). The next car's wall is 1.5m beyond.
+        const END = SubwayCarBuilder.CAR_B_END;
         const frontDoorClosed = this.carBuilder.gangwayDoors.frontAngle < 0.45;
         if (frontDoorClosed) {
-          if (this.eyePos.x >= -8.9 && nextX < -8.9) nextX = -8.9;
-          if (this.eyePos.x <= -9.1 && nextX > -9.1) nextX = -9.1;
+          if (this.eyePos.x >= -(END - 0.1) && nextX < -(END - 0.1)) nextX = -(END - 0.1);
+          if (this.eyePos.x <= -(END + 0.1) && nextX > -(END + 0.1)) nextX = -(END + 0.1);
         }
 
-        // Rear gangway door collision (x = +9.0)
         const rearDoorClosed = Math.abs(this.carBuilder.gangwayDoors.rearAngle) < 0.45;
         if (rearDoorClosed) {
-          if (this.eyePos.x <= 8.9 && nextX > 8.9) nextX = 8.9;
-          if (this.eyePos.x >= 9.1 && nextX < 9.1) nextX = 9.1;
+          if (this.eyePos.x <= END - 0.1 && nextX > END - 0.1) nextX = END - 0.1;
+          if (this.eyePos.x >= END + 0.1 && nextX < END + 0.1) nextX = END + 0.1;
         }
 
-        // Aisle width bounds
-        const inGangway1 = nextX <= -8.9 && nextX >= -10.6;
-        const inGangway2 = nextX >= 8.9 && nextX <= 10.6;
+        // Aisle width bounds. The gangway is the 1.5m gap past the bulkhead.
+        const inGangway1 = nextX <= -(END - 0.1) && nextX >= -(END + 1.7);
+        const inGangway2 = nextX >= END - 0.1 && nextX <= END + 1.7;
         const maxZ = (inGangway1 || inGangway2) ? 0.38 : 0.72;
         nextZ = Math.max(-maxZ, Math.min(maxZ, nextZ));
 
-        // Train consist length limits
-        nextX = Math.max(-27.0, Math.min(27.0, nextX));
+        // Train consist length limits (cab walls moved out with Cars A and C)
+        nextX = Math.max(-30.0, Math.min(30.0, nextX));
 
         // Standing passengers: don't walk into them (see game/personKeepOut.ts)
         const kept = pushOutOfCircles(nextX, nextZ, this.standingKeepOut(), this.eyePos.x, this.eyePos.z);
@@ -1984,24 +1985,25 @@ export class GameEngine {
       }
 
       // Check gangway door proximity
-      if (this.eyePos.x < -7.6 && this.eyePos.x > -10.4) {
+      const end = SubwayCarBuilder.CAR_B_END;
+      if (this.eyePos.x < -(end - 1.4) && this.eyePos.x > -(end + 1.5)) {
         this.nearGangwayDoor = 'front';
-      } else if (this.eyePos.x > 7.6 && this.eyePos.x < 10.4) {
+      } else if (this.eyePos.x > end - 1.4 && this.eyePos.x < end + 1.5) {
         this.nearGangwayDoor = 'rear';
       } else {
         this.nearGangwayDoor = null;
       }
 
-      // Current car index
-      if (this.eyePos.x < -10.2) {
+      // Current car index. The split is the middle of the gangway.
+      if (this.eyePos.x < -(end + 0.75)) {
         this.currentCarIndex = 0; // Car A
-      } else if (this.eyePos.x > 10.2) {
+      } else if (this.eyePos.x > end + 0.75) {
         this.currentCarIndex = 2; // Car C
       } else {
         this.currentCarIndex = 1; // Car B (Mid)
       }
 
-      this.isCrossingGangway = (this.eyePos.x >= -10.6 && this.eyePos.x <= -8.8) || (this.eyePos.x >= 8.8 && this.eyePos.x <= 10.6);
+      this.isCrossingGangway = (this.eyePos.x >= -(end + 1.7) && this.eyePos.x <= -(end - 0.2)) || (this.eyePos.x >= end - 0.2 && this.eyePos.x <= end + 1.7);
       audioEngine.gangwayWind(this.isCrossingGangway ? 1.0 : (this.nearGangwayDoor ? 0.4 : 0.0));
     }
 
@@ -2125,7 +2127,7 @@ export class GameEngine {
     // Sliding doors interpolation
     this.doorOpen += (this.doorTarget - this.doorOpen) * (1 - Math.exp(-7 * dt));
     this.carBuilder.farLeaves.forEach((l) => {
-      l.g.position.x = l.x0 + l.side * 0.62 * this.doorOpen;
+      l.g.position.x = l.x0 + l.side * DOOR_SLIDE * this.doorOpen;
     });
 
     if (this.phase === 'ride' && seg) {

@@ -30,9 +30,10 @@ test.describe('rendering budget', () => {
   test('walking into the next car hands the pool to that car’s lights', async ({ game }) => {
     const r = await game(`ride(1); G.seg._masks = []; await sleep(200);
       const frames = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
-      G.eyePos.x = -19.5; advance(0.1); await frames(); await sleep(300); await frames();
+      G.eyePos.x = -22.4; advance(0.1); await frames(); await sleep(300); await frames();
       return G.carBuilder.lightPool.map((l) => +l.getWorldPosition(window.__R.camera.position.clone()).x.toFixed(1)).sort((a, b) => a - b);`);
-    expect(r).toEqual([-25.5, -21.5, -17.5, -13.5]);
+    // Car A moved out with the longer Car B. Its four lights are the old ones, 2.9m further forward.
+    expect(r).toEqual([-28.4, -24.4, -20.4, -16.4]);
   });
 
   test('no HUD panel blurs the live 3D view behind it', async ({ game }) => {

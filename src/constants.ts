@@ -8,8 +8,8 @@ import { SUSPICION_DELTAS } from './game/suspicion';
 export const V = 14;
 
 /**
- * Which way the train travels along x: toward -x, so Car A (Lead, centered at x = -19.5) is the
- * front and Car C (Rear, x = +19.5) the back. Everything outside (tunnel lights and piers,
+ * Which way the train travels along x: toward -x, so Car A (Lead, centered at x = -22.4) is the
+ * front and Car C (Rear, x = +22.4) the back. Everything outside (tunnel lights and piers,
  * stations, the trestle, passing trains, the rain on the trestle windows) streams toward +x.
  * World x of something `d` metres ahead of the train is FORWARD_X * d.
  */

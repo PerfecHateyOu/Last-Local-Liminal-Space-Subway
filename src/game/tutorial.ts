@@ -54,7 +54,7 @@ export interface TutorialView {
 }
 
 /**
- * The window across the aisle, a little to your right (subwayCarBuilder panes, x ≈ 1.9). Not the
+ * The window across the aisle, a little to your right (subwayCarBuilder panes, x ≈ 1.01). Not the
  * one straight ahead: that one is behind Dad's head, and he can block it.
  */
 const PANE = 3;

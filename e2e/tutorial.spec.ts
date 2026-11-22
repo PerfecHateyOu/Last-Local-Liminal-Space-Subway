@@ -62,7 +62,7 @@ test.describe('Practice stretch', () => {
     expect(await game(`G.ty = G.yaw = 1.6; advance(1.2); return G.carBuilder.panes[3].decal.visible;`)).toBe(true);
     await expect(coach(page)).toContainText('just changed');
     // A wrong flag is named as wrong here (and only here).
-    await game(`${AIM} const ad = G.carBuilder.acrossAds.find((a) => Math.abs(a.mesh.position.x - 2.6) < 0.1).mesh.getWorldPosition(G.eyePos.clone());
+    await game(`${AIM} const ad = G.carBuilder.acrossAds.find((a) => Math.abs(a.mesh.position.x) < 0.2).mesh.getWorldPosition(G.eyePos.clone());
       aimAt(ad.x, ad.y, ad.z); advance(0.1); G.flagHeld = true; advance(1.0); G.flagHeld = false; advance(0.1);`);
     await expect(coach(page)).toContainText('Not that');
     // The right one.

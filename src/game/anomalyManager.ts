@@ -177,7 +177,7 @@ export class AnomalyManager {
             obj: s.head,
             desc: 'The standing passenger was abruptly standing at the far doors',
             apply: () => {
-              s.g.position.x = -5.0;
+              s.g.position.x = -7.2; // beside the forward door bay (x = -8.45), clear of the leaves
             },
             revert: () => {
               s.g.position.copy(s.home);
