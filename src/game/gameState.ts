@@ -991,7 +991,11 @@ export class GameEngine {
   public flickerOneTube(): number {
     const segs = this.carBuilder.lightSegs;
     const COLD = 0x8cc2ff;
-    const ok = segs.map((l, i) => i).filter((i) => segs[i].m.visible && segs[i].mat.color.getHex() !== COLD);
+    const ok = segs.map((l, i) => i).filter((i) =>
+      segs[i].m.visible &&
+      segs[i].mat.color.getHex() !== COLD &&
+      Math.abs(segs[i].m.getWorldPosition(this.tmpVec1).x - this.camera.position.x) <= 9
+    );
     if (!ok.length) return -1;
     const i = ok[Math.floor(Math.random() * ok.length)];
     this.tubeFlicker = { i, until: this.GT + GameEngine.TUBE_FLICKER_S };
@@ -2127,6 +2131,7 @@ export class GameEngine {
     this.carBuilder.farLeaves.forEach((l) => {
       l.g.position.x = l.x0 + l.side * 0.62 * this.doorOpen;
     });
+    this.carBuilder.setPlatformDoors(this.doorOpen);
 
     if (this.phase === 'ride' && seg) {
       const L = this.segLen(seg);
@@ -2442,7 +2447,10 @@ export class GameEngine {
    */
   private updateBulbs(dt: number) {
     const seg = this.seg;
-    const n = this.carBuilder.lightSegs.length;
+    const segs = this.carBuilder.lightSegs;
+    const nearby = segs.map((l, i) => i).filter((i) =>
+      Math.abs(segs[i].m.getWorldPosition(this.tmpVec1).x - this.camera.position.x) <= 9
+    );
     const allowed =
       this.nightmare &&
       !settings.effectsReduced() &&
@@ -2454,9 +2462,9 @@ export class GameEngine {
       if (this.bulbOut.length) this.bulbOut = [];
       return;
     }
-    if (n && Math.random() < NIGHTMARE.bulbRate * dt) {
+    if (nearby.length && Math.random() < NIGHTMARE.bulbRate * dt) {
       const [a, b] = NIGHTMARE.bulbOut;
-      this.bulbOut[Math.floor(Math.random() * n)] = this.GT + a + Math.random() * (b - a);
+      this.bulbOut[nearby[Math.floor(Math.random() * nearby.length)]] = this.GT + a + Math.random() * (b - a);
     }
   }
 

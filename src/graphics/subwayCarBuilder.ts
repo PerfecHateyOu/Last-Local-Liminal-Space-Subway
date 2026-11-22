@@ -10,6 +10,8 @@ import { ACROSS_ADS, NEAR_ADS, STOPS, AdDefinition } from '../constants';
 import { TextureGenerator, hiDpiCanvas } from './textureGenerator';
 import { CharacterBuilder, seededRandom } from './characterBuilder';
 import { PersonObject } from '../types';
+import { createCar, AstraCar } from './astra/car';
+import { HEIGHT_SCALE, mountAstraShell } from './astra/fit';
 
 export interface TargetEntry {
   root: THREE.Object3D;
@@ -104,6 +106,8 @@ export class SubwayCarBuilder {
   public outLights: THREE.PointLight[] = [];
   public lightSegs: LightSegObject[] = [];
   public farLeaves: DoorLeaf[] = [];
+  /** Astra interior shells, one per car. Doors follow doorOpen; lenses are lightSegs. */
+  private astraCars: AstraCar[] = [];
   public panes: WindowPaneObject[] = [];
   public acrossAds: AdObject[] = [];
   public nearAds: AdObject[] = [];
@@ -244,6 +248,7 @@ export class SubwayCarBuilder {
     this.buildGangways();
     this.buildAds();
     this.buildRouteMaps();
+    this.mountAstraShells();
     this.buildPassengers();
     this.buildTunnel();
     this.passingTrain = new PassingTrain(this.worldGroup);
@@ -314,20 +319,8 @@ export class SubwayCarBuilder {
     ceil.position.set(0, 2.43, 0);
     this.carGroup.add(ceil);
 
-    // Ceiling Lights (continuous luminaire strip)
-    const LIGHT_ON = SubwayCarBuilder.LIGHT_ON;
-    [-0.62, 0.62].forEach((z, si) => {
-      for (let i = 0; i < 6; i++) {
-        const mat = new THREE.MeshBasicMaterial({ color: LIGHT_ON });
-        const m = new THREE.Mesh(new THREE.BoxGeometry(2.84, 0.03, 0.2), mat);
-        m.position.set(-7.25 + i * 2.9, 2.395, z);
-        this.carGroup.add(m);
-
-        const ls: LightSegObject = { m, mat, tid: `light:${si * 6 + i}` };
-        this.lightSegs.push(ls);
-        this.registerTarget(m, ls.tid, 'a ceiling light');
-      }
-    });
+    // Ceiling tubes come from the Astra shell (mountAstraShells). The old strips
+    // are not built: applyLighting would turn them back on every frame.
 
     // Walls, windows, sliding doors, and poles
     [-1, 1].forEach((s) => {
@@ -524,6 +517,8 @@ export class SubwayCarBuilder {
         decalTexStain: decalStain,
       };
     });
+
+    this.hideLegacyBoxes(this.carGroup);
   }
 
   private buildAds() {
@@ -593,6 +588,117 @@ export class SubwayCarBuilder {
       this.maps.push(mapObj);
       this.registerTarget(mesh, mapObj.tid, 'the route map');
     });
+  }
+
+  /** Platform doors on the Astra shells. `open` is 0 closed .. 1 open, same as doorOpen. */
+  public setPlatformDoors(open: number) {
+    for (const car of this.astraCars) car.setDoors(open);
+  }
+
+  /**
+   * The box car stays in the graph (gangway doors, cab walls, windows, ads, people) but its
+   * walls, benches and poles are hidden. Astra's shell is the interior you see.
+   */
+  private hideLegacyBoxes(root: THREE.Group) {
+    for (const child of root.children) {
+      if (child === this.gangwayDoors.frontGroup || child === this.gangwayDoors.rearGroup) continue;
+      if ((child as THREE.Light).isLight) continue;
+      if (child.userData.keepBox) continue;
+      if (child.userData.tid) continue;
+      child.visible = false;
+    }
+  }
+
+  private mountAstraShells() {
+    const specs: Array<{ parent: THREE.Group; centerX: number; skipFar: 1 | -1 | null; register: boolean; prefix: string }> = [
+      { parent: this.carGroup, centerX: 0, skipFar: null, register: true, prefix: '' },
+      // Local +Z maps to world -X, which is Car A's cab (x = -28.5).
+      { parent: this.carAGroup, centerX: -19.5, skipFar: 1, register: false, prefix: 'a' },
+      // Local -Z maps to world +X, which is Car C's cab (x = +28.5).
+      { parent: this.carCGroup, centerX: 19.5, skipFar: -1, register: false, prefix: 'c' },
+    ];
+    for (const spec of specs) {
+      const car = createCar({ skipFar: spec.skipFar, openGangway: true });
+      mountAstraShell(car.group, spec.centerX);
+      spec.parent.add(car.group);
+      car.setDoors(1);
+      car.lenses.forEach((lens, i) => {
+        const tid = `light:${spec.prefix}${i}`;
+        lens.mesh.userData.tid = tid;
+        this.lightSegs.push({ m: lens.mesh, mat: lens.mat, tid });
+        if (spec.register) this.registerTarget(lens.mesh, tid, 'a ceiling light');
+      });
+      this.astraCars.push(car);
+    }
+    this.seatDecalsOnAstraWall();
+  }
+
+  /**
+   * Gameplay ads, route maps and window decals stay the originals (anomalies rewrite those
+   * canvases). They move onto the new wall, just inside Astra's own poster faces.
+   */
+  private seatDecalsOnAstraWall() {
+    const shell = this.astraCars[0];
+    if (!shell) return;
+    this.carGroup.updateMatrixWorld(true);
+    const faces: THREE.Mesh[] = [];
+    shell.group.traverse((o) => {
+      const mesh = o as THREE.Mesh;
+      if (!mesh.isMesh || mesh.parent !== shell.group) return;
+      const target = mesh.userData.target as string | undefined;
+      if (target !== 'poster' && target !== 'map') return;
+      const mat = mesh.material as THREE.MeshBasicMaterial;
+      if (!mat.map) return;
+      faces.push(mesh);
+    });
+    const wp = new THREE.Vector3();
+    const nearest = (kind: string, z: number, x: number) => {
+      let best: THREE.Mesh | null = null;
+      let bestD = 1.35;
+      for (const face of faces) {
+        if (face.userData.target !== kind || !face.visible) continue;
+        face.getWorldPosition(wp);
+        if (Math.sign(wp.z) !== Math.sign(z)) continue;
+        const d = Math.abs(wp.x - x);
+        if (d < bestD) {
+          bestD = d;
+          best = face;
+        }
+      }
+      return best;
+    };
+    const sit = (mesh: THREE.Mesh, kind: 'poster' | 'map') => {
+      const face = nearest(kind, mesh.position.z, mesh.position.x);
+      const oldFrame = this.carGroup.children.find((c) =>
+        c !== mesh &&
+        !c.userData.tid &&
+        Math.abs(c.position.x - mesh.position.x) < 0.02 &&
+        Math.abs(c.position.z - mesh.position.z) < 0.05
+      );
+      if (oldFrame) oldFrame.visible = false;
+      if (!face) {
+        mesh.position.y = kind === 'map' ? 1.86 : 1.88;
+        mesh.position.z = Math.sign(mesh.position.z || -1) * 1.40;
+        return;
+      }
+      face.getWorldPosition(wp);
+      wp.z += wp.z > 0 ? -0.02 : 0.02;
+      mesh.position.copy(this.carGroup.worldToLocal(wp.clone()));
+      face.visible = false;
+    };
+    for (const ad of [...this.acrossAds, ...this.nearAds]) sit(ad.mesh, 'poster');
+    for (const map of this.maps) sit(map.mesh, 'map');
+
+    const windowY = 1.397 * HEIGHT_SCALE;
+    for (const pane of this.panes) {
+      const hit = this.carGroup.children.find((c) => c.userData.tid === pane.tid);
+      if (hit) {
+        hit.position.y = windowY;
+        hit.position.z = -1.45;
+      }
+      pane.decal.position.y = windowY;
+      pane.decal.position.z = -1.43;
+    }
   }
 
   private buildPassengers() {
@@ -924,8 +1030,10 @@ export class SubwayCarBuilder {
     // Car A Lead Cab Bulkhead (x = -28.5)
     const cabWallA = new THREE.Mesh(new THREE.BoxGeometry(0.06, 2.46, 3.06), mWall);
     cabWallA.position.set(-28.5, 1.2, 0);
+    cabWallA.userData.keepBox = true;
     const cabDoorA = new THREE.Mesh(new THREE.BoxGeometry(0.07, 1.8, 0.8), mDark);
     cabDoorA.position.set(-28.5, 1.0, 0);
+    cabDoorA.userData.keepBox = true;
     this.carAGroup.add(cabWallA, cabDoorA);
 
     // Car A Rear Gangway Doorway (x = -10.5)
@@ -1032,8 +1140,10 @@ export class SubwayCarBuilder {
     // Car C Rear Cab Bulkhead (x = +28.5)
     const cabWallC = new THREE.Mesh(new THREE.BoxGeometry(0.06, 2.46, 3.06), mWall);
     cabWallC.position.set(28.5, 1.2, 0);
+    cabWallC.userData.keepBox = true;
     const cabDoorC = new THREE.Mesh(new THREE.BoxGeometry(0.07, 1.8, 0.8), mDark);
     cabDoorC.position.set(28.5, 1.0, 0);
+    cabDoorC.userData.keepBox = true;
     this.carCGroup.add(cabWallC, cabDoorC);
 
     // Car C Passengers
@@ -1067,6 +1177,9 @@ export class SubwayCarBuilder {
       this.carCGroup.add(p.g);
       this.registerTarget(p.g, p.tid, p.label);
     });
+
+    this.hideLegacyBoxes(this.carAGroup);
+    this.hideLegacyBoxes(this.carCGroup);
   }
 
   /**
