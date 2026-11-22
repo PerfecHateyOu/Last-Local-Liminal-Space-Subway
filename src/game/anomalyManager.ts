@@ -9,6 +9,7 @@ import { SubwayCarBuilder, AdObject } from '../graphics/subwayCarBuilder';
 import { modelLoader, setMaterialColor } from '../graphics/modelLoader';
 import { ActiveAnomaly, AnomalyDef } from '../types';
 import { shuffle } from './shuffle';
+import { alongCarX } from '../graphics/astra/fit';
 
 /** How far along the car (m, either side of your seat) the small, close-look anomalies may happen. */
 export const NEAR_X = 5;
@@ -89,7 +90,7 @@ export class AnomalyManager {
       lighttemp: {
         tier: 0,
         make: () => {
-          const shuffledLights = shuffle(cb.lightSegs.filter((l) => near(l.m.position.x)));
+          const shuffledLights = shuffle(cb.lightSegs.filter((l) => near(alongCarX(l.m))));
           const l = shuffledLights[0];
           if (!l) return null;
 

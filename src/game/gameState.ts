@@ -992,7 +992,11 @@ export class GameEngine {
   public flickerOneTube(): number {
     const segs = this.carBuilder.lightSegs;
     const COLD = 0x8cc2ff;
-    const ok = segs.map((l, i) => i).filter((i) => segs[i].m.visible && segs[i].mat.color.getHex() !== COLD);
+    const ok = segs.map((l, i) => i).filter((i) =>
+      segs[i].m.visible &&
+      segs[i].mat.color.getHex() !== COLD &&
+      Math.abs(segs[i].m.getWorldPosition(this.tmpVec1).x - this.camera.position.x) <= 9
+    );
     if (!ok.length) return -1;
     const i = ok[Math.floor(Math.random() * ok.length)];
     this.tubeFlicker = { i, until: this.GT + GameEngine.TUBE_FLICKER_S };
@@ -1281,55 +1285,60 @@ export class GameEngine {
    * pool has been used; then that pool starts over, but never with the line just asked.
    */
   public pickMaskLine(pool: MaskDialogue[]): MaskDialogue {
-    let fresh = pool.filter((l) => !this.maskUsed.has(l.line));
-    if (fresh.length === 0) {
+    const unused = pool.filter((l) => (!l.needsSus || this.sus > 0) && !this.maskUsed.has(l.line));
+    let candidates = unused;
+    if (!candidates.length) {
       pool.forEach((l) => this.maskUsed.delete(l.line));
-      fresh = pool.slice();
+      candidates = pool.filter((l) => (!l.needsSus || this.sus > 0) && l.line !== this.maskLast);
+      if (!candidates.length) candidates = pool;
     }
-    const notLast = fresh.filter((l) => l.line !== this.maskLast);
-    const L = shuffle(notLast.length ? notLast : fresh)[0];
-    this.maskUsed.add(L.line);
-    this.maskLast = L.line;
-    return L;
+    const pick = shuffle(candidates)[0];
+    this.maskUsed.add(pick.line);
+    this.maskLast = pick.line;
+    return pick;
   }
 
   public startMaskCheck() {
-    const t = tierOf(this.san);
-    const set = t <= 1 ? MASK_DIALOGUES[t === 0 ? 0 : Math.random() < 0.5 ? 0 : 1] : t === 2 ? MASK_DIALOGUES[1] : MASK_DIALOGUES[2];
-    const pool = set.filter((l) => !l.needsSus || this.sus >= 10);
-    const L = this.pickMaskLine(pool);
+    const t = this.tier;
+    const poolIdx = t === 0 ? 0 : t <= 2 ? 1 : 2;
+    const L = this.pickMaskLine(MASK_DIALOGUES[poolIdx]);
     const p = this.carBuilder.parents[L.who];
+    if (!p.frozen) p.force = true;
 
-    p.force = true;
+    this.say(L.who, L.line, 3.6);
     audioEngine.blip();
-    this.setSub(`<b>${p.label}:</b> ${L.line}`, 6.0);
 
-    const win = (this.harder > 0 ? 3.0 : 4.0) + (this.isTouch ? 0.5 : 0);
-    const items: ChoiceItem[] = shuffle([
+    const opts = shuffle([
       { txt: L.calm, val: 'calm' },
       { txt: L.off[0], val: 'off' },
       { txt: L.off[1], val: 'off' },
     ]);
 
+    const win = (t >= 2 ? 5.0 : 6.5) + (this.isTouch ? 0.5 : 0);
+
     this.presentChoice({
-      items,
+      items: opts,
       window: win,
-      glitch: [0, 0.1, 0.35, 0.6][t] + (this.harder > 0 ? 0.15 : 0),
+      glitch: [0, 0.1, 0.25, 0.4][t],
       reshuffle: t >= 2,
-      onPick: (val, rt) => {
-        if (val === null) {
-          this.addSus(SUS.timeout, `Hesitated when ${p.label} asked a question`, p);
-          this.addSanity(SAN.timeout, 'Mask timeout');
-          this.setSub(`<em>You don\u2019t answer fast enough.</em> <b>${p.label}:</b> Hon?`, 2.6);
-          this.sched(2.6, () => this.releaseParent(p));
+      onPick: (val) => {
+        if (!val) {
+          this.addSus(SUS.timeout, 'Ignored your parents', p);
+          this.addSanity(SAN.timeout, 'Mask hesitation');
+          this.say(L.who, '\u2026Hello? You spacing out?', 2.8);
+          this.releaseParent(p);
         } else if (val === 'calm') {
-          this.setSub(`<b>You:</b> ${L.calm} <em>(${p.label} nods.)</em>`, 2.4);
-          this.sched(1.2, () => this.releaseParent(p));
+          this.say(L.who, ['Good.', 'Okay, good.', 'Alright.'][Math.floor(Math.random() * 3)], 2.2);
+          this.releaseParent(p);
         } else {
-          this.addSus(SUS.maskFail, `Gave an odd answer to ${p.label}`, p);
-          this.addSanity(SAN.maskFail, 'Mask fail');
-          this.setSub(`<em>${p.label} keeps looking at you.</em>`, 2.8);
-          this.sched(3.2, () => this.releaseParent(p));
+          this.addSus(SUS.maskFail, 'Off response during mask check', p);
+          this.addSanity(SAN.maskFail, 'Mask slip');
+          this.say(
+            L.who,
+            ['Why would you say that?', 'What\u2019s gotten into you?', 'Don\u2019t talk like that.'][Math.floor(Math.random() * 3)],
+            2.8
+          );
+          this.releaseParent(p);
         }
       },
     });
@@ -1347,17 +1356,18 @@ export class GameEngine {
     this.carBuilder.parents.forEach((p) => {
       if (!p.frozen) p.force = true;
     });
-    this.flagHeld = false;
 
-    this.say(1, 'Hey. Look at me. Both of us, right now.', 2.6);
-    this.sched(2.7, () => this.say(0, 'Talk to us. What is going on with you?', 3.0));
-    this.sched(5.9, () => this.setSub('<b>You:</b> Nothing. I\u2019m okay. I promise.', 2.4));
+    this.sched(0, () => this.say(0, 'Hey. Look at me for a second.', 2.6));
+    this.sched(2.7, () => this.say(1, 'You\u2019ve been acting strange since we got on.', 3.0));
+    this.sched(5.9, () => this.say(0, 'Just sit back and breathe, okay? We\u2019re almost there.', 3.0));
     this.sched(8.4, () => {
-      this.carBuilder.parents.forEach((p) => this.releaseParent(p));
       this.intervening = false;
-      this.addSanity(SAN.intervention, 'Concerned Intervention');
+      this.harder = 2;
+      this.carBuilder.parents.forEach((p) => this.releaseParent(p));
+      this.addSanity(SAN.intervention, 'Concerned intervention');
       this.sus = 40;
-      this.susLog.push({ t: this.GT, n: 0, reason: 'Concerned Intervention (suspicion reset to 40)', stop: this.seg!.stop });
+      this.susLog.push({ t: this.GT, n: -20, reason: 'Concerned intervention', stop: this.seg ? this.seg.stop : 1 });
+      this.notifyUI();
     });
   }
 
@@ -1939,39 +1949,35 @@ export class GameEngine {
         const rgtZ = -sinY;
 
         const moveSpeed = 2.4;
-        let dx = (fwdX * vF + rgtX * vR) * moveSpeed * dt;
-        let dz = (fwdZ * vF + rgtZ * vR) * moveSpeed * dt;
+        const dx = (fwdX * vF + rgtX * vR) * moveSpeed * dt;
+        const dz = (fwdZ * vF + rgtZ * vR) * moveSpeed * dt;
 
         let nextX = this.eyePos.x + dx;
         let nextZ = this.eyePos.z + dz;
 
-        // Gangway doors sit on Car B's ends (Astra car, ±11.9). The next car's wall is 1.5m beyond.
-        const END = SubwayCarBuilder.CAR_B_END;
+        const carEnd = SubwayCarBuilder.CAR_B_END;
+        const walkLimit = 28 + SubwayCarBuilder.ADJACENT_SHIFT;
+        const doorClearance = 0.32;
         const frontDoorClosed = this.carBuilder.gangwayDoors.frontAngle < 0.45;
-        if (frontDoorClosed) {
-          if (this.eyePos.x >= -(END - 0.1) && nextX < -(END - 0.1)) nextX = -(END - 0.1);
-          if (this.eyePos.x <= -(END + 0.1) && nextX > -(END + 0.1)) nextX = -(END + 0.1);
-        }
-
         const rearDoorClosed = Math.abs(this.carBuilder.gangwayDoors.rearAngle) < 0.45;
-        if (rearDoorClosed) {
-          if (this.eyePos.x <= END - 0.1 && nextX > END - 0.1) nextX = END - 0.1;
-          if (this.eyePos.x >= END + 0.1 && nextX < END + 0.1) nextX = END + 0.1;
-        }
 
-        // Aisle width bounds. The gangway is the 1.5m gap past the bulkhead.
-        const inGangway1 = nextX <= -(END - 0.1) && nextX >= -(END + 1.7);
-        const inGangway2 = nextX >= END - 0.1 && nextX <= END + 1.7;
-        const maxZ = (inGangway1 || inGangway2) ? 0.38 : 0.72;
+        if (frontDoorClosed && this.eyePos.x >= -carEnd) nextX = Math.max(-carEnd + doorClearance, nextX);
+        if (frontDoorClosed && this.eyePos.x < -carEnd) nextX = Math.min(-carEnd - doorClearance, nextX);
+        if (rearDoorClosed && this.eyePos.x <= carEnd) nextX = Math.min(carEnd - doorClearance, nextX);
+        if (rearDoorClosed && this.eyePos.x > carEnd) nextX = Math.max(carEnd + doorClearance, nextX);
+
+        const aisleHalfWidth = (x: number) => {
+          const distance = Math.abs(x);
+          return distance > carEnd - 0.15 && distance < carEnd + 1.65 ? 0.36 : 0.68;
+        };
+        nextX = Math.max(-walkLimit, Math.min(walkLimit, nextX));
+        const maxZ = aisleHalfWidth(nextX);
         nextZ = Math.max(-maxZ, Math.min(maxZ, nextZ));
 
-        // Train consist length limits (cab walls moved out with Cars A and C)
-        nextX = Math.max(-30.0, Math.min(30.0, nextX));
-
-        // Standing passengers: don't walk into them (see game/personKeepOut.ts)
         const kept = pushOutOfCircles(nextX, nextZ, this.standingKeepOut(), this.eyePos.x, this.eyePos.z);
-        nextX = kept.x;
-        nextZ = Math.max(-maxZ, Math.min(maxZ, kept.z));
+        nextX = Math.max(-walkLimit, Math.min(walkLimit, kept.x));
+        const keptMaxZ = aisleHalfWidth(nextX);
+        nextZ = Math.max(-keptMaxZ, Math.min(keptMaxZ, kept.z));
 
         this.eyePos.x = nextX;
         this.eyePos.z = nextZ;
@@ -2129,6 +2135,7 @@ export class GameEngine {
     this.carBuilder.farLeaves.forEach((l) => {
       l.g.position.x = l.x0 + l.side * DOOR_SLIDE * this.doorOpen;
     });
+    this.carBuilder.setAdjacentPlatformDoors(this.doorOpen);
 
     if (this.phase === 'ride' && seg) {
       const L = this.segLen(seg);
@@ -2444,7 +2451,6 @@ export class GameEngine {
    */
   private updateBulbs(dt: number) {
     const seg = this.seg;
-    const n = this.carBuilder.lightSegs.length;
     const allowed =
       this.nightmare &&
       !settings.effectsReduced() &&
@@ -2456,10 +2462,15 @@ export class GameEngine {
       if (this.bulbOut.length) this.bulbOut = [];
       return;
     }
-    if (n && Math.random() < NIGHTMARE.bulbRate * dt) {
-      const [a, b] = NIGHTMARE.bulbOut;
-      this.bulbOut[Math.floor(Math.random() * n)] = this.GT + a + Math.random() * (b - a);
-    }
+    if (Math.random() >= NIGHTMARE.bulbRate * dt) return;
+
+    const segs = this.carBuilder.lightSegs;
+    const nearby = segs.map((l, i) => i).filter((i) =>
+      Math.abs(segs[i].m.getWorldPosition(this.tmpVec1).x - this.camera.position.x) <= 9
+    );
+    if (!nearby.length) return;
+    const [a, b] = NIGHTMARE.bulbOut;
+    this.bulbOut[nearby[Math.floor(Math.random() * nearby.length)]] = this.GT + a + Math.random() * (b - a);
   }
 
   // Kinematic helpers

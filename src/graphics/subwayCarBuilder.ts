@@ -11,6 +11,8 @@ import { TextureGenerator, hiDpiCanvas } from './textureGenerator';
 import { CharacterBuilder, seededRandom } from './characterBuilder';
 import { PersonObject } from '../types';
 import { createAstraCar } from './astraCar';
+import { createCar, type AstraCar } from './astra/car';
+import { mountAstraShell } from './astra/fit';
 
 export interface TargetEntry {
   root: THREE.Object3D;
@@ -112,6 +114,7 @@ export class SubwayCarBuilder {
   public outLights: THREE.PointLight[] = [];
   public lightSegs: LightSegObject[] = [];
   public farLeaves: DoorLeaf[] = [];
+  private adjacentAstraCars: AstraCar[] = [];
   public panes: WindowPaneObject[] = [];
   public acrossAds: AdObject[] = [];
   public nearAds: AdObject[] = [];
@@ -404,6 +407,7 @@ export class SubwayCarBuilder {
         decalTexStain: decalStain,
       };
     });
+
   }
 
   private buildAds() {
@@ -475,6 +479,35 @@ export class SubwayCarBuilder {
       this.maps.push(mapObj);
       this.registerTarget(mesh, mapObj.tid, 'the route map');
     });
+  }
+
+  public setAdjacentPlatformDoors(open: number) {
+    for (const car of this.adjacentAstraCars) car.setDoors(open);
+  }
+
+  private mountAdjacentAstraCars() {
+    const specs = [
+      { parent: this.carAGroup, centerX: -19.5, skipFar: 1, prefix: 'a' },
+      { parent: this.carCGroup, centerX: 19.5, skipFar: -1, prefix: 'c' },
+    ] as const;
+    for (const { parent, centerX, skipFar, prefix } of specs) {
+      // The parent group carries the extra offset for the longer Car B.
+      for (const child of parent.children) {
+        if ((child as THREE.Light).isLight || child.userData.keepBox || child.userData.tid) continue;
+        child.visible = false;
+      }
+
+      const car = createCar({ skipFar, openGangway: true });
+      mountAstraShell(car.group, centerX);
+      parent.add(car.group);
+      car.setDoors(1);
+      car.lenses.forEach(({ mesh, mat }, i) => {
+        const tid = `light:${prefix}${i}`;
+        mesh.userData.tid = tid;
+        this.lightSegs.push({ m: mesh, mat, tid });
+      });
+      this.adjacentAstraCars.push(car);
+    }
   }
 
   private buildPassengers() {
@@ -810,8 +843,10 @@ export class SubwayCarBuilder {
     // Car A Lead Cab Bulkhead (x = -28.5)
     const cabWallA = new THREE.Mesh(new THREE.BoxGeometry(0.06, 2.46, 3.06), mWall);
     cabWallA.position.set(-28.5, 1.2, 0);
+    cabWallA.userData.keepBox = true;
     const cabDoorA = new THREE.Mesh(new THREE.BoxGeometry(0.07, 1.8, 0.8), mDark);
     cabDoorA.position.set(-28.5, 1.0, 0);
+    cabDoorA.userData.keepBox = true;
     this.carAGroup.add(cabWallA, cabDoorA);
 
     // Car A Rear Gangway Doorway (x = -10.5)
@@ -918,8 +953,10 @@ export class SubwayCarBuilder {
     // Car C Rear Cab Bulkhead (x = +28.5)
     const cabWallC = new THREE.Mesh(new THREE.BoxGeometry(0.06, 2.46, 3.06), mWall);
     cabWallC.position.set(28.5, 1.2, 0);
+    cabWallC.userData.keepBox = true;
     const cabDoorC = new THREE.Mesh(new THREE.BoxGeometry(0.07, 1.8, 0.8), mDark);
     cabDoorC.position.set(28.5, 1.0, 0);
+    cabDoorC.userData.keepBox = true;
     this.carCGroup.add(cabWallC, cabDoorC);
 
     // Car C Passengers
@@ -953,6 +990,8 @@ export class SubwayCarBuilder {
       this.carCGroup.add(p.g);
       this.registerTarget(p.g, p.tid, p.label);
     });
+
+    this.mountAdjacentAstraCars();
   }
 
   /**
