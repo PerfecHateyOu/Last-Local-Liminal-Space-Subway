@@ -130,7 +130,6 @@ export default function App() {
     evp.setRecording(false);
   }, []);
 
-
   // Turning "Debug overlay (spoilers)" on mid-ride (pause > Settings) shows it at once and makes
   // the ride a debug run; turning it off hides it, but the ride stays a debug run.
   useEffect(() => {
@@ -1105,7 +1104,10 @@ export default function App() {
 
       {/* Settings, only from the start screen or the pause menu */}
       {settingsOpen && (phase === 'menu' || paused) && (
-        <SettingsPanel onClose={() => setSettingsOpen(false)} isTouch={isTouch} />
+        <SettingsPanel
+          onClose={() => setSettingsOpen(false)}
+          isTouch={isTouch}
+        />
       )}
 
       {/* End of Ride Psychological Travel Report */}
