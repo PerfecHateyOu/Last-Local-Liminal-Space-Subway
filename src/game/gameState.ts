@@ -2127,6 +2127,7 @@ export class GameEngine {
     this.carBuilder.farLeaves.forEach((l) => {
       l.g.position.x = l.x0 + l.side * 0.62 * this.doorOpen;
     });
+    this.carBuilder.setPlatformDoors(this.doorOpen);
 
     if (this.phase === 'ride' && seg) {
       const L = this.segLen(seg);
