@@ -42,7 +42,7 @@ export function createCar(options: AstraCarOptions = {}): AstraCar {
   const wall = standard('#c7c6b9');
   const trim = brushedMaterial('#a9aaa1');
   const brushed = brushedMaterial('#c3c4b9');
-  const chrome = standard('#d8dad5');
+  const chrome = new THREE.MeshPhongMaterial({ color: '#332f28', specular: '#8a8c86', shininess: 90 });
   const rubber = standard('#252a27');
   const joint = standard('#5d5e56');
   const ceiling = standard('#c9cdc3');
@@ -54,11 +54,11 @@ export function createCar(options: AstraCarOptions = {}): AstraCar {
   const seal = standard('#373c36');
   const shoe = standard('#7f7f72');
   const darkGlass = standard('#202822');
-  const seatMats = ['#cc6428', '#d58934', '#e5ab48', '#c66b2d'].map((col) => standard(col));
+  const seatMats = ['#cc6428', '#d58934', '#e5ab48', '#c66b2d'].map((color) => new THREE.MeshPhongMaterial({ color, specular: '#3c3a35', shininess: 75 }));
   const sideGlass = glassMaterial();
   const floor = parts.face(0, -0.002, 0, 3.32, carLength, 0, floorMaterial());
   floor.rotation.x = -Math.PI / 2;
-  const shell = seatShell(6);
+  const shell = seatShell(8);
   parts.box(0, 2.68, 0, 3.28, 0.15, carLength, ceiling);
   for (const s of [-1, 1]) {
     parts.box(s * 1.59, 0.12, 0, 0.07, 0.24, carLength, dark);

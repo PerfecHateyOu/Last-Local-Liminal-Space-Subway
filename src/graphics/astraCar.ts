@@ -38,7 +38,7 @@ export function createAstraCar(): AstraCar {
   const wall = standard('#c7c6b9', 0.19, 0.54);
   const trim = brushedMaterial('#a9aaa1');
   const brushed = brushedMaterial('#c3c4b9', 0.67);
-  const chrome = standard('#e2e4df', 0.96, 0.145);
+  const chrome = new THREE.MeshStandardMaterial({ color: '#e2e4df', metalness: 0.96, roughness: 0.145 });
   const rubber = standard('#252a27', 0.09, 0.81);
   const joint = standard('#5d5e56', 0.27, 0.56);
   const ceiling = standard('#c9cdc3', 0.18, 0.68);
@@ -46,7 +46,7 @@ export function createAstraCar(): AstraCar {
   const under = standard('#68655a', 0.46, 0.53);
   const seal = standard('#373c36', 0.13, 0.7);
   const shoe = standard('#7f7f72', 0.7, 0.31);
-  const seatMats = ['#cc6428', '#d58934', '#e5ab48', '#c66b2d'].map((col) => standard(col, 0.1, 0.245));
+  const seatMats = ['#cc6428', '#d58934', '#e5ab48', '#c66b2d'].map((color) => new THREE.MeshStandardMaterial({ color, metalness: 0.1, roughness: 0.245 }));
   const sideGlass = glassMaterial();
   const doorGlass = new THREE.MeshBasicMaterial({
     color: '#3f514c', transparent: true, opacity: 0.24, depthWrite: false, side: THREE.DoubleSide,
