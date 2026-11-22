@@ -421,7 +421,7 @@ export class SubwayCarBuilder {
   private buildAds() {
     // Across ads (far wall, upper panel)
     // On the seat spans, clear of the four door bays. Three of these stay inside NEAR_X of the seat.
-    const acrossXs = [-6.6, -4.8, 0, 1.2, 5.6];
+    const acrossXs = [-6.6, -4.8, 0, 1.4, 5.6];
     this.acrossAds = ACROSS_ADS.map((def, i) => {
       const canvas = hiDpiCanvas(640, 200);
       this.textureGen.drawAdOnCanvas(canvas, def, def.h);
