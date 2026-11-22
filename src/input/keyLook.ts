@@ -20,21 +20,31 @@ const DIRS: Record<string, [number, number]> = {
 
 export class KeyLook {
   private held = new Set<string>();
+  /**
+   * Keys that were down when clear() forgot them. A browser auto-repeat of that
+   * same hold must not start the turn again; a real new press or a keyup does.
+   */
+  private forgotten = new Set<string>();
 
   public static isLookKey(code: string): boolean {
     return code in DIRS;
   }
 
-  public press(code: string) {
-    if (code in DIRS) this.held.add(code);
+  public press(code: string, repeat = false) {
+    if (!(code in DIRS)) return;
+    if (repeat && this.forgotten.has(code)) return;
+    this.forgotten.delete(code);
+    this.held.add(code);
   }
 
   public release(code: string) {
+    this.forgotten.delete(code);
     this.held.delete(code);
   }
 
   /** Forget held keys (pause, lost focus): their keyup may never arrive. */
   public clear() {
+    for (const code of this.held) this.forgotten.add(code);
     this.held.clear();
   }
 
