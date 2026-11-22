@@ -802,7 +802,8 @@ export class CharacterBuilder {
     this.box(g, tw - 0.05, 0.56, td - 0.05, seam, 0, 0.78 + up, 0);
     // Four horizontal baffles with dark seams between them.
     [0.565, 0.7, 0.835, 0.97].forEach((by, i) => {
-      const shrink = i === 0 ? 0.05 : i % 2 ? 0 : 0.015;
+      // Keep the smallest baffle outside the dark core so their faces don't overlap.
+      const shrink = i === 0 ? 0.04 : i % 2 ? 0 : 0.015;
       this.box(g, tw - shrink, 0.122, td - shrink, shell, 0, by + up, 0);
     });
     [-1, 1].forEach((s) => {

@@ -53,7 +53,7 @@ test.describe('A livelier car', () => {
     const r = await game(`ride(2); G.Q = []; const s3 = G.carBuilder.strangers[2];
       const a = G.anomalyMgr.createAnomaly('moved', 0); a.apply(); advance(1.0); const moved = s3.g.position.x;
       a.revert(); advance(1.0); return { moved, back: s3.g.position.distanceTo(s3.home) };`);
-    expect(r.moved).toBe(-5.0);
+    expect(r.moved).toBe(-7.2); // beside the forward door bay on the longer car
     expect(r.back).toBe(0);
   });
 

@@ -32,6 +32,7 @@ import {
 } from '../constants';
 import { recordRide, PsychLogResult, entryState } from './psychLog';
 import { audioEngine } from '../audio/audioEngine';
+import { DOOR_SLIDE } from '../graphics/astraCar';
 import { SubwayCarBuilder } from '../graphics/subwayCarBuilder';
 import { TrialBuilder } from '../graphics/trialBuilder';
 import { AnomalyManager } from './anomalyManager';
@@ -1954,26 +1955,28 @@ export class GameEngine {
         let nextX = this.eyePos.x + dx;
         let nextZ = this.eyePos.z + dz;
 
-        // X bounds across Car A (-28.35 to -10.5), Gangway 1 (-10.5 to -9.0), Car B (-9.0 to 9.0), Gangway 2 (9.0 to 10.5), Car C (10.5 to 28.35)
+        const carEnd = SubwayCarBuilder.CAR_B_END;
+        const walkLimit = 28 + SubwayCarBuilder.ADJACENT_SHIFT;
+        const doorClearance = 0.32;
         const frontDoorClosed = this.carBuilder.gangwayDoors.frontAngle < 0.45;
         const rearDoorClosed = Math.abs(this.carBuilder.gangwayDoors.rearAngle) < 0.45;
 
-        if (frontDoorClosed && this.eyePos.x >= -9.0 && nextX < -8.68) nextX = -8.68;
-        if (frontDoorClosed && this.eyePos.x < -9.0 && nextX > -9.32) nextX = -9.32;
-        if (rearDoorClosed && this.eyePos.x <= 9.0 && nextX > 8.68) nextX = 8.68;
-        if (rearDoorClosed && this.eyePos.x > 9.0 && nextX < 9.32) nextX = 9.32;
+        if (frontDoorClosed && this.eyePos.x >= -carEnd) nextX = Math.max(-carEnd + doorClearance, nextX);
+        if (frontDoorClosed && this.eyePos.x < -carEnd) nextX = Math.min(-carEnd - doorClearance, nextX);
+        if (rearDoorClosed && this.eyePos.x <= carEnd) nextX = Math.min(carEnd - doorClearance, nextX);
+        if (rearDoorClosed && this.eyePos.x > carEnd) nextX = Math.max(carEnd + doorClearance, nextX);
 
-        nextX = Math.max(-28.0, Math.min(28.0, nextX));
-
-        // Z bounds: wider inside subway cars (+/-0.68m aisle), narrower inside inter-car gangways (+/-0.36m)
-        const inGangway1 = nextX > -10.65 && nextX < -8.85;
-        const inGangway2 = nextX > 8.85 && nextX < 10.65;
-        const maxZ = inGangway1 || inGangway2 ? 0.36 : 0.68;
+        const aisleHalfWidth = (x: number) => {
+          const distance = Math.abs(x);
+          return distance > carEnd - 0.15 && distance < carEnd + 1.65 ? 0.36 : 0.68;
+        };
+        nextX = Math.max(-walkLimit, Math.min(walkLimit, nextX));
+        const maxZ = aisleHalfWidth(nextX);
         nextZ = Math.max(-maxZ, Math.min(maxZ, nextZ));
 
         const kept = pushOutOfCircles(nextX, nextZ, this.standingKeepOut(), this.eyePos.x, this.eyePos.z);
-        nextX = Math.max(-28.0, Math.min(28.0, kept.x));
-        const keptMaxZ = (nextX > -10.65 && nextX < -8.85) || (nextX > 8.85 && nextX < 10.65) ? 0.36 : 0.68;
+        nextX = Math.max(-walkLimit, Math.min(walkLimit, kept.x));
+        const keptMaxZ = aisleHalfWidth(nextX);
         nextZ = Math.max(-keptMaxZ, Math.min(keptMaxZ, kept.z));
 
         this.eyePos.x = nextX;
@@ -1988,24 +1991,25 @@ export class GameEngine {
       }
 
       // Check gangway door proximity
-      if (this.eyePos.x < -7.6 && this.eyePos.x > -10.4) {
+      const end = SubwayCarBuilder.CAR_B_END;
+      if (this.eyePos.x < -(end - 1.4) && this.eyePos.x > -(end + 1.5)) {
         this.nearGangwayDoor = 'front';
-      } else if (this.eyePos.x > 7.6 && this.eyePos.x < 10.4) {
+      } else if (this.eyePos.x > end - 1.4 && this.eyePos.x < end + 1.5) {
         this.nearGangwayDoor = 'rear';
       } else {
         this.nearGangwayDoor = null;
       }
 
-      // Current car index
-      if (this.eyePos.x < -10.2) {
+      // Current car index. The split is the middle of the gangway.
+      if (this.eyePos.x < -(end + 0.75)) {
         this.currentCarIndex = 0; // Car A
-      } else if (this.eyePos.x > 10.2) {
+      } else if (this.eyePos.x > end + 0.75) {
         this.currentCarIndex = 2; // Car C
       } else {
         this.currentCarIndex = 1; // Car B (Mid)
       }
 
-      this.isCrossingGangway = (this.eyePos.x >= -10.6 && this.eyePos.x <= -8.8) || (this.eyePos.x >= 8.8 && this.eyePos.x <= 10.6);
+      this.isCrossingGangway = (this.eyePos.x >= -(end + 1.7) && this.eyePos.x <= -(end - 0.2)) || (this.eyePos.x >= end - 0.2 && this.eyePos.x <= end + 1.7);
       audioEngine.gangwayWind(this.isCrossingGangway ? 1.0 : (this.nearGangwayDoor ? 0.4 : 0.0));
     }
 
@@ -2129,9 +2133,9 @@ export class GameEngine {
     // Sliding doors interpolation
     this.doorOpen += (this.doorTarget - this.doorOpen) * (1 - Math.exp(-7 * dt));
     this.carBuilder.farLeaves.forEach((l) => {
-      l.g.position.x = l.x0 + l.side * 0.62 * this.doorOpen;
+      l.g.position.x = l.x0 + l.side * DOOR_SLIDE * this.doorOpen;
     });
-    this.carBuilder.setPlatformDoors(this.doorOpen);
+    this.carBuilder.setAdjacentPlatformDoors(this.doorOpen);
 
     if (this.phase === 'ride' && seg) {
       const L = this.segLen(seg);
@@ -2447,10 +2451,6 @@ export class GameEngine {
    */
   private updateBulbs(dt: number) {
     const seg = this.seg;
-    const segs = this.carBuilder.lightSegs;
-    const nearby = segs.map((l, i) => i).filter((i) =>
-      Math.abs(segs[i].m.getWorldPosition(this.tmpVec1).x - this.camera.position.x) <= 9
-    );
     const allowed =
       this.nightmare &&
       !settings.effectsReduced() &&
@@ -2462,10 +2462,15 @@ export class GameEngine {
       if (this.bulbOut.length) this.bulbOut = [];
       return;
     }
-    if (nearby.length && Math.random() < NIGHTMARE.bulbRate * dt) {
-      const [a, b] = NIGHTMARE.bulbOut;
-      this.bulbOut[nearby[Math.floor(Math.random() * nearby.length)]] = this.GT + a + Math.random() * (b - a);
-    }
+    if (Math.random() >= NIGHTMARE.bulbRate * dt) return;
+
+    const segs = this.carBuilder.lightSegs;
+    const nearby = segs.map((l, i) => i).filter((i) =>
+      Math.abs(segs[i].m.getWorldPosition(this.tmpVec1).x - this.camera.position.x) <= 9
+    );
+    if (!nearby.length) return;
+    const [a, b] = NIGHTMARE.bulbOut;
+    this.bulbOut[nearby[Math.floor(Math.random() * nearby.length)]] = this.GT + a + Math.random() * (b - a);
   }
 
   // Kinematic helpers

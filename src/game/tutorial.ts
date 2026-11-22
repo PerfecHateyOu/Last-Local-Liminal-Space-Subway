@@ -53,11 +53,10 @@ export interface TutorialView {
   canNext: boolean;
 }
 
-/**
- * The window across the aisle, a little to your right (subwayCarBuilder panes, x ≈ 1.9). Not the
- * one straight ahead: that one is behind Dad's head, and he can block it.
- */
+/** The window across the aisle and to the right of the seat. */
 const PANE = 3;
+/** A clear spot above the seated passenger, inside the window's flag target. */
+const STICKER_HEIGHT = 1.45;
 /** Look this far left or right (rad) to tick off step 1. */
 const LOOK = 1.0;
 
@@ -75,6 +74,7 @@ export class Tutorial {
   public doorBeat = 0;
   private doneAt: number | null = null;
   private seenFlags = 0;
+  private stickerPosition: THREE.Vector3 | null = null;
 
   constructor(private G: GameEngine) {
     this.view = this.makeView();
@@ -128,11 +128,17 @@ export class Tutorial {
           `${how('look', this.input)} to look. Look to your left, then to your right.`
         );
         break;
-      case 'flag':
+      case 'flag': {
+        const pane = G.carBuilder.panes[PANE];
+        if (pane) {
+          this.stickerPosition = pane.decal.position.clone();
+          pane.decal.position.set(pane.x, STICKER_HEIGHT, pane.decal.position.z);
+        }
         G.segFlags = [];
         this.seenFlags = 0;
         this.show('Notice', 'Things in the car change while you’re not looking. Turn away from the windows across the aisle for a moment.');
         break;
+      }
       case 'mask': {
         this.hidePlant();
         const mom = G.carBuilder.parents[0];
@@ -224,7 +230,12 @@ export class Tutorial {
 
   private hidePlant() {
     const pane = this.G.carBuilder.panes[PANE];
-    if (pane) pane.decal.visible = false;
+    if (!pane) return;
+    pane.decal.visible = false;
+    if (this.stickerPosition) {
+      pane.decal.position.copy(this.stickerPosition);
+      this.stickerPosition = null;
+    }
   }
 
   public update(dt: number) {

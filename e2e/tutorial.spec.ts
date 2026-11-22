@@ -51,6 +51,11 @@ test.describe('Practice stretch', () => {
     await fresh(page);
     const game = await boardTrain(page);
 
+    // This offset can put the regular ride's decal behind the seated passenger in Car B.
+    const rideDecalPosition = await game(`const pane = G.carBuilder.panes[3];
+      pane.decal.position.set(pane.x + 0.25, 1.32, pane.decal.position.z);
+      return pane.decal.position.toArray();`);
+
     // 1. Look left and right.
     await game(`G.ty = 1.3; advance(0.3); G.ty = -1.3; advance(0.3);`);
     await expect(coach(page)).toContainText('turn all the way around');
@@ -62,15 +67,20 @@ test.describe('Practice stretch', () => {
     expect(await game(`G.ty = G.yaw = 1.6; advance(1.2); return G.carBuilder.panes[3].decal.visible;`)).toBe(true);
     await expect(coach(page)).toContainText('just changed');
     // A wrong flag is named as wrong here (and only here).
-    await game(`${AIM} const ad = G.carBuilder.acrossAds.find((a) => Math.abs(a.mesh.position.x - 2.6) < 0.1).mesh.getWorldPosition(G.eyePos.clone());
+    await game(`${AIM} const ad = G.carBuilder.acrossAds.find((a) => Math.abs(a.mesh.position.x) < 0.2).mesh.getWorldPosition(G.eyePos.clone());
       aimAt(ad.x, ad.y, ad.z); advance(0.1); G.flagHeld = true; advance(1.0); G.flagHeld = false; advance(0.1);`);
     await expect(coach(page)).toContainText('Not that');
     // The right one.
-    await game(`${AIM} const p = G.carBuilder.panes[3].decal.getWorldPosition(G.eyePos.clone()); aimAt(p.x, p.y, p.z); advance(0.1);
-      G.flagHeld = true; advance(1.0); G.flagHeld = false; advance(0.1);`);
+    expect(await game(`${AIM} const p = G.carBuilder.panes[3].decal.getWorldPosition(G.eyePos.clone()); aimAt(p.x, p.y, p.z); advance(0.1);
+      return G.gazeTid;`)).toBe('win:3');
+    await page.keyboard.down('f');
+    await game(`advance(1);`);
+    await page.keyboard.up('f');
     await expect(coach(page)).toContainText('flags are private');
     await page.keyboard.press('Enter');
-    expect(await game(`return { step: G.tutorial.step, sticker: G.carBuilder.panes[3].decal.visible };`)).toEqual({ step: 'mask', sticker: false });
+    expect(await game(`const decal = G.carBuilder.panes[3].decal;
+      return { step: G.tutorial.step, sticker: decal.visible, position: decal.position.toArray() };`))
+      .toEqual({ step: 'mask', sticker: false, position: rideDecalPosition });
 
     // 3. Mom watches, then asks; the calm answer.
     await expect(coach(page)).toContainText('Mom is watching you');
