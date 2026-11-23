@@ -4,7 +4,6 @@
  * Ceiling lenses are unlit strips the original lighting code can hide and recolor.
  */
 import * as THREE from 'three';
-import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { Parts, seatShell, standard, windowGasket } from './geometry';
 import { adPoster, brushedMaterial, floorMaterial, glassMaterial, label, ledSign, releaseMaterial, routeMap } from './materials';
 import { DOOR_SLIDE_LOCAL, HEIGHT_SCALE, WIDTH_SCALE } from './fit';
@@ -40,25 +39,26 @@ export function createCar(options: AstraCarOptions = {}): AstraCar {
   const openGangway = options.openGangway ?? true;
   const root = new THREE.Group();
   const parts = new Parts();
-  const wall = standard('#c7c6b9', 0.19, 0.54);
+  const wall = standard('#c7c6b9');
   const trim = brushedMaterial('#a9aaa1');
-  const brushed = brushedMaterial('#c3c4b9', 0.67);
-  const chrome = standard('#e2e4df', 0.96, 0.145);
-  const rubber = standard('#252a27', 0.09, 0.81);
-  const joint = standard('#5d5e56', 0.27, 0.56);
-  const ceiling = standard('#c9cdc3', 0.18, 0.68);
-  const dark = standard('#353933', 0.45, 0.54);
+  const brushed = brushedMaterial('#c3c4b9');
+  const chrome = new THREE.MeshPhongMaterial({ color: '#332f28', specular: '#8a8c86', shininess: 90 });
+  const rubber = standard('#252a27');
+  const joint = standard('#5d5e56');
+  const ceiling = standard('#c9cdc3');
+  const dark = standard('#353933');
   const endMat = brushedMaterial('#a4a69b');
-  const throughGlass = new THREE.MeshStandardMaterial({ color: '#555f54', metalness: 0.43, roughness: 0.18, transparent: true, opacity: 0.25, depthWrite: false });
-  const under = standard('#68655a', 0.46, 0.53);
-  const seal = standard('#373c36', 0.13, 0.70);
-  const shoe = standard('#7f7f72', 0.70, 0.31);
-  const darkGlass = standard('#202822', 0.33, 0.29);
-  const seatMats = ['#cc6428', '#d58934', '#e5ab48', '#c66b2d'].map((col) => standard(col, 0.10, 0.245));
+  const throughGlass = new THREE.MeshBasicMaterial({ color: '#555f54', transparent: true, opacity: 0.25, depthWrite: false });
+  const doorGlass = new THREE.MeshBasicMaterial({ color: '#3f514c', transparent: true, opacity: 0.24, depthWrite: false, side: THREE.DoubleSide });
+  const under = standard('#68655a');
+  const seal = standard('#373c36');
+  const shoe = standard('#7f7f72');
+  const darkGlass = standard('#202822');
+  const seatMats = ['#cc6428', '#d58934', '#e5ab48', '#c66b2d'].map((color) => new THREE.MeshPhongMaterial({ color, specular: '#3c3a35', shininess: 75 }));
   const sideGlass = glassMaterial();
   const floor = parts.face(0, -0.002, 0, 3.32, carLength, 0, floorMaterial());
   floor.rotation.x = -Math.PI / 2;
-  const shell = seatShell();
+  const shell = seatShell(8);
   parts.box(0, 2.68, 0, 3.28, 0.15, carLength, ceiling);
   for (const s of [-1, 1]) {
     parts.box(s * 1.59, 0.12, 0, 0.07, 0.24, carLength, dark);
@@ -73,14 +73,14 @@ export function createCar(options: AstraCarOptions = {}): AstraCar {
       parts.box(0, 2.606, z, 1.70, 0.012, 0.015, joint);
       for (const x of [-0.72, 0, 0.72]) parts.box(x, 2.600, z + 0.035, 0.012, 0.012, 0.017, dark);
       const grate = parts.box(s * 0.64, 2.599, z + 0.19, 0.25, 0.014, 0.31, trim);
-      for (let b = 0; b < 9; b++) parts.box(grate.position.x, 2.587, z + 0.072 + b * 0.031, 0.20, 0.005, 0.009, dark);
+      for (let b = 0; b < 3; b++) parts.box(grate.position.x, 2.587, z + 0.095 + b * 0.095, 0.20, 0.005, 0.014, dark);
     }
     parts.rod([s * 0.98, 2.16, -11.79], [s * 0.98, 2.16, 11.79], 0.020, chrome);
     parts.rod([s * 1.49, 1.90, -11.79], [s * 1.49, 1.90, 11.79], 0.012, chrome);
   }
 
   const lenses: AstraCar['lenses'] = [];
-  const lensGeo = new RoundedBoxGeometry(lightWidth, 0.047, 2.503, 2, 0.019);
+  const lensGeo = new THREE.BoxGeometry(lightWidth, 0.047, 2.503);
   const lampGroup = new THREE.Group();
   for (let j = 0; j < 9; j++) {
     const z = -10.48 + j * 2.62;
@@ -166,9 +166,7 @@ export function createCar(options: AstraCarOptions = {}): AstraCar {
       parts.box(side * 1.505, y, z, 0.018, h + 0.024, posterWidth + 0.024, joint, routeHere ? 'map' : 'poster');
       const target = routeHere ? 'map' : 'poster';
       const regular = routeHere ? map : ads[posterId];
-      const holder = new Parts();
-      const face = addWallPane(holder, side, 1.493, y, z, posterWidth, h, regular, target);
-      root.add(face);
+      addWallPane(parts, side, 1.493, y, z, posterWidth, h, regular, target);
     }
 
     for (const z of doorCenters) {
@@ -176,33 +174,34 @@ export function createCar(options: AstraCarOptions = {}): AstraCar {
       parts.box(side * 1.602, 2.05, z, 0.09, 0.35, width, brushed);
       parts.box(side * 1.526, 1.965, z, 0.10, 0.05, width + 0.055, trim, 'doors');
       parts.box(side * 1.524, 2.21, z, 0.080, 0.182, 1.17, dark, 'doors');
-      const holder = new Parts();
-      const display = addWallPane(holder, side, 1.477, 2.21, z, 1.10, 0.121, led, 'doors');
-      root.add(display);
+      addWallPane(parts, side, 1.477, 2.21, z, 1.10, 0.121, led, 'doors');
       for (const d of [-1, 1]) {
         parts.box(side * 1.60, 0.973, z + d * 0.755, 0.134, 1.95, 0.046, brushed, 'doors');
         parts.box(side * 1.61, 0.018, z, 0.3, 0.028, width, trim, 'doors');
-        const door = new Parts();
+        // side < 0 is the platform after the mount (local -X -> world -Z). Static near leaves batch into the shell.
+        const isPlatform = side < 0;
+        const door = isPlatform ? new Parts() : parts;
         const center = d * 0.367;
+        const cz = isPlatform ? center : z + center;
         const ww = 0.734;
-        door.box(side * 1.587, 0.438, center, 0.075, 0.876, ww, brushed, 'doors');
-        door.box(side * 1.587, 1.845, center, 0.075, 0.20, ww, brushed, 'doors');
-        for (const e of [-1, 1]) door.box(side * 1.587, 1.31, center + e * 0.298, 0.075, 0.88, 0.135, brushed, 'doors');
+        door.box(side * 1.587, 0.438, cz, 0.075, 0.876, ww, brushed, 'doors');
+        door.box(side * 1.587, 1.845, cz, 0.075, 0.20, ww, brushed, 'doors');
+        for (const e of [-1, 1]) door.box(side * 1.587, 1.31, cz + e * 0.298, 0.075, 0.88, 0.135, brushed, 'doors');
         for (const v of [-1, 1]) {
-          door.box(side * 1.541, 1.305 + v * 0.44, center, 0.032, 0.039, 0.508, rubber, 'doors');
-          door.box(side * 1.541, 1.305, center + v * 0.253, 0.032, 0.898, 0.039, rubber, 'doors');
+          door.box(side * 1.541, 1.305 + v * 0.44, cz, 0.032, 0.039, 0.508, rubber, 'doors');
+          door.box(side * 1.541, 1.305, cz + v * 0.253, 0.032, 0.898, 0.039, rubber, 'doors');
         }
-        const glass = new THREE.MeshStandardMaterial({ color: '#3f514c', transparent: true, opacity: 0.23, metalness: 0.69, roughness: 0.16, depthWrite: false, side: THREE.DoubleSide });
-        addWallPane(door, side, 1.586, 1.31, center, 0.478, 0.849, glass, 'doors');
-        door.box(side * 1.540, 0.969, center - d * 0.358, 0.034, 1.91, 0.019, seal, 'doors');
-        door.box(side * 1.542, 0.139, center, 0.022, 0.264, 0.701, trim, 'doors');
-        addWallPane(door, side, 1.542, 0.738, center, 0.318, 0.047, stickers, 'doors');
-        for (const e of [-1, 1]) door.box(side * 1.535, 0.713, center + e * 0.168, 0.009, 0.009, 0.009, dark, 'doors');
-        const obj = door.batch();
-        obj.position.z = z;
-        root.add(obj);
-        // side < 0 is the platform after the mount (local -X → world -Z).
-        doors.push({ group: obj, dir: d, z, platformSide: side < 0 });
+        addWallPane(door, side, 1.586, 1.31, cz, 0.478, 0.849, doorGlass, 'doors');
+        door.box(side * 1.540, 0.969, cz - d * 0.358, 0.034, 1.91, 0.019, seal, 'doors');
+        door.box(side * 1.542, 0.139, cz, 0.022, 0.264, 0.701, trim, 'doors');
+        addWallPane(door, side, 1.542, 0.738, cz, 0.318, 0.047, stickers, 'doors');
+        for (const e of [-1, 1]) door.box(side * 1.535, 0.713, cz + e * 0.168, 0.009, 0.009, 0.009, dark, 'doors');
+        if (isPlatform) {
+          const obj = door.batch();
+          obj.position.z = z;
+          root.add(obj);
+          doors.push({ group: obj, dir: d, z, platformSide: true });
+        }
       }
     }
     for (let k = 0; k < 15; k++) {
@@ -232,12 +231,12 @@ export function createCar(options: AstraCarOptions = {}): AstraCar {
     const capH = 2.68 - openingTop;
     parts.box(0, openingTop + capH / 2, z, 3.22, capH, 0.112, endMat);
     for (const s of [-1, 1]) {
-      parts.bevel(s * 1.01, 1.39, z - far * 0.073, 0.75, 0.91, 0.053, 0.025, rubber);
-      parts.bevel(s * 1.01, 1.39, z - far * 0.105, 0.68, 0.839, 0.035, 0.019, darkGlass);
+      parts.box(s * 1.01, 1.39, z - far * 0.073, 0.75, 0.91, 0.053, rubber);
+      parts.box(s * 1.01, 1.39, z - far * 0.105, 0.68, 0.839, 0.035, darkGlass);
       parts.box(s * 0.93, 1.45, z - far * 0.139, 0.019, 0.83, 0.019, trim);
       parts.box(s * 1.01, 0.812, z - far * 0.064, 0.88, 0.054, 0.067, chrome);
       parts.face(s * 1.12, 2.03, z - far * 0.075, 0.35, 0.129, ry, fleet);
-      for (let j = 0; j < 11; j++) parts.box(s * 1.02, 0.26 + j * 0.038, z - far * 0.061, 0.51, 0.011, 0.008, dark);
+      for (let j = 0; j < 4; j++) parts.box(s * 1.02, 0.28 + j * 0.11, z - far * 0.061, 0.51, 0.014, 0.008, dark);
     }
     const post = (openingInner + 0.04);
     for (const side of [-1, 1]) {
@@ -258,13 +257,12 @@ export function createCar(options: AstraCarOptions = {}): AstraCar {
     }
     parts.face(-0.545, 1.81, z - far * 0.07, 0.132, 0.132, ry, greenBullet);
     parts.box(0, 2.50, z - far * 0.080, 1.59, 0.22, 0.13, dark);
-    const holder = new Parts();
-    const frontLed = holder.face(0, 2.50, z - far * 0.153, 1.49, 0.16, ry, led, 'doors');
-    root.add(frontLed);
+    parts.face(0, 2.50, z - far * 0.153, 1.49, 0.16, ry, led, 'doors');
     parts.box(0, 2.500, z - far * 0.055, 2.09, 0.058, 0.052, trim);
   }
 
   root.add(parts.batch());
+  shell.dispose();
   return {
     group: root,
     lenses,

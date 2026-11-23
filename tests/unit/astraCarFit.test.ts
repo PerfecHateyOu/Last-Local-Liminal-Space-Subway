@@ -5,7 +5,7 @@ import { CAR_LENGTH, HEIGHT_SCALE, LENGTH_SCALE, WIDTH_SCALE, mountAstraShell, a
 import { seatShell } from '../../src/graphics/astra/geometry';
 
 function installCanvasMock() {
-  if (typeof document !== 'undefined' && document.createElement) return;
+  if (typeof document !== 'undefined' && typeof document.createElement === 'function') return;
   const ctx = new Proxy(Object.create(null), {
     get(_t, prop) {
       if (prop === 'measureText') return () => ({ width: 80 });

@@ -39,11 +39,19 @@ test.describe('Chapter select (practice runs)', () => {
 
     await page.locator('text=/Board the train/i').click();
     await page.waitForFunction(() => (window as any).__G?.phase !== 'menu');
-    const r = await page.evaluate(`(() => { const G = window.__G;
+    const r = (await page.evaluate(`(() => { const G = window.__G;
       const before = { practice: G.isPractice, from: G.carBuilder.stA.name, to: G.carBuilder.stB.name };
       for (let t = 0; t < 12.5; t += 0.05) G.update(0.05);
       return { before, segIdx: G.segIdx, stop: G.seg.stop, chapter: G.chapterRollsign && G.chapterRollsign.chapter.index,
-        band: G.getBand(6), san: G.san, recorder: window.__EVP.hasRecorder }; })()`);
+        band: G.getBand(6), san: G.san, recorder: window.__EVP.hasRecorder }; })()`)) as {
+      before: { practice: boolean; from: string; to: string };
+      segIdx: number;
+      stop: number;
+      chapter: number | null;
+      band: [number, number];
+      san: number;
+      recorder: boolean;
+    };
     expect(r).toMatchObject({
       before: { practice: true, from: 'Bedford–Nostrand Avs', to: 'Myrtle–Willoughby Avs' },
       segIdx: 4,

@@ -1,6 +1,5 @@
 import { describe, expect, test } from 'bun:test';
 import { inflateRawSync, crc32 } from 'node:zlib';
-// @ts-expect-error plain .mjs build script
 import { zip } from '../../scripts/zip.mjs';
 
 /** Reads a zip back through its central directory. */

@@ -23,6 +23,10 @@ function noise(seed: number) {
   }
 }
 
+let cachedFloorTex: T.CanvasTexture | null = null
+let cachedBrushedTex: T.CanvasTexture | null = null
+let cachedGlassTex: T.CanvasTexture | null = null
+
 export function environmentMap() {
   const tex = canvas(768, 384, c => {
     const grad = c.createLinearGradient(0, 0, 0, 384)
@@ -45,36 +49,62 @@ export function environmentMap() {
 }
 
 export function floorMaterial() {
-  const tex = canvas(512,512,c => {
-    c.fillStyle = '#636363'
-    c.fillRect(0,0,512,512)
-    const rnd = noise(64819)
-    for(let i=0;i<56000;i++){
-      const size=.5+rnd()*2.4
-      const shade=Math.round(43+rnd()*109)
-      c.fillStyle='rgb('+shade+','+shade+','+(shade-2)+')'
-      c.fillRect(rnd()*512,rnd()*512,size,size*(.4+rnd()))
-    }
-    c.strokeStyle='rgba(38,37,35,.44)'
-    c.lineWidth=1
-    c.strokeRect(.3,.3,511.5,511.5)
-  })
-  tex.wrapS=tex.wrapT=T.RepeatWrapping
-  tex.repeat.set(4,29)
-  return new T.MeshStandardMaterial({map:tex,metalness:.16,roughness:.43,envMapIntensity:.42})
+  if (!cachedFloorTex) {
+    cachedFloorTex = canvas(256, 256, c => {
+      const size = 256
+      const rnd = noise(64819)
+      const img = typeof c.createImageData === 'function' ? c.createImageData(size, size) : null
+      if (img) {
+        const d = img.data
+        for (let i = 0; i < d.length; i += 4) {
+          d[i] = 99
+          d[i + 1] = 99
+          d[i + 2] = 99
+          d[i + 3] = 255
+        }
+        for (let i = 0; i < 12000; i++) {
+          const w = rnd() > 0.55 ? 2 : 1
+          const h = rnd() > 0.6 ? 2 : 1
+          const shade = Math.round(43 + rnd() * 109)
+          const x0 = Math.floor(rnd() * (size - w))
+          const y0 = Math.floor(rnd() * (size - h))
+          for (let dy = 0; dy < h; dy++) {
+            for (let dx = 0; dx < w; dx++) {
+              const p = ((y0 + dy) * size + (x0 + dx)) * 4
+              d[p] = shade
+              d[p + 1] = shade
+              d[p + 2] = Math.max(0, shade - 2)
+            }
+          }
+        }
+        c.putImageData(img, 0, 0)
+      } else {
+        c.fillStyle = '#636363'
+        c.fillRect(0, 0, size, size)
+      }
+      c.strokeStyle = 'rgba(38,37,35,.44)'
+      c.lineWidth = 1
+      c.strokeRect(0.5, 0.5, size - 1, size - 1)
+    })
+    cachedFloorTex.wrapS = cachedFloorTex.wrapT = T.RepeatWrapping
+    cachedFloorTex.repeat.set(4, 29)
+  }
+  return new T.MeshLambertMaterial({ map: cachedFloorTex })
 }
 
-export function brushedMaterial(color: T.ColorRepresentation, strength=0.72) {
-  const tex=canvas(256,256,c=>{
-    c.fillStyle='#e1e1df'
-    c.fillRect(0,0,256,256)
-    const rnd=noise(719)
-    for(let i=0;i<4100;i++){
-      c.fillStyle=rnd()>.4?'rgba(255,255,255,.17)':'rgba(23,25,23,.08)'
-      c.fillRect(rnd()*256,rnd()*256,2+rnd()*110,.2+rnd()*.4)
-    }
-  })
-  return new T.MeshStandardMaterial({color, map:tex, metalness:strength,roughness:.31,envMapIntensity:.8})
+export function brushedMaterial(color: T.ColorRepresentation) {
+  if (!cachedBrushedTex) {
+    cachedBrushedTex = canvas(256, 256, c => {
+      c.fillStyle = '#e1e1df'
+      c.fillRect(0, 0, 256, 256)
+      const rnd = noise(719)
+      for (let i = 0; i < 650; i++) {
+        c.fillStyle = rnd() > 0.4 ? 'rgba(255,255,255,.22)' : 'rgba(23,25,23,.11)'
+        c.fillRect(rnd() * 256, rnd() * 256, 4 + rnd() * 110, 0.5 + rnd() * 0.8)
+      }
+    })
+  }
+  return new T.MeshLambertMaterial({ color, map: cachedBrushedTex })
 }
 
 export function signTexture(width:number,height:number, fn:(c:CanvasRenderingContext2D)=>void) {
@@ -247,29 +277,27 @@ export function releaseMaterial(material:T.Material){
 }
 
 export function glassMaterial() {
-  const texture=canvas(512,256,c=>{
-    const surface=c.createLinearGradient(0,0,0,256)
-    surface.addColorStop(0,'rgba(177,192,176,.13)')
-    surface.addColorStop(.5,'rgba(58,76,68,.10)')
-    surface.addColorStop(1,'rgba(168,133,91,.17)')
-    c.fillStyle=surface; c.fillRect(0,0,512,256)
-    // The opposing fixture and handrail leave a faint second image in two panes of safety glass.
-    c.save()
-    c.filter='blur(2px)'
-    for(const [y,w,opacity] of [[10,5,.24],[18,1,.15],[82,2,.12],[119,1,.1]]) {
-      c.lineWidth=w
-      c.strokeStyle='rgba(215,222,207,'+opacity+')'
-      c.beginPath(); c.moveTo(0,y); c.lineTo(512,y+9); c.stroke()
-    }
-    c.restore()
-    const rnd=noise(6715)
-    for(let i=0;i<1100;i++){
-      c.fillStyle='rgba(201,203,183,'+(rnd()*.10)+')'
-      c.fillRect(rnd()*512,rnd()*256,.4+rnd()*.85,.3+rnd()*1.2)
-    }
-  })
-  return new T.MeshStandardMaterial({
-    map:texture,color:'#bdc7bb',transparent:true,metalness:.69,roughness:.17,
-    envMapIntensity:1.08,depthWrite:false,side:T.DoubleSide,
+  if (!cachedGlassTex) {
+    cachedGlassTex = canvas(256, 128, c => {
+      const surface = c.createLinearGradient(0, 0, 0, 128)
+      surface.addColorStop(0, 'rgba(177,192,176,.15)')
+      surface.addColorStop(.5, 'rgba(58,76,68,.12)')
+      surface.addColorStop(1, 'rgba(168,133,91,.18)')
+      c.fillStyle = surface; c.fillRect(0, 0, 256, 128)
+      for (const [y, w, opacity] of [[5, 4, .16], [9, 1.5, .12], [41, 2, .1], [60, 1.5, .08]]) {
+        c.lineWidth = w
+        c.strokeStyle = 'rgba(215,222,207,' + opacity + ')'
+        c.beginPath(); c.moveTo(0, y); c.lineTo(256, y + 4.5); c.stroke()
+      }
+      const rnd = noise(6715)
+      for (let i = 0; i < 200; i++) {
+        c.fillStyle = 'rgba(201,203,183,' + (rnd() * .10) + ')'
+        c.fillRect(rnd() * 256, rnd() * 128, .5 + rnd(), .5 + rnd())
+      }
+    })
+  }
+  return new T.MeshBasicMaterial({
+    map: cachedGlassTex, color: '#bdc7bb', transparent: true, opacity: 0.72,
+    depthWrite: false, side: T.DoubleSide,
   })
 }

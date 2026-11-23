@@ -292,10 +292,11 @@ export class SubwayCarBuilder {
   private buildCar() {
     const mWall = new THREE.MeshLambertMaterial({ color: 0xc9ccc4 });
     const mDoor = new THREE.MeshLambertMaterial({ color: 0xb2b7b2 });
-    const mSteel = new THREE.MeshStandardMaterial({
+    const mFrame = new THREE.MeshLambertMaterial({ color: 0x3a3c3a });
+    const mSteel = new THREE.MeshPhongMaterial({
       color: 0xdcdede,
-      metalness: 0.85,
-      roughness: 0.22,
+      shininess: 85,
+      specular: 0x999b96,
     });
 
     // Astra car: 23.8m, four door bays a side, scooped seats, 18 tube meshes. No extra point lights.
@@ -326,11 +327,14 @@ export class SubwayCarBuilder {
 
       this.carGroup.add(wallLeft, wallRight, lintel);
 
-      // Gangway door frame
-      const frameMat = new THREE.MeshStandardMaterial({ color: 0x3a3c3a, metalness: 0.6, roughness: 0.4 });
-      const doorFrame = new THREE.Mesh(new THREE.BoxGeometry(0.08, 2.05, 0.94), frameMat);
-      doorFrame.position.set(x, 1.025, 0);
-      this.carGroup.add(doorFrame);
+      // Hollow 3-piece gangway door frame (left/right jambs + top lintel) so the open doorway stays clear.
+      const frameLeft = new THREE.Mesh(new THREE.BoxGeometry(0.08, 2.05, 0.04), mFrame);
+      frameLeft.position.set(x, 1.025, -0.46);
+      const frameRight = new THREE.Mesh(new THREE.BoxGeometry(0.08, 2.05, 0.04), mFrame);
+      frameRight.position.set(x, 1.025, 0.46);
+      const frameTop = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.05, 0.96), mFrame);
+      frameTop.position.set(x, 2.025, 0);
+      this.carGroup.add(frameLeft, frameRight, frameTop);
 
       // Interactive swinging gangway door
       const doorPivot = new THREE.Group();
@@ -368,18 +372,22 @@ export class SubwayCarBuilder {
     const decalSticker = this.textureGen.createDecalTexture('sticker');
     const decalStain = this.textureGen.createDecalTexture('stain');
 
-    // Far-wall windows. Index 2 is straight ahead (a level look from the seat still lands on it).
-    // Index 3 is just to the right of Dad, which the practice stretch plants a sticker on.
-    // Hit planes stop at the midpoint between neighbors. A shared 1.7m width would overlap
-    // panes 2 and 3 (centers 1.01m apart), and the first raycast hit would be the wrong window.
-    const paneXs = [-6.64, -4.67, 0, 1.01, 4.67];
+    // Far-wall windows aligned to Astra Car B glazing centers (center span [-2.11, 2.11] holds two
+    // panes at -1.01 and +1.01 around the x = 0 center post). Index 3 (+1.01) is just to the right
+    // of Dad, where the practice stretch plants a sticker. Hit planes stop at the midpoint between
+    // neighbors so adjacent windows never overlap. The two centre hit planes run to the x = 0 post
+    // and meet there, so a level look from the seat still lands on a window, as it did before.
+    const paneXs = [-6.64, -4.67, -1.01, 1.01, 4.67];
     const paneCap = 0.85;
     this.panes = paneXs.map((x, i) => {
       const toPrev = i > 0 ? (x - paneXs[i - 1]) / 2 : paneCap;
       const toNext = i < paneXs.length - 1 ? (paneXs[i + 1] - x) / 2 : paneCap;
-      const half = Math.min(paneCap, toPrev, toNext) - 0.02;
-      const hit = new THREE.Mesh(new THREE.PlaneGeometry(half * 2, 0.8), new THREE.MeshBasicMaterial({ visible: false }));
-      hit.position.set(x, 1.325, -1.47);
+      const glassHalf = Math.min(paneCap, toPrev, toNext) - 0.02;
+      const centre = Math.abs(x) === 1.01;
+      const lo = centre && x > 0 ? 0 : x - glassHalf;
+      const hi = centre && x < 0 ? 0 : x + glassHalf;
+      const hit = new THREE.Mesh(new THREE.PlaneGeometry(hi - lo, 0.8), new THREE.MeshBasicMaterial({ visible: false }));
+      hit.position.set((lo + hi) / 2, 1.325, -1.47);
       this.carGroup.add(hit);
 
       const tid = `win:${i}`;
@@ -399,7 +407,7 @@ export class SubwayCarBuilder {
       );
       const vary = seededRandom(tid);
       const scale = 0.85 + vary() * 0.3;
-      const room = Math.max(0, half - 0.14 * scale - 0.01);
+      const room = Math.max(0, glassHalf - 0.14 * scale - 0.01);
       decal.position.set(x + (Math.random() - 0.5) * 2 * room, 1.25 + Math.random() * 0.3, -1.505);
       decal.rotation.z = (vary() - 0.5) * 0.6;
       decal.scale.setScalar(scale);
@@ -494,17 +502,12 @@ export class SubwayCarBuilder {
   }
 
   private mountAdjacentAstraCars() {
+    // Local centers ±19.5 inside carAGroup/carCGroup (shifted ±ADJACENT_SHIFT = ±2.9) -> world ±22.4.
     const specs = [
       { parent: this.carAGroup, centerX: -19.5, skipFar: 1, prefix: 'a' },
       { parent: this.carCGroup, centerX: 19.5, skipFar: -1, prefix: 'c' },
     ] as const;
     for (const { parent, centerX, skipFar, prefix } of specs) {
-      // The parent group carries the extra offset for the longer Car B.
-      for (const child of parent.children) {
-        if ((child as THREE.Light).isLight || child.userData.keepBox || child.userData.tid) continue;
-        child.visible = false;
-      }
-
       const car = createCar({ skipFar, openGangway: true });
       mountAstraShell(car.group, centerX);
       parent.add(car.group);
@@ -780,31 +783,18 @@ export class SubwayCarBuilder {
   }
 
   /**
-   * Builds Car A (Lead car at x = -19.5) and Car C (Rear car at x = +19.5)
+   * Builds Car A (Lead car, world center x = -22.4) and Car C (Rear car, world center x = +22.4).
+   * Their local coordinates remain centered at ±19.5 while carAGroup/carCGroup shift out by ±ADJACENT_SHIFT (±2.9)
+   * to clear Car B's 23.8m length (ends at ±11.9). The Astra interiors are mounted by mountAdjacentAstraCars().
    */
   private buildAdjacentCars() {
-    // The longer Car B pushes these cars out. Their own geometry stays put; the group moves.
     this.carAGroup.position.x = -SubwayCarBuilder.ADJACENT_SHIFT;
     this.carCGroup.position.x = SubwayCarBuilder.ADJACENT_SHIFT;
 
     const mWall = new THREE.MeshLambertMaterial({ color: 0xc9ccc4 });
-    const mLow = new THREE.MeshLambertMaterial({ color: 0x9fa49e });
-    const mSeatOrange = new THREE.MeshLambertMaterial({ color: 0xd8782e });
-    const mSeatYellow = new THREE.MeshLambertMaterial({ color: 0xdf9c32 });
-    const mBase = new THREE.MeshLambertMaterial({ color: 0x4a4d4f });
     const mDark = new THREE.MeshBasicMaterial({ color: 0x060809 });
-    const mSteel = new THREE.MeshStandardMaterial({ color: 0xdcdede, metalness: 0.85, roughness: 0.22 });
-    const floorTex = this.textureGen.createFloorTexture();
-    const floorMat = new THREE.MeshLambertMaterial({ map: floorTex });
 
-    // CAR A (Lead Consist Car, centered at x = -19.5, length 18m)
-    const floorA = new THREE.Mesh(new THREE.BoxGeometry(18, 0.06, 3.06), floorMat);
-    floorA.position.set(-19.5, -0.03, 0);
-    const ceilA = new THREE.Mesh(new THREE.BoxGeometry(18, 0.06, 3.06), new THREE.MeshLambertMaterial({ color: 0xe6e4db }));
-    ceilA.position.set(-19.5, 2.43, 0);
-    this.carAGroup.add(floorA, ceilA);
-
-    // Car A lights
+    // Car A lights (local [-25.5..-13.5] -> world [-28.4..-16.4])
     [-25.5, -21.5, -17.5, -13.5].forEach((x) => {
       const pl = new THREE.PointLight(0xfff0d4, 0.5, 9.0, 1.6);
       pl.position.set(x, 2.2, 0);
@@ -812,59 +802,12 @@ export class SubwayCarBuilder {
       this.carLights.push(pl);
     });
 
-    // Car A walls, benches, and poles
-    [-1, 1].forEach((s) => {
-      const z = s * 1.53;
-      const lowWall = new THREE.Mesh(new THREE.BoxGeometry(18, 0.9, 0.06), mLow);
-      lowWall.position.set(-19.5, 0.45, z);
-      const upWall = new THREE.Mesh(new THREE.BoxGeometry(18, 0.68, 0.06), mWall);
-      upWall.position.set(-19.5, 2.06, z);
-      this.carAGroup.add(lowWall, upWall);
-
-      // Benches in Car A
-      [[-27.5, -23.5], [-22.5, -16.5], [-15.5, -11.5]].forEach(([a, b], bIdx) => {
-        const L = b - a;
-        const cx = (a + b) / 2;
-        const seatMat = bIdx % 2 === 0 ? mSeatOrange : mSeatYellow;
-        const baseCushion = new THREE.Mesh(new THREE.BoxGeometry(L, 0.09, 0.46), seatMat);
-        baseCushion.position.set(cx, 0.455, s * 1.25);
-        const backrest = new THREE.Mesh(new THREE.BoxGeometry(L, 0.5, 0.07), seatMat);
-        backrest.position.set(cx, 0.76, s * 1.47);
-        const under = new THREE.Mesh(new THREE.BoxGeometry(L, 0.41, 0.36), mBase);
-        under.position.set(cx, 0.205, s * 1.3);
-        this.carAGroup.add(baseCushion, backrest, under);
-      });
-
-      // Grab bar and poles
-      const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.019, 0.019, 17.6, 10), mSteel);
-      bar.rotation.z = Math.PI / 2;
-      bar.position.set(-19.5, 2.02, s * 0.98);
-      this.carAGroup.add(bar);
-
-      [-24.0, -15.0].forEach((x) => {
-        const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 2.42, 10), mSteel);
-        pole.position.set(x, 1.21, s * 0.98);
-        this.carAGroup.add(pole);
-      });
-    });
-
-    // Car A Lead Cab Bulkhead (x = -28.5)
+    // Car A Lead Cab Bulkhead (local x = -28.5 -> world x = -31.4)
     const cabWallA = new THREE.Mesh(new THREE.BoxGeometry(0.06, 2.46, 3.06), mWall);
     cabWallA.position.set(-28.5, 1.2, 0);
-    cabWallA.userData.keepBox = true;
     const cabDoorA = new THREE.Mesh(new THREE.BoxGeometry(0.07, 1.8, 0.8), mDark);
     cabDoorA.position.set(-28.5, 1.0, 0);
-    cabDoorA.userData.keepBox = true;
     this.carAGroup.add(cabWallA, cabDoorA);
-
-    // Car A Rear Gangway Doorway (x = -10.5)
-    const wallLeftA = new THREE.Mesh(new THREE.BoxGeometry(0.06, 2.46, 1.05), mWall);
-    wallLeftA.position.set(-10.5, 1.2, -0.98);
-    const wallRightA = new THREE.Mesh(new THREE.BoxGeometry(0.06, 2.46, 1.05), mWall);
-    wallRightA.position.set(-10.5, 1.2, 0.98);
-    const lintelA = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.42, 0.96), mWall);
-    lintelA.position.set(-10.5, 2.22, 0);
-    this.carAGroup.add(wallLeftA, wallRightA, lintelA);
 
     // Car A Passengers
     const pa1 = this.charBuilder.createPerson({
@@ -883,7 +826,7 @@ export class SubwayCarBuilder {
       tid: 'pa2',
       label: 'the commuter staring ahead in Car A',
       archetype: 'overcoat',
-      x: -22.0,
+      x: -23.8,
       z: 1.3,
       ry: Math.PI,
       hp: 0.15,
@@ -898,14 +841,7 @@ export class SubwayCarBuilder {
       this.registerTarget(p.g, p.tid, p.label);
     });
 
-    // CAR C (Rear Consist Car, centered at x = +19.5, length 18m)
-    const floorC = new THREE.Mesh(new THREE.BoxGeometry(18, 0.06, 3.06), floorMat);
-    floorC.position.set(19.5, -0.03, 0);
-    const ceilC = new THREE.Mesh(new THREE.BoxGeometry(18, 0.06, 3.06), new THREE.MeshLambertMaterial({ color: 0xe6e4db }));
-    ceilC.position.set(19.5, 2.43, 0);
-    this.carCGroup.add(floorC, ceilC);
-
-    // Car C lights
+    // Car C lights (local [13.5..25.5] -> world [16.4..28.4])
     [13.5, 17.5, 21.5, 25.5].forEach((x) => {
       const pl = new THREE.PointLight(0xfff0d4, 0.5, 9.0, 1.6);
       pl.position.set(x, 2.2, 0);
@@ -913,58 +849,11 @@ export class SubwayCarBuilder {
       this.carLights.push(pl);
     });
 
-    // Car C walls, benches, and poles
-    [-1, 1].forEach((s) => {
-      const z = s * 1.53;
-      const lowWall = new THREE.Mesh(new THREE.BoxGeometry(18, 0.9, 0.06), mLow);
-      lowWall.position.set(19.5, 0.45, z);
-      const upWall = new THREE.Mesh(new THREE.BoxGeometry(18, 0.68, 0.06), mWall);
-      upWall.position.set(19.5, 2.06, z);
-      this.carCGroup.add(lowWall, upWall);
-
-      // Benches in Car C
-      [[11.5, 15.5], [16.5, 22.5], [23.5, 27.5]].forEach(([a, b], bIdx) => {
-        const L = b - a;
-        const cx = (a + b) / 2;
-        const seatMat = bIdx % 2 === 0 ? mSeatOrange : mSeatYellow;
-        const baseCushion = new THREE.Mesh(new THREE.BoxGeometry(L, 0.09, 0.46), seatMat);
-        baseCushion.position.set(cx, 0.455, s * 1.25);
-        const backrest = new THREE.Mesh(new THREE.BoxGeometry(L, 0.5, 0.07), seatMat);
-        backrest.position.set(cx, 0.76, s * 1.47);
-        const under = new THREE.Mesh(new THREE.BoxGeometry(L, 0.41, 0.36), mBase);
-        under.position.set(cx, 0.205, s * 1.3);
-        this.carCGroup.add(baseCushion, backrest, under);
-      });
-
-      // Grab bar and poles
-      const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.019, 0.019, 17.6, 10), mSteel);
-      bar.rotation.z = Math.PI / 2;
-      bar.position.set(19.5, 2.02, s * 0.98);
-      this.carCGroup.add(bar);
-
-      [15.0, 24.0].forEach((x) => {
-        const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 2.42, 10), mSteel);
-        pole.position.set(x, 1.21, s * 0.98);
-        this.carCGroup.add(pole);
-      });
-    });
-
-    // Car C Front Gangway Doorway (x = +10.5)
-    const wallLeftC = new THREE.Mesh(new THREE.BoxGeometry(0.06, 2.46, 1.05), mWall);
-    wallLeftC.position.set(10.5, 1.2, -0.98);
-    const wallRightC = new THREE.Mesh(new THREE.BoxGeometry(0.06, 2.46, 1.05), mWall);
-    wallRightC.position.set(10.5, 1.2, 0.98);
-    const lintelC = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.42, 0.96), mWall);
-    lintelC.position.set(10.5, 2.22, 0);
-    this.carCGroup.add(wallLeftC, wallRightC, lintelC);
-
-    // Car C Rear Cab Bulkhead (x = +28.5)
+    // Car C Rear Cab Bulkhead (local x = +28.5 -> world x = +31.4)
     const cabWallC = new THREE.Mesh(new THREE.BoxGeometry(0.06, 2.46, 3.06), mWall);
     cabWallC.position.set(28.5, 1.2, 0);
-    cabWallC.userData.keepBox = true;
     const cabDoorC = new THREE.Mesh(new THREE.BoxGeometry(0.07, 1.8, 0.8), mDark);
     cabDoorC.position.set(28.5, 1.0, 0);
-    cabDoorC.userData.keepBox = true;
     this.carCGroup.add(cabWallC, cabDoorC);
 
     // Car C Passengers
@@ -1006,9 +895,9 @@ export class SubwayCarBuilder {
    * Builds the inter-car gangways connecting Car A to Car B, and Car B to Car C
    */
   private buildGangways() {
-    const mTreadplate = new THREE.MeshStandardMaterial({ color: 0x444648, metalness: 0.9, roughness: 0.4 });
+    const mTreadplate = new THREE.MeshLambertMaterial({ color: 0x444648 });
     const mBellows = new THREE.MeshLambertMaterial({ color: 0x161819 });
-    const mChain = new THREE.MeshStandardMaterial({ color: 0x999a9c, metalness: 0.85, roughness: 0.3 });
+    const mChain = new THREE.MeshPhongMaterial({ color: 0x999a9c, shininess: 70, specular: 0x808280 });
 
     // Gangway 1 (between Car A rear and Car B front). Shifted out with the longer Car B.
     const shift = SubwayCarBuilder.ADJACENT_SHIFT;
