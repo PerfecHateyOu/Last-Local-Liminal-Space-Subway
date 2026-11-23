@@ -375,15 +375,19 @@ export class SubwayCarBuilder {
     // Far-wall windows aligned to Astra Car B glazing centers (center span [-2.11, 2.11] holds two
     // panes at -1.01 and +1.01 around the x = 0 center post). Index 3 (+1.01) is just to the right
     // of Dad, where the practice stretch plants a sticker. Hit planes stop at the midpoint between
-    // neighbors so adjacent windows never overlap.
+    // neighbors so adjacent windows never overlap. The two centre hit planes run to the x = 0 post
+    // and meet there, so a level look from the seat still lands on a window, as it did before.
     const paneXs = [-6.64, -4.67, -1.01, 1.01, 4.67];
     const paneCap = 0.85;
     this.panes = paneXs.map((x, i) => {
       const toPrev = i > 0 ? (x - paneXs[i - 1]) / 2 : paneCap;
       const toNext = i < paneXs.length - 1 ? (paneXs[i + 1] - x) / 2 : paneCap;
-      const half = Math.min(paneCap, toPrev, toNext) - 0.02;
-      const hit = new THREE.Mesh(new THREE.PlaneGeometry(half * 2, 0.8), new THREE.MeshBasicMaterial({ visible: false }));
-      hit.position.set(x, 1.325, -1.47);
+      const glassHalf = Math.min(paneCap, toPrev, toNext) - 0.02;
+      const centre = Math.abs(x) === 1.01;
+      const lo = centre && x > 0 ? 0 : x - glassHalf;
+      const hi = centre && x < 0 ? 0 : x + glassHalf;
+      const hit = new THREE.Mesh(new THREE.PlaneGeometry(hi - lo, 0.8), new THREE.MeshBasicMaterial({ visible: false }));
+      hit.position.set((lo + hi) / 2, 1.325, -1.47);
       this.carGroup.add(hit);
 
       const tid = `win:${i}`;
@@ -403,7 +407,7 @@ export class SubwayCarBuilder {
       );
       const vary = seededRandom(tid);
       const scale = 0.85 + vary() * 0.3;
-      const room = Math.max(0, half - 0.14 * scale - 0.01);
+      const room = Math.max(0, glassHalf - 0.14 * scale - 0.01);
       decal.position.set(x + (Math.random() - 0.5) * 2 * room, 1.25 + Math.random() * 0.3, -1.505);
       decal.rotation.z = (vary() - 0.5) * 0.6;
       decal.scale.setScalar(scale);

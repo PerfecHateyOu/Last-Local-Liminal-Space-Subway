@@ -401,7 +401,11 @@ export const HUD: React.FC<HUDProps> = ({
       {G.paText && (
         <div
           data-testid="pa-toast"
-          className="pointer-events-none absolute z-30 left-1/2 top-28 max-sm:portrait:top-[calc(var(--hud-h,9rem)+0.5rem)] sm:top-16 -translate-x-1/2 max-sm:portrait:w-max max-w-[min(90vw,640px)]"
+          className={`pointer-events-none absolute z-30 left-1/2 top-28 ${
+            // Below the route panel on a portrait phone. With the PA board open the toast keeps its
+            // old spot, so the board can still sit under it with room for its feed.
+            paBoardOpen ? '' : 'max-sm:portrait:top-[calc(var(--hud-h,9rem)+0.5rem)]'
+          } sm:top-16 -translate-x-1/2 max-sm:portrait:w-max max-w-[min(90vw,640px)]`}
         >
           <div className="relative overflow-hidden px-4 py-2 rounded bg-[#120d05] border border-warn/60 text-warn text-center font-bold text-sm sm:text-base tracking-wide shadow-[0_0_18px_rgba(227,168,58,0.25)] transit-sign-flicker">
             <div className="absolute inset-0 pointer-events-none transit-sign-raster opacity-30" />
