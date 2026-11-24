@@ -233,28 +233,52 @@ export function adPoster(index:number, altered=false) {
   })
 }
 
+interface LedSignEntry {
+  tex: T.CanvasTexture
+  ctx: CanvasRenderingContext2D
+  text: string
+}
+
+const ledRegistry: LedSignEntry[] = []
+
+export function paintLedSign(c:CanvasRenderingContext2D, text:string){
+  c.fillStyle='#14170f'
+  c.fillRect(0,0,672,74)
+  c.textBaseline='middle'
+  c.font='900 58px Arial, sans-serif'
+  c.fillStyle='#ffc060'
+  c.shadowColor='#ffab40'
+  c.shadowBlur=2
+  const msg=text.toUpperCase()
+  const w=c.measureText(msg).width
+  const scale=w>0?Math.min(1,644/w):1
+  c.save()
+  c.translate(336,38)
+  c.scale(scale,1)
+  c.textAlign='center'
+  c.fillText(msg,0,0)
+  c.restore()
+  c.shadowBlur=0
+  c.fillStyle='rgba(19,19,10,.34)'
+  for(let x=0;x<672;x+=4)c.fillRect(x,0,1,74)
+  for(let y=0;y<74;y+=4)c.fillRect(0,y,672,1)
+}
+
 export function ledSign(text:string){
-  return signTexture(672,74,c=>{
-    c.fillStyle='#14170f'
-    c.fillRect(0,0,672,74)
-    c.textBaseline='middle'
-    c.font='900 58px Arial, sans-serif'
-    c.fillStyle='#ffc060'
-    c.shadowColor='#ffab40'
-    c.shadowBlur=2
-    const msg=text.toUpperCase()
-    const scale=Math.min(1,644/c.measureText(msg).width)
-    c.save()
-    c.translate(336,38)
-    c.scale(scale,1)
-    c.textAlign='center'
-    c.fillText(msg,0,0)
-    c.restore()
-    c.shadowBlur=0
-    c.fillStyle='rgba(19,19,10,.34)'
-    for(let x=0;x<672;x+=4)c.fillRect(x,0,1,74)
-    for(let y=0;y<74;y+=4)c.fillRect(0,y,672,1)
-  })
+  const mat=signTexture(672,74,c=>paintLedSign(c,text))
+  const tex=mat.map as T.CanvasTexture
+  const ctx=(tex.image as HTMLCanvasElement).getContext('2d')!
+  ledRegistry.push({tex,ctx,text})
+  return mat
+}
+
+export function setLedSignText(text:string){
+  for(const entry of ledRegistry){
+    if(entry.text===text)continue
+    paintLedSign(entry.ctx,text)
+    entry.text=text
+    entry.tex.needsUpdate=true
+  }
 }
 
 export function label(text:string,bg:string,fg:string,width=512,height=96){

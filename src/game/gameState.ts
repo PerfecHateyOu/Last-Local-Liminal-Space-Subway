@@ -56,6 +56,7 @@ import * as engineVitals from './engineVitals';
 import * as engineTools from './engineTools';
 import * as engineTrial from './engineTrial';
 import { buildCutscene, CutsceneAction, CutsceneBeat, CutsceneId, CutscenePlayer } from './cutscenes';
+import { ledSignText } from '../ui/ledSignModel';
 export { SHUTTER_COOLDOWN } from './engineTools';
 
 /** Foggy sodium-vapor night fog colour on the open trestle. */
@@ -372,7 +373,27 @@ export class GameEngine {
     // A chapter card still showing names the stretch's stations: follow the line too.
     const card = this.chapterRollsign;
     if (card) this.chapterRollsign = { ...card, ...this.rollsignLabels(card.chapter) };
+    this.updateLedSign();
     this.notifyUI();
+  }
+
+  /**
+   * Update the in-car LED strip signs across all three cars from the current stop and phase.
+   * Called only on stop transitions and line switches; holds its last text during trials,
+   * Safe Haven, and cutscenes.
+   */
+  public updateLedSign() {
+    if (this.phase === 'trial' || this.phase === 'haven' || this.phase === 'menu' || this.phase === 'end') return;
+    const line = routeManager.routeId;
+    if (this.phase === 'ride' && this.seg) {
+      this.carBuilder.setLedSign(ledSignText(line, routeManager.getStopName(this.seg.stop), 'next'));
+    } else if (this.phase === 'stop' && this.seg) {
+      this.carBuilder.setLedSign(ledSignText(line, routeManager.getStopName(this.seg.stop), 'at'));
+    } else if (this.phase === 'intro') {
+      const from = CHAPTER_START_SEGMENT[this.startChapter] ?? 0;
+      const boardStop = from > 0 ? SEGS[from - 1].stop : 1;
+      this.carBuilder.setLedSign(ledSignText(line, routeManager.getStopName(boardStop), 'at'));
+    }
   }
 
   private rollsignLabels(chapter: ChapterDef): { title: string; subtitle: string } {
@@ -725,6 +746,7 @@ export class GameEngine {
       // Dad handed you the recorder at the Stop 6 Safe Haven; by Chapter III you have it.
       if (SEGS[from].stop > 6) evp.hasRecorder = true;
     }
+    this.updateLedSign();
 
     // The report screen drops the master level and fades the hum out, and a Trial or the
     // Stop 6 transition thins the bed. A new run (Ride again, or Restart from the pause
@@ -862,6 +884,7 @@ export class GameEngine {
     this.segFlags = [];
     this.segSusGain = false;
     this.bandStop = seg.stop;
+    this.updateLedSign();
 
     if (this.harder > 0) this.harder--;
     const base = DRIFT[seg.stop] ?? SAN.drift;
@@ -1186,6 +1209,7 @@ export class GameEngine {
   public arrive() {
     const seg = this.seg!;
     this.phase = 'stop';
+    this.updateLedSign();
     const rec = this.scoreSegment();
 
     if (seg.final) {

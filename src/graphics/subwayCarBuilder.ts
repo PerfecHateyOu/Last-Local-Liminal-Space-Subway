@@ -11,7 +11,9 @@ import { TextureGenerator, hiDpiCanvas } from './textureGenerator';
 import { CharacterBuilder, seededRandom } from './characterBuilder';
 import { PersonObject } from '../types';
 import { createAstraCar } from './astraCar';
+import { setLedSignText as setCarBLedSignText } from './astraMaterials';
 import { createCar, type AstraCar } from './astra/car';
+import { setLedSignText as setAdjacentLedSignText } from './astra/materials';
 import { mountAstraShell } from './astra/fit';
 
 export interface TargetEntry {
@@ -129,6 +131,8 @@ export class SubwayCarBuilder {
 
   public stA!: StationObject;
   public stB!: StationObject;
+  /** Current text painted onto the in-car LED strip signs across Cars A, B, and C. */
+  public ledSignText: string = 'G   COURT SQ';
 
   // Characters
   public parents: PersonObject[] = [];
@@ -966,6 +970,14 @@ export class SubwayCarBuilder {
     if (this.gangwayDoors.rearGroup) {
       this.gangwayDoors.rearGroup.rotation.y = this.gangwayDoors.rearAngle;
     }
+  }
+
+  /** Repaint the in-car LED strip signs in Car B and adjacent Cars A and C together. */
+  public setLedSign(text: string) {
+    if (this.ledSignText === text) return;
+    this.ledSignText = text;
+    setCarBLedSignText(text);
+    setAdjacentLedSignText(text);
   }
 
   public getAllPassengers(): PersonObject[] {
