@@ -27,6 +27,7 @@ import { tutorialSeen } from './game/tutorial';
 import { ReportScreen } from './components/ReportScreen';
 import { SettingsPanel } from './components/SettingsPanel';
 import { PauseScreen } from './components/PauseScreen';
+import { CutsceneOverlay } from './components/CutsceneOverlay';
 import { PolaroidViewfinder } from './components/PolaroidViewfinder';
 import { PolaroidAlbum } from './components/PolaroidAlbum';
 import { RouteSelector } from './components/RouteSelector';
@@ -61,7 +62,7 @@ const HUD_IDLE_S = 6;
  * (index.css, .hud-dim), which suits the empty car.
  */
 function hudIdle(G: GameEngine, quietFor: number, paBoardOpen = false): boolean {
-  if (G.paused || G.phase === 'menu' || G.phase === 'end') return false;
+  if (G.paused || G.phase === 'menu' || G.phase === 'end' || G.cutsceneActive) return false;
   if (quietFor < HUD_IDLE_S || hudNeedsLiveRefresh(G, paBoardOpen)) return false;
   return !G.subHtml && !G.paText && !G.tutorial && !polaroidManager.isViewfinderOpen && !polaroidManager.isAlbumOpen;
 }
@@ -69,6 +70,7 @@ function hudIdle(G: GameEngine, quietFor: number, paBoardOpen = false): boolean 
 function hudNeedsLiveRefresh(G: GameEngine, paBoardOpen = false): boolean {
   if (G.paused || G.phase === 'menu' || G.phase === 'end') return false;
   return (
+    G.cutsceneActive ||
     G.flagHeld ||
     G.flagProg > 0 ||
     evp.raised ||
@@ -362,7 +364,7 @@ export default function App() {
       }
 
       if (!engine.paused) {
-        if (engine.phase !== 'menu' && engine.phase !== 'end') {
+        if (engine.phase !== 'menu' && engine.phase !== 'end' && !engine.cutsceneActive) {
           keyLookRef.current.apply(engine, dt, settings.get().lookSensitivity);
         }
         engine.update(dt);
@@ -446,7 +448,7 @@ export default function App() {
 
     const handlePointerDown = (e: PointerEvent) => {
       const G = engineRef.current;
-      if (!G || G.paused || G.phase === 'menu' || G.phase === 'end') return;
+      if (!G || G.paused || G.phase === 'menu' || G.phase === 'end' || G.cutsceneActive) return;
 
       audioEngine.wake();
       if (e.pointerType === 'mouse') requestLock();
@@ -485,7 +487,7 @@ export default function App() {
 
     const handlePointerMove = (e: PointerEvent) => {
       const G = engineRef.current;
-      if (!G || G.paused || G.phase === 'menu' || G.phase === 'end') return;
+      if (!G || G.paused || G.phase === 'menu' || G.phase === 'end' || G.cutsceneActive) return;
 
       // Look speed and vertical direction come from the player's settings.
       const { lookSensitivity: sens, invertY } = settings.get();
@@ -673,6 +675,16 @@ export default function App() {
       }
 
       if (G.paused || G.phase === 'menu' || G.phase === 'end') return;
+
+      // While a cutscene plays, Space and Enter skip it; gameplay inputs wait until it ends.
+      if (G.cutsceneActive) {
+        if ((e.code === 'Space' || e.code === 'Enter') && !e.repeat) {
+          e.preventDefault();
+          G.skipCutscene();
+          triggerUpdate();
+        }
+        return;
+      }
 
       // EVP recorder: R raises/lowers; while up, [ ] tune and Space records.
       if (e.code === 'KeyR' && !e.repeat) {
@@ -1089,6 +1101,18 @@ export default function App() {
           onOpenSettings={() => setSettingsOpen(true)}
           isTouch={isTouch}
           engine={engineRef.current ?? undefined}
+        />
+      )}
+
+      {/* Cutscene Overlay */}
+      {engineRef.current?.cutsceneActive && !paused && phase !== 'menu' && phase !== 'end' && (
+        <CutsceneOverlay
+          cutscene={engineRef.current.cutscene!}
+          isTouch={isTouch}
+          onSkip={() => {
+            engineRef.current?.skipCutscene();
+            triggerUpdate();
+          }}
         />
       )}
 

@@ -26,7 +26,7 @@ test.describe('Looking around', () => {
   });
 
   test('the False Stop Trial keeps its limit (its stage is built to be seen from the front)', async ({ page, game }) => {
-    await game(`ride(3); G.Q = []; G.startTrial(); G.ty = 0;`);
+    await game(`ride(3); G.Q = []; G.startTrial(); advance(5.1); G.ty = 0;`);
     expect(await game(`return G.phase;`)).toBe('trial');
     expect(await game(`${DRAG(-1300)} return G.ty;`)).toBeCloseTo(1.2, 5);
     await page.keyboard.down('ArrowRight');

@@ -29,7 +29,7 @@ test.describe('the Last Local announcement', () => {
     const r = await game(`G.startIntro(); await sleep(300);
       const L = A.getLastLocalAnnouncement();
       const first = L.activeNodes.length;
-      advance(12); // the doors close and the ride starts
+      advance(9.5); // the doors close and the ride starts
       const afterIntro = { phase: G.phase, playing: L.isPlaying, nodes: L.activeNodes.length };
       G.newGame(); G.startIntro(); await sleep(300);
       return { first, afterIntro, again: L.activeNodes.length, playing: L.isPlaying };`);

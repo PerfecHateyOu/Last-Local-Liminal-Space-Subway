@@ -92,6 +92,7 @@ export function toggleRecorder(G: GameEngine): boolean {
     evp.lower();
   } else if (
     evp.hasRecorder &&
+    !G.cutsceneActive &&
     !G.choice &&
     !G.restraint &&
     (G.phase === "ride" ||

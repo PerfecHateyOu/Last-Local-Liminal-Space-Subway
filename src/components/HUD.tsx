@@ -171,7 +171,7 @@ export const HUD: React.FC<HUDProps> = ({
       />
 
       {/* Central Reticle */}
-      {!isTrial && !polaroidManager.isViewfinderOpen && (
+      {!isTrial && !G.cutsceneActive && !polaroidManager.isViewfinderOpen && (
         <div
           className={`absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[38px] h-[38px] transition-opacity duration-300 ${
             isNoted ? 'scale-110' : ''
@@ -437,7 +437,7 @@ export const HUD: React.FC<HUDProps> = ({
         <div
           data-testid="hud-subtitle"
           className={`absolute left-1/2 -translate-x-1/2 max-sm:portrait:w-max max-w-[min(92vw,680px)] px-4 py-2.5 rounded bg-black/80 border border-white/10 text-center text-sm sm:text-base text-cream leading-relaxed shadow-lg transit-sign-flicker-subtle transition-all duration-300 ${
-            showChoices ? 'bottom-28 touch:bottom-56 short-land:bottom-28' : isRestraint ? 'bottom-32' : 'bottom-16 max-sm:portrait:bottom-36'
+            showChoices ? 'bottom-28 touch:bottom-56 short-land:bottom-28' : isRestraint ? 'bottom-32' : G.cutsceneActive ? 'bottom-24 max-sm:portrait:bottom-32' : 'bottom-16 max-sm:portrait:bottom-36'
           }`}
           dangerouslySetInnerHTML={{ __html: G.subHtml }}
         />
@@ -478,9 +478,10 @@ export const HUD: React.FC<HUDProps> = ({
       )}
 
       {/* Touch: walking stick (bottom left), where the keyboard hints sit on desktop. Hidden at
-          the same times WASD is ignored: answer prompts and the restraint. The camera viewfinder
+          the same times WASD is ignored: answer prompts, cutscenes, and the restraint. The camera viewfinder
           covers the screen edges, so the touch controls step aside while it's up. */}
       {G.isTouch &&
+        !G.cutsceneActive &&
         !showChoices &&
         !polaroidManager.isViewfinderOpen &&
         !isRestraint &&
@@ -517,7 +518,7 @@ export const HUD: React.FC<HUDProps> = ({
 
       {/* Hold / Flag Button (Bottom Right). The ring fills clockwise while held; a short pulse when
           a flag registers (every flag the same: it never says whether you were right). */}
-      {!showChoices && !evp.raised && !(G.isTouch && polaroidManager.isViewfinderOpen) && (
+      {!G.cutsceneActive && !showChoices && !evp.raised && !(G.isTouch && polaroidManager.isViewfinderOpen) && (
         <div className="absolute right-4 bottom-5 pointer-events-auto">
           <button
             onPointerDown={(e) => {

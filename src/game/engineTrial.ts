@@ -35,6 +35,11 @@ export function startTrial(G: GameEngine) {
     G.pitch = 0;
 
     audioEngine.setBedLevel(0.05, 0.5);
+    G.startCutscene('trial', () => G.beginTrial());
+}
+
+export function beginTrial(G: GameEngine) {
+    if (!G.trial || G.phase !== 'trial') return;
     newTrialRound(G);
     G.setHint('Find the way back. The signs lie. Watch the lights when the chime plays.', 6.0);
     G.notifyUI();

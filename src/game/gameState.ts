@@ -55,6 +55,7 @@ import { Tutorial, markTutorialSeen } from './tutorial';
 import * as engineVitals from './engineVitals';
 import * as engineTools from './engineTools';
 import * as engineTrial from './engineTrial';
+import { buildCutscene, CutsceneAction, CutsceneBeat, CutsceneId, CutscenePlayer } from './cutscenes';
 export { SHUTTER_COOLDOWN } from './engineTools';
 
 /** Foggy sodium-vapor night fog colour on the open trestle. */
@@ -242,6 +243,13 @@ export class GameEngine {
   public isTouch: boolean = false;
   /** The practice stretch, while it runs (src/game/tutorial.ts). */
   public tutorial: Tutorial | null = null;
+  /** Active in-engine cutscene player and end callback. */
+  public cutscene: CutscenePlayer | null = null;
+  private cutsceneOnEnd: (() => void) | null = null;
+
+  public get cutsceneActive(): boolean {
+    return !!this.cutscene && !this.cutscene.finished;
+  }
 
   // Operation Skyward Phase 3: Chapters & Multiple Escape Endings
   public currentChapter: ChapterDef = CHAPTERS[0];
@@ -621,6 +629,8 @@ export class GameEngine {
     this.paUntil = 0;
     this.hintUntil = 0;
     this.choice = null;
+    this.cutscene = null;
+    this.cutsceneOnEnd = null;
     this.paused = false;
     this.currentChapter = CHAPTERS[0];
     this.chapterRollsign = null;
@@ -733,40 +743,110 @@ export class GameEngine {
       return;
     }
     audioEngine.startLastLocalAnnouncement();
-
-    this.sched(1.2, () => this.setPA(fillRoute('This is the Last Local. {terminus}–bound {line} train.'), 4.0));
-    if (!this.looped) {
-      this.sched(2.5, () =>
-        this.setHint(
-          this.isTouch
-            ? 'Drag to look around. Hold FLAG while looking at anything that changes.'
-            : 'Move the mouse to look. Hold F while looking at anything that changes.',
-          7.0
-        )
-      );
-    }
-    this.sched(6.0, () => this.say(1, 'Grab a seat. It\u2019s a long one.', 2.8));
-    if (this.looped) this.sched(8.9, () => this.setSub('<em>He said that last time, too.</em>', 2.4));
-    this.sched(9.0, () => {
-      this.setPA('Stand clear of the closing doors, please.', 3.0);
-      audioEngine.chime();
-    });
-    this.sched(10.4, () => {
-      this.doorTarget = 0;
-    });
-    if (from > 0 && evp.hasRecorder) {
-      this.sched(12.5, () =>
-        this.setHint(this.isTouch ? 'You have Dad\u2019s tape recorder. Tap Recorder to raise it.' : 'You have Dad\u2019s tape recorder. Press R to raise it.', 5)
-      );
-    }
-    this.sched(11.6, () => {
+    this.startCutscene('intro', () => {
       audioEngine.stopLastLocalAnnouncement(1.2);
       this.startSegment(from);
+      if (from > 0 && evp.hasRecorder) {
+        this.sched(1.0, () =>
+          this.setHint(
+            this.isTouch
+              ? 'You have Dad\u2019s tape recorder. Tap Recorder to raise it.'
+              : 'You have Dad\u2019s tape recorder. Press R to raise it.',
+            5
+          )
+        );
+      }
     });
+  }
+
+  public startCutscene(id: CutsceneId, onEnd?: () => void) {
+    evp.lower();
+    polaroidManager.setViewfinder(false);
+    this.flagHeld = false;
+    this.setMoveInput(0, 0);
+
+    const def = buildCutscene(id, {
+      looped: this.looped,
+      chapterStart: (CHAPTER_START_SEGMENT[this.startChapter] ?? 0) > 0,
+      isTouch: this.isTouch,
+    });
+    this.cutscene = new CutscenePlayer(def);
+    this.cutsceneOnEnd = onEnd ?? null;
+    this.applyCutsceneBeat(this.cutscene.currentBeat);
+    this.notifyUI();
+  }
+
+  public skipCutscene() {
+    if (!this.cutscene) return;
+    const actions = this.cutscene.skip();
+    for (const action of actions) {
+      this.runCutsceneAction(action);
+    }
+    this.endCutscene(true);
+  }
+
+  private applyCutsceneBeat(beat: CutsceneBeat) {
+    this.ty = beat.shot.yaw;
+    this.tp = beat.shot.pitch;
+    if (settings.effectsReduced()) {
+      this.yaw = this.ty;
+      this.pitch = this.tp;
+      if (beat.shot.eye && this.phase !== 'trial') {
+        this.eyePos.set(beat.shot.eye[0], beat.shot.eye[1], beat.shot.eye[2]);
+      }
+    }
+    if (beat.pa) {
+      this.setPA(beat.pa, beat.paDur ?? 3.5);
+    }
+    if (beat.sub) {
+      this.setSub(beat.sub, beat.subDur ?? Math.max(2.0, beat.dur));
+    }
+    if (beat.hint) {
+      this.setHint(beat.hint, beat.hintDur ?? 5.0);
+    }
+    if (beat.action) {
+      this.runCutsceneAction(beat.action);
+    }
+  }
+
+  private runCutsceneAction(action: CutsceneAction) {
+    switch (action.type) {
+      case 'chime':
+        audioEngine.chime();
+        break;
+      case 'closeDoors':
+        this.doorTarget = 0;
+        break;
+      case 'openDoors':
+        this.doorTarget = 1;
+        break;
+      case 'giveRecorder':
+        this.giveRecorder(action.where);
+        break;
+    }
+  }
+
+  private endCutscene(skipped: boolean) {
+    const onEnd = this.cutsceneOnEnd;
+    this.cutscene = null;
+    this.cutsceneOnEnd = null;
+    if (skipped) {
+      this.subHtml = '';
+      this.subUntil = 0;
+    }
+    this.prevDir = null;
+    this.angVel = 0;
+    this.snapArc = 0;
+    this.snapPeak = 0;
+    this.snapCd = 1.0;
+    onEnd?.();
     this.notifyUI();
   }
 
   public startSegment(idx: number) {
+    // Jumping straight into a stretch drops any active cutscene without firing its onEnd.
+    this.cutscene = null;
+    this.cutsceneOnEnd = null;
     audioEngine.stopLastLocalAnnouncement(0.5);
     const prev = this.seg;
     if (prev) {
@@ -1109,12 +1189,7 @@ export class GameEngine {
     const rec = this.scoreSegment();
 
     if (seg.final) {
-      this.sched(0.4, () => audioEngine.chime());
-      this.sched(2.3, () => {
-        this.doorTarget = 1;
-      });
-      this.sched(3.4, () => this.say(0, fillRoute('Here we are. {terminus}.'), 3.0));
-      this.sched(4.8, () => this.presentFinalExitChoice());
+      this.startCutscene('arrival', () => this.presentFinalExitChoice());
       return;
     }
 
@@ -1243,17 +1318,14 @@ export class GameEngine {
     this.phase = 'haven';
     audioEngine.setBedLevel(2.2, 0.4);
     this.sched(2.0, () => audioEngine.setBedLevel(0.18, 2.4));
-    this.sched(0.8, () => this.say(0, 'Feels good to stand up, right?', 2.6));
-    this.sched(3.5, () => this.say(1, fillRoute('Couple more stops after this. Then {terminus}.'), 2.8));
-    // Dad hands over his old recorder (the EVP recorder, Operation Skyward Phase 2).
-    this.sched(6.4, () => this.giveRecorder('haven'));
-    this.sched(10.4, () => {
+    this.startCutscene('haven', () => {
       this.addSanity(SAN.haven, 'Safe Haven');
       this.setSub('<em>You get back on with them.</em>', 2.0);
-    });
-    this.sched(11.4, () => {
-      this.phase = 'stop';
-      this.departNext();
+      this.sched(1.0, () => {
+        if (this.phase === 'end') return;
+        this.phase = 'stop';
+        this.departNext();
+      });
     });
   }
 
@@ -1503,6 +1575,10 @@ export class GameEngine {
     return engineTrial.startTrial(this);
   }
 
+  public beginTrial() {
+    return engineTrial.beginTrial(this);
+  }
+
   private newTrialRound() {
     return engineTrial.newTrialRound(this);
   }
@@ -1556,6 +1632,8 @@ export class GameEngine {
 
   public endGame() {
     this.phase = 'end';
+    this.cutscene = null;
+    this.cutsceneOnEnd = null;
     this.carBuilder.passingTrain.stop();
     this.passAt = null;
     this.tubeFlickerAt = null;
@@ -1631,6 +1709,53 @@ export class GameEngine {
   }
 
   public update(dt: number) {
+    if (this.cutsceneActive) {
+      // While a cutscene plays, only its own clock advances; GT, scheduled queue, sanity,
+      // suspicion, choice timer, and world motion all stand still.
+      this.updateMusic(dt);
+      const beat = this.cutscene!.currentBeat;
+      if (settings.effectsReduced()) {
+        this.yaw = this.ty;
+        this.pitch = this.tp;
+        if (beat.shot.eye && this.phase !== 'trial') {
+          this.eyePos.set(beat.shot.eye[0], beat.shot.eye[1], beat.shot.eye[2]);
+        }
+      } else {
+        const k = 1 - Math.exp(-4.5 * dt);
+        this.yaw += (this.ty - this.yaw) * k;
+        this.pitch += (this.tp - this.pitch) * k;
+        if (beat.shot.eye && this.phase !== 'trial') {
+          this.eyePos.x += (beat.shot.eye[0] - this.eyePos.x) * k;
+          this.eyePos.y += (beat.shot.eye[1] - this.eyePos.y) * k;
+          this.eyePos.z += (beat.shot.eye[2] - this.eyePos.z) * k;
+        }
+      }
+
+      if (this.phase === 'trial') {
+        this.camera.position.copy(this.trialEyePos);
+        if (this.camera.aspect < 1) this.camera.position.z = 3.3;
+      } else {
+        this.camera.position.copy(this.eyePos);
+        this.doorOpen += (this.doorTarget - this.doorOpen) * (1 - Math.exp(-7 * dt));
+        this.carBuilder.farLeaves.forEach((l) => {
+          l.g.position.x = l.x0 + l.side * DOOR_SLIDE * this.doorOpen;
+        });
+        this.carBuilder.setAdjacentPlatformDoors(this.doorOpen);
+      }
+      this.camera.rotation.set(this.pitch, this.yaw, 0);
+      this.camera.updateMatrixWorld();
+      this.applyLighting();
+
+      const ev = this.cutscene!.update(dt);
+      if (ev === 'beat') {
+        this.applyCutsceneBeat(this.cutscene!.currentBeat);
+        this.notifyUI();
+      } else if (ev === 'finished') {
+        this.endCutscene(false);
+      }
+      return;
+    }
+
     this.GT += dt;
     this.runSched();
     this.updateMusic(dt);
@@ -2560,6 +2685,7 @@ export class GameEngine {
    * an answer prompt or the restraint needs your attention first. Null when they can.
    */
   public get handsBusy(): string | null {
+    if (this.cutsceneActive) return 'Wait a moment.';
     if (this.choice) return 'Answer first.';
     if (this.restraint) return 'Not now. Keep holding.';
     return null;
