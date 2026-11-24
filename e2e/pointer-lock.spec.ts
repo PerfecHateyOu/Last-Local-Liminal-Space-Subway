@@ -100,6 +100,85 @@ test.describe('pointer lock', () => {
     await page.evaluate(() => document.exitPointerLock());
     expect(await game(`return G.paused;`)).toBe(true);
   });
+
+  test('diagnostic: quiet unlock before a queued lock pointerlockchange arrives does not double-fire a pause', async ({ page, game }) => {
+    await game(`ride(0);`);
+    // Simulate Chromium queuing pointerlockchange from requestPointerLock() while unlock({ quiet: true })
+    // runs before that first event is delivered: both queued events then see pointerLockElement === null.
+    const diag = await page.evaluate(async () => {
+      const PL = (window as any).__PL;
+      const log: Array<{ locked: boolean; quiet: boolean }> = [];
+      let locked: Element | null = null;
+      const queued: Array<() => void> = [];
+      Object.defineProperty(document, 'pointerLockElement', { configurable: true, get: () => locked });
+      Element.prototype.requestPointerLock = function (this: Element, opts?: any) {
+        if (opts?.unadjustedMovement) {
+          queued.push(() => document.dispatchEvent(new Event('pointerlockerror')));
+          return Promise.reject(new DOMException('unsupported', 'NotSupportedError'));
+        }
+        locked = this;
+        queued.push(() => document.dispatchEvent(new Event('pointerlockchange')));
+        return Promise.resolve();
+      } as never;
+      document.exitPointerLock = () => {
+        locked = null;
+        queued.push(() => document.dispatchEvent(new Event('pointerlockchange')));
+      };
+
+      const off = PL.subscribe((c: any) => log.push(c));
+      PL.lock(document.querySelector('canvas'));
+      await new Promise((r) => setTimeout(r, 20));
+      // Quiet unlock fires while locked === canvas, before Chromium drains the lock's pointerlockchange.
+      PL.unlock({ quiet: true });
+      // Drain all queued browser events (delayed raw pointerlockerror + two unlocked pointerlockchange events).
+      while (queued.length) queued.shift()!();
+      off();
+      return { log, paused: (window as any).__G.paused, hint: PL.hint, locked: PL.isLocked };
+    });
+    expect(diag.paused, `unexpected pause; events=${JSON.stringify(diag.log)}`).toBe(false);
+    expect(diag.hint, 'delayed raw-mouse pointerlockerror should not raise lock hint').toBe(false);
+    expect(diag.locked).toBe(false);
+    expect(diag.log.every((e) => !e.locked && e.quiet), `expected all events quiet; got ${JSON.stringify(diag.log)}`).toBe(true);
+
+    // A later non-quiet browser unlock must still pause the ride.
+    await page.evaluate(() => document.dispatchEvent(new Event('pointerlockchange')));
+    expect(await game(`return G.paused;`)).toBe(true);
+  });
+
+  test('diagnostic: quiet unlock while raw-mouse requestPointerLock is still pending cancels plain fallback', async ({ page, game }) => {
+    await game(`ride(0);`);
+    const diag = await page.evaluate(async () => {
+      const PL = (window as any).__PL;
+      const calls: string[] = [];
+      let locked: Element | null = null;
+      let rejectRaw!: (err: unknown) => void;
+      Object.defineProperty(document, 'pointerLockElement', { configurable: true, get: () => locked });
+      Element.prototype.requestPointerLock = function (this: Element, opts?: any) {
+        const raw = !!opts?.unadjustedMovement;
+        calls.push(raw ? 'raw' : 'plain');
+        if (raw) {
+          return new Promise<void>((_, rej) => {
+            rejectRaw = rej;
+          });
+        }
+        locked = this;
+        document.dispatchEvent(new Event('pointerlockchange'));
+        return Promise.resolve();
+      } as never;
+      document.exitPointerLock = () => {
+        locked = null;
+        document.dispatchEvent(new Event('pointerlockchange'));
+      };
+
+      PL.lock(document.querySelector('canvas'));
+      // Quiet unlock runs before the raw lock promise even rejects.
+      PL.unlock({ quiet: true });
+      rejectRaw(new DOMException('unsupported', 'NotSupportedError'));
+      await new Promise((r) => setTimeout(r, 30));
+      return { calls, locked: PL.isLocked, paused: (window as any).__G.paused, hint: PL.hint };
+    });
+    expect(diag).toEqual({ calls: ['raw'], locked: false, paused: false, hint: false });
+  });
 });
 
 test.describe('smooth walking', () => {

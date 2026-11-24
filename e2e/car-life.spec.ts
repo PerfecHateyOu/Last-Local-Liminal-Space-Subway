@@ -89,12 +89,15 @@ test.describe('A livelier car', () => {
 test.describe('A train on the other track', () => {
   test('passes mid-cruise only: done 10 s before braking, never on the trestle, 6b, the restraint, the last stretch, or Reduced', async ({ page, game }) => {
     const r = await game(`const out = { planned: 0, bad: [] }; const was = G.constructor.PASS_CHANCE; G.constructor.PASS_CHANCE = 1;
+      const dur = G.carBuilder.passingTrain.constructor.duration(G.topSpeed);
       for (let i = 0; i < 13; i++) { G.Q = []; G.startSegment(i); const s = G.seg;
         const skip = s.b || s.restraint || s.stop === 13 || (s.stop === 12 && !s.b);
         if (G.passAt === null) { if (!skip) out.bad.push('none at ' + s.stop); continue; }
         out.planned++;
         if (skip) out.bad.push('planned at ' + s.stop + (s.b ? 'b' : ''));
-        const done = G.passAt + 6.7; if (G.passAt < 8 || done > 5 + G.cruiseOf(s) - 10) out.bad.push('late at ' + s.stop); }
+        const limit = 5 + G.cruiseOf(s) - 10;
+        const done = G.passAt + dur;
+        if (G.passAt < 8 || done > limit + 1e-9) out.bad.push('late at ' + s.stop + ' (passAt=' + G.passAt.toFixed(3) + ', dur=' + dur.toFixed(3) + ', limit=' + limit.toFixed(3) + ')'); }
       G.constructor.PASS_CHANCE = was; return out;`);
     expect(r.bad).toEqual([]);
     expect(r.planned).toBeGreaterThan(5);

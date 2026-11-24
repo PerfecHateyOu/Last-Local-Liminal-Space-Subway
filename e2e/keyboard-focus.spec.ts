@@ -63,9 +63,14 @@ test('from a fresh start the whole loop plays from the keyboard', async ({ page 
   await page.keyboard.press('KeyL');
   const selector = page.getByRole('dialog', { name: 'MTA Transit Line Switching' });
   await expect(selector).toBeVisible();
+  await expect(selector.getByRole('button', { name: /G Brooklyn–Queens Crosstown \(current line\)/ })).toBeFocused();
   await page.keyboard.press('Tab');
   await page.keyboard.press('Enter');
   await expect(selector).toHaveCount(0);
+  // Wait briefly for any queued browser pointerlockchange events from Resume -> L to drain:
+  // the ride must stay unpaused with no Pause menu popping over it.
+  await page.waitForTimeout(250);
+  await expect(pause).toHaveCount(0);
   expect(await page.evaluate(() => [(window as any).__G.paused, (window as any).__RT.routeId])).toEqual([false, 'L']);
 
   // The pause menu then names the new line's next stop.
