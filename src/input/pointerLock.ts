@@ -24,7 +24,16 @@ type Listener = (c: LockChange) => void;
 class PointerLock {
   private listeners = new Set<Listener>();
   private hintListeners = new Set<() => void>();
-  private quietPending = false;
+  /** Upcoming unlocked `pointerlockchange` events produced by our own quiet unlock. */
+  private quietRemaining = 0;
+  /** True after `lock()` until a locked `pointerlockchange` arrives or the request ends. */
+  private lockEventPending = false;
+  /** True when `unlock()` ran while an async `requestPointerLock` was still in flight. */
+  private cancelInFlight = false;
+  /** Monotonic token incremented on every `lock()` / `unlock()` to ignore stale async callbacks. */
+  private lockGen = 0;
+  /** Expected `pointerlockerror` events from `{ unadjustedMovement: true }` attempts that fall back to plain lock. */
+  private rawErrorExpected = 0;
   private started = false;
   /** "Click to look around" is showing (a lock request failed). */
   public hint = false;
@@ -38,15 +47,33 @@ class PointerLock {
     this.started = true;
     document.addEventListener('pointerlockchange', () => {
       const locked = this.isLocked;
+      if (locked) {
+        this.lockEventPending = false;
+        this.quietRemaining = 0;
+        if (this.cancelInFlight) {
+          // An in-flight lock resolved after `unlock()` was already called: release it quietly.
+          this.cancelInFlight = false;
+          this.unlock({ quiet: true });
+          return;
+        }
+        this.setHint(false);
+        this.listeners.forEach((fn) => fn({ locked: true, quiet: false }));
+        return;
+      }
       let quiet = false;
-      if (!locked && this.quietPending) {
-        this.quietPending = false;
+      if (this.quietRemaining > 0) {
+        this.quietRemaining--;
         quiet = true;
       }
-      if (locked) this.setHint(false);
-      this.listeners.forEach((fn) => fn({ locked, quiet }));
+      this.listeners.forEach((fn) => fn({ locked: false, quiet }));
     });
-    document.addEventListener('pointerlockerror', () => this.setHint(true));
+    document.addEventListener('pointerlockerror', () => {
+      if (this.rawErrorExpected > 0) {
+        this.rawErrorExpected--;
+        return;
+      }
+      this.setHint(true);
+    });
   }
 
   private setHint(on: boolean) {
@@ -79,36 +106,82 @@ class PointerLock {
   public lock(el: Element | null | undefined) {
     this.start();
     if (!el || this.isLocked || typeof el.requestPointerLock !== 'function') return;
+    const gen = ++this.lockGen;
+    this.quietRemaining = 0;
+    this.cancelInFlight = false;
+    this.lockEventPending = true;
     const fail = () => {
-      if (!this.isLocked) this.setHint(true);
+      if (gen !== this.lockGen) return;
+      if (!this.isLocked) {
+        this.lockEventPending = false;
+        this.setHint(true);
+      }
+    };
+    const onResolved = () => {
+      if (gen !== this.lockGen) {
+        if (this.isLocked) this.unlock({ quiet: true });
+        else this.lockEventPending = false;
+      }
     };
     const plain = () => {
+      if (gen !== this.lockGen) return;
       try {
         const p = el.requestPointerLock() as unknown as Promise<void> | undefined;
-        p?.catch?.(fail);
+        if (p && typeof p.then === 'function') {
+          p.then(onResolved, fail);
+        } else if (!this.isLocked) {
+          this.lockEventPending = false;
+        }
       } catch {
         fail();
       }
     };
     if (!settings.get().rawMouse) return plain();
     let p: Promise<void> | undefined;
+    this.rawErrorExpected++;
     try {
       const req = el as unknown as { requestPointerLock(o?: { unadjustedMovement?: boolean }): Promise<void> | undefined };
       p = req.requestPointerLock({ unadjustedMovement: true });
     } catch {
+      this.rawErrorExpected = Math.max(0, this.rawErrorExpected - 1);
       return plain();
     }
-    // Older browsers return nothing and ignore the option: that's a plain lock already.
+    if (!p || typeof p.then !== 'function') {
+      // Older browsers return nothing and ignore the option: that's a plain lock already.
+      this.rawErrorExpected = Math.max(0, this.rawErrorExpected - 1);
+      if (!this.isLocked) this.lockEventPending = false;
+      return;
+    }
     // A rejection means raw input isn't available (or the cooldown): try a plain lock once.
-    p?.catch?.(() => {
-      if (!this.isLocked) plain();
-    });
+    p.then(
+      () => {
+        this.rawErrorExpected = Math.max(0, this.rawErrorExpected - 1);
+        onResolved();
+      },
+      () => {
+        if (gen !== this.lockGen) {
+          this.lockEventPending = false;
+          return;
+        }
+        if (!this.isLocked) plain();
+      }
+    );
   }
 
   public unlock(opts: { quiet?: boolean } = {}) {
     this.start();
-    if (!this.isLocked) return;
-    if (opts.quiet) this.quietPending = true;
+    this.lockGen++;
+    if (!this.isLocked) {
+      if (this.lockEventPending) this.cancelInFlight = true;
+      return;
+    }
+    if (opts.quiet) {
+      // If `lock()`'s own `pointerlockchange` has not been delivered yet, browsers can queue
+      // two unlocked `pointerlockchange` events back-to-back (the stale lock event + this exit).
+      this.quietRemaining += this.lockEventPending ? 2 : 1;
+    }
+    this.lockEventPending = false;
+    this.cancelInFlight = false;
     document.exitPointerLock();
   }
 }
