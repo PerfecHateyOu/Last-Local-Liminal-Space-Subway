@@ -21,13 +21,15 @@ export interface LockChange {
 
 type Listener = (c: LockChange) => void;
 
-class PointerLock {
+export class PointerLock {
   private listeners = new Set<Listener>();
   private hintListeners = new Set<() => void>();
   /** Upcoming unlocked `pointerlockchange` events produced by our own quiet unlock. */
   private quietRemaining = 0;
   /** True after `lock()` until a locked `pointerlockchange` arrives or the request ends. */
   private lockEventPending = false;
+  /** `lockGen` of the `lock()` call that owns `lockEventPending`, or 0 when none is pending. */
+  private pendingLockGen = 0;
   /** True when `unlock()` ran while an async `requestPointerLock` was still in flight. */
   private cancelInFlight = false;
   /** Monotonic token incremented on every `lock()` / `unlock()` to ignore stale async callbacks. */
@@ -49,6 +51,7 @@ class PointerLock {
       const locked = this.isLocked;
       if (locked) {
         this.lockEventPending = false;
+        this.pendingLockGen = 0;
         this.quietRemaining = 0;
         if (this.cancelInFlight) {
           // An in-flight lock resolved after `unlock()` was already called: release it quietly.
@@ -110,17 +113,28 @@ class PointerLock {
     this.quietRemaining = 0;
     this.cancelInFlight = false;
     this.lockEventPending = true;
+    this.pendingLockGen = gen;
+    const clearPendingIfOwned = () => {
+      if (gen !== this.pendingLockGen) return;
+      this.lockEventPending = false;
+      this.pendingLockGen = 0;
+      this.cancelInFlight = false;
+    };
     const fail = () => {
-      if (gen !== this.lockGen) return;
+      if (gen !== this.lockGen) {
+        if (!this.isLocked) clearPendingIfOwned();
+        return;
+      }
       if (!this.isLocked) {
-        this.lockEventPending = false;
+        clearPendingIfOwned();
         this.setHint(true);
       }
     };
     const onResolved = () => {
+      if (gen !== this.pendingLockGen) return;
       if (gen !== this.lockGen) {
         if (this.isLocked) this.unlock({ quiet: true });
-        else this.lockEventPending = false;
+        else clearPendingIfOwned();
       }
     };
     const plain = () => {
@@ -130,7 +144,7 @@ class PointerLock {
         if (p && typeof p.then === 'function') {
           p.then(onResolved, fail);
         } else if (!this.isLocked) {
-          this.lockEventPending = false;
+          clearPendingIfOwned();
         }
       } catch {
         fail();
@@ -149,7 +163,7 @@ class PointerLock {
     if (!p || typeof p.then !== 'function') {
       // Older browsers return nothing and ignore the option: that's a plain lock already.
       this.rawErrorExpected = Math.max(0, this.rawErrorExpected - 1);
-      if (!this.isLocked) this.lockEventPending = false;
+      if (!this.isLocked) clearPendingIfOwned();
       return;
     }
     // A rejection means raw input isn't available (or the cooldown): try a plain lock once.
@@ -160,7 +174,7 @@ class PointerLock {
       },
       () => {
         if (gen !== this.lockGen) {
-          this.lockEventPending = false;
+          if (!this.isLocked) clearPendingIfOwned();
           return;
         }
         if (!this.isLocked) plain();
@@ -181,6 +195,7 @@ class PointerLock {
       this.quietRemaining += this.lockEventPending ? 2 : 1;
     }
     this.lockEventPending = false;
+    this.pendingLockGen = 0;
     this.cancelInFlight = false;
     document.exitPointerLock();
   }
