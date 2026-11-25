@@ -4,7 +4,10 @@ import {
   applySuspicionChange,
   clampSuspicion,
   createInitialSuspicion,
+  getDeltaForReason,
+  getParentWatchProfile,
   getSuspicionBand,
+  type SuspicionReason,
 } from '../../src/game/suspicion';
 
 test('Suspicion bands and scoring deltas match specification exactly', () => {
@@ -42,4 +45,41 @@ test('Clamps the original engine score without rounding', () => {
   assert.equal(clampSuspicion(-0.5), 0);
   assert.equal(clampSuspicion(24.5), 24.5);
   assert.equal(clampSuspicion(100.5), 100);
+});
+
+test('Unknown suspicion reason scores 0 and never produces NaN', () => {
+  const unknown = 'unexpected_reason' as SuspicionReason;
+  assert.equal(getDeltaForReason(unknown), 0);
+
+  const next = applySuspicionChange(createInitialSuspicion(), unknown, 1);
+  assert.equal(Number.isNaN(next.value), false);
+  assert.equal(next.value, 0);
+  assert.equal(getSuspicionBand(next.value), 'CALM');
+  assert.equal(next.history.length, 1);
+  assert.equal(next.history[0].delta, 0);
+});
+
+test('Head-snap threshold falls 6.2 -> 3.8 from CALM to HUNTED and is unchanged by Nightmare', () => {
+  const calm = getParentWatchProfile(0, false);
+  const uneasy = getParentWatchProfile(25, false);
+  const watched = getParentWatchProfile(50, false);
+  const hunted = getParentWatchProfile(75, false);
+
+  assert.equal(calm.headSnapRadPerSec, 6.2);
+  assert.equal(uneasy.headSnapRadPerSec, 5.2);
+  assert.equal(watched.headSnapRadPerSec, 4.4);
+  assert.equal(hunted.headSnapRadPerSec, 3.8);
+
+  assert.ok(calm.headSnapRadPerSec > uneasy.headSnapRadPerSec);
+  assert.ok(uneasy.headSnapRadPerSec > watched.headSnapRadPerSec);
+  assert.ok(watched.headSnapRadPerSec > hunted.headSnapRadPerSec);
+
+  for (const score of [0, 25, 50, 75]) {
+    const normal = getParentWatchProfile(score, false);
+    const nightmare = getParentWatchProfile(score, true);
+    assert.equal(nightmare.headSnapRadPerSec, normal.headSnapRadPerSec);
+    assert.ok(nightmare.glanceIntervalSec < normal.glanceIntervalSec);
+    assert.ok(nightmare.stareToleranceSec < normal.stareToleranceSec);
+    assert.ok(nightmare.holdLookSec > normal.holdLookSec);
+  }
 });

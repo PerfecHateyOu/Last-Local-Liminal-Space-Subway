@@ -104,6 +104,8 @@ export function getDeltaForReason(reason: SuspicionReason): number {
       return SUSPICION_DELTAS.FALSE_STOP_EXIT_PENALTY;
     case 'restraint_let_go':
       return SUSPICION_DELTAS.RESTRAINT_LET_GO;
+    default:
+      return 0;
   }
 }
 
@@ -134,12 +136,15 @@ export function applySuspicionChange(
 
 /**
  * How closely Mom & Dad monitor the player based on current suspicion band.
- * Higher bands increase parent stare frequency, duration, and reaction sensitivity.
+ * Higher bands increase parent stare frequency and hold duration, tighten stare tolerance,
+ * and lower `headSnapRadPerSec` (the player head-turn angular speed threshold in rad/s above
+ * which a sudden turn is flagged — 6.2 at CALM down to 3.8 at HUNTED, so lower means more sensitive).
  */
 export function getParentWatchProfile(value: number, nightmare: boolean): {
   glanceIntervalSec: number;
   holdLookSec: number;
   stareToleranceSec: number;
+  /** Player head-turn speed threshold (rad/s) flagged as a snap; falls 6.2 -> 3.8 from CALM to HUNTED. */
   headSnapRadPerSec: number;
 } {
   const band = getSuspicionBand(value);
