@@ -421,12 +421,16 @@ export class GameEngine {
     this.notifyUI();
   }
 
-  public setPA(text: string, dur: number) {
+  public setPA(text: string, dur: number, opts?: { speak?: boolean; chime?: boolean }) {
     this.paText = text;
     this.paUntil = this.GT + dur;
     this.paSeq += 1;
     this.paFeed.push({ text, at: this.GT, stop: this.seg ? this.seg.stop : 1, seq: this.paSeq });
     if (this.paFeed.length > PA_FEED_MAX) this.paFeed.splice(0, this.paFeed.length - PA_FEED_MAX);
+    const listening = evp.raised || !!this.tapePlaying;
+    if (opts?.speak !== false && !this.paused && !listening) {
+      audioEngine.speakPA(text, { chime: opts?.chime });
+    }
     this.notifyUI();
   }
 
@@ -637,6 +641,7 @@ export class GameEngine {
     }
     audioEngine.setOpenAir(0);
     audioEngine.stopLastLocalAnnouncement(0.1);
+    audioEngine.stopPaVoice();
     this.breathBpm = 0;
     this.breathDepth = 0;
     this.psychLog = null;
@@ -818,7 +823,7 @@ export class GameEngine {
       }
     }
     if (beat.pa) {
-      this.setPA(beat.pa, beat.paDur ?? 3.5);
+      this.setPA(beat.pa, beat.paDur ?? 3.5, { speak: false });
     }
     if (beat.sub) {
       this.setSub(beat.sub, beat.subDur ?? Math.max(2.0, beat.dur));
@@ -1069,7 +1074,7 @@ export class GameEngine {
   private playConductor() {
     const v = Math.floor(Math.random() * CONDUCTOR_LINES.length) + 1; // 1, 2, or 3
     audioEngine.conductorBroadcast(v);
-    this.setPA(CONDUCTOR_LINES[v - 1], GameEngine.CONDUCTOR_S);
+    this.setPA(CONDUCTOR_LINES[v - 1], GameEngine.CONDUCTOR_S, { speak: false });
   }
 
   private lifeRolesCache: { noHabits: Set<PersonObject>; still: Set<PersonObject> } | null = null;
@@ -1330,7 +1335,7 @@ export class GameEngine {
   // Public so engineTrial's exit can hand back to the ride (visibility only; no behavior change).
   public departNext() {
     if (this.phase === 'end') return;
-    this.setPA('Stand clear of the closing doors, please.', 3.0);
+    this.setPA('Stand clear of the closing doors, please.', 3.0, { chime: false });
     audioEngine.chime();
     this.sched(1.4, () => {
       this.doorTarget = 0;
@@ -1671,6 +1676,7 @@ export class GameEngine {
     polaroidManager.setViewfinder(false);
     polaroidManager.setAlbum(false);
     this.stopTape();
+    audioEngine.stopPaVoice();
     this.flagHeld = false;
     audioEngine.setMasterLevel(0.2, 0.8);
     audioEngine.setBedLevel(0.0001, 0.7);

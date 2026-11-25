@@ -7,6 +7,7 @@
 import { PauseMusic } from './pauseMusic';
 import { RideMusic, type RideMusicCue } from './rideMusic';
 import { Intercom } from './intercom';
+import { PaVoice } from './paVoice';
 import { LastLocalAnnouncementLoop } from './lastLocalAnnouncement';
 import { TapePlayback } from './tapePlayback';
 import { EvpAudio, type EvpSoundState } from './evpAudio';
@@ -29,6 +30,7 @@ export class AudioEngine {
   private pauseMusic: PauseMusic | null = null;
   private rideMusic: RideMusic | null = null;
   private intercomVoice: Intercom | null = null;
+  private paVoice: PaVoice | null = null;
   private lastLocalAnnouncement: LastLocalAnnouncementLoop | null = null;
   private ducked: boolean = false;
   private bedGain: GainNode | null = null;
@@ -89,6 +91,9 @@ export class AudioEngine {
 
       // Background intercom on the game bus: ducked on pause, covered by mute.
       this.intercomVoice = new Intercom(this.ac, this.masterGain, this.whiteBuffer);
+
+      // Intelligible PA voice on the game bus: stopped on pause/tape, covered by mute and game volume.
+      this.paVoice = new PaVoice(this.ac, this.masterGain);
 
       // The 'last-local-announcement': a late-night conductor's voice over the intro, once per ride
       this.lastLocalAnnouncement = new LastLocalAnnouncementLoop(this.ac, this.masterGain, this.whiteBuffer);
@@ -188,6 +193,7 @@ export class AudioEngine {
   /** Play a tape out loud (see tapePlayback.ts). Returns its duration in seconds, 0 if audio is off. */
   public playTape(voiceTier: number): number {
     this.stopTape();
+    this.stopPaVoice();
     if (!this.ac || !this.gameVol || !this.whiteBuffer) return 0;
     this.tape = new TapePlayback(this.ac, this.gameVol, this.whiteBuffer, voiceTier);
     return this.tape.duration;
@@ -227,6 +233,7 @@ export class AudioEngine {
   public enterPause() {
     if (!this.ac || !this.masterGain) return;
     this.ducked = true;
+    this.stopPaVoice();
     this.masterGain.gain.setTargetAtTime(0, this.ac.currentTime, 0.12);
     this.rideMusic?.setPaused(true);
     this.pauseMusic?.start();
@@ -268,6 +275,19 @@ export class AudioEngine {
 
   public getIntercom(): Intercom | null {
     return this.intercomVoice;
+  }
+
+  /** Speak one intelligible PA announcement through the car speaker. Returns duration (s), 0 if audio is off. */
+  public speakPA(text: string, opts?: { chime?: boolean }): number {
+    return this.paVoice ? this.paVoice.speak(text, opts) : 0;
+  }
+
+  public stopPaVoice() {
+    this.paVoice?.stop();
+  }
+
+  public getPaVoice(): PaVoice | null {
+    return this.paVoice;
   }
 
   /**
