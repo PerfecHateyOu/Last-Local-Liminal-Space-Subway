@@ -94,9 +94,14 @@ test.describe('offline copy', () => {
     await page.locator('text=/Board the train/i').click();
     await expect(page.getByTestId('hud-route-panel')).toBeVisible({ timeout: 20_000 });
 
+    await page.getByTestId('cutscene-skip').click();
+    await expect(page.getByTestId('cutscene-overlay')).toHaveCount(0);
+
     // Camera: raise, snap, lower.
     await page.keyboard.press('KeyC');
-    await page.getByRole('button', { name: /SNAP PHOTO/ }).click();
+    const snap = page.getByRole('button', { name: /SNAP PHOTO/ });
+    await expect(snap).toBeVisible();
+    await snap.click();
     await page.waitForTimeout(800);
     await page.getByRole('button', { name: 'Lower Camera' }).click();
     await expect(page.getByRole('button', { name: /SNAP PHOTO/ })).toHaveCount(0);

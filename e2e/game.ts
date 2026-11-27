@@ -36,7 +36,7 @@ export function runner(page: Page): Run {
 }
 
 /** Load the game with fresh storage (unless told otherwise) and board the train. */
-export async function board(page: Page, opts: { keepStorage?: boolean } = {}): Promise<Run> {
+export async function board(page: Page, opts: { keepStorage?: boolean; skipIntro?: boolean } = {}): Promise<Run> {
   await page.goto('/');
   if (!opts.keepStorage) {
     await page.evaluate(() => localStorage.clear());
@@ -54,6 +54,10 @@ export async function board(page: Page, opts: { keepStorage?: boolean } = {}): P
     const w = window as any;
     return w.__G && w.__A && w.__R && w.__G.phase !== 'menu';
   });
+  if (opts.skipIntro) {
+    await page.getByTestId('cutscene-skip').click();
+    await expect(page.getByTestId('cutscene-overlay')).toHaveCount(0);
+  }
   return runner(page);
 }
 
@@ -79,7 +83,7 @@ export const SKIP_TUTORIAL = () => {
   }
 };
 
-export const test = base.extend<{ pageErrors: string[]; game: Run }>({
+export const test = base.extend<{ pageErrors: string[]; game: Run; skipIntro: boolean }>({
   page: async ({ page }, use) => {
     await page.addInitScript(SKIP_TUTORIAL);
     await use(page);
@@ -92,8 +96,9 @@ export const test = base.extend<{ pageErrors: string[]; game: Run }>({
     },
     { auto: true },
   ],
-  game: async ({ page }, use) => {
-    await use(await board(page));
+  skipIntro: [false, { option: true }],
+  game: async ({ page, skipIntro }, use) => {
+    await use(await board(page, { skipIntro }));
   },
 });
 
