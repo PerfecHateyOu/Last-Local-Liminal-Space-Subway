@@ -75,15 +75,20 @@ jobs:
         run: bun install --frozen-lockfile
         working-directory: e2e
       - run: bun run lint
+      - run: bun test
       - run: bun run build
       - name: Production build has no test hooks
         run: "! grep -l '__G' dist/assets/*.js"
 
   e2e:
-    name: Browser tests
+    name: Browser tests (${{ matrix.shard }}/3)
     needs: build
     runs-on: ubuntu-24.04 # see the build job
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
     steps:
       - uses: actions/checkout@v5
       - uses: oven-sh/setup-bun@v2
@@ -100,9 +105,10 @@ jobs:
       # change, tested by e2e/offline.spec.ts, and attached to the run as a download.
       - name: Build the offline copy
         run: bun run build:offline
-      - run: npx playwright test
+      - run: npx playwright test --shard=${{ matrix.shard }}/3
         working-directory: e2e
       - uses: actions/upload-artifact@v4
+        if: matrix.shard == 1
         with:
           name: Last-Local-offline
           path: dist-offline/Last-Local/
@@ -110,6 +116,6 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
-          name: playwright-traces
+          name: playwright-traces-shard-${{ matrix.shard }}
           path: e2e/test-results/
           retention-days: 7
