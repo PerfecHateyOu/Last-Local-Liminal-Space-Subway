@@ -141,6 +141,8 @@ test.describe('offline copy', () => {
       await page.reload();
       await page.locator('text=/Board the train/i').tap();
       await expect(page.getByTestId('hud-route-panel')).toBeVisible({ timeout: 20_000 });
+      await page.getByRole('button', { name: 'Skip cutscene' }).tap();
+      await expect(page.getByTestId('cutscene-overlay')).toHaveCount(0);
       await expect(page.getByText('WALK')).toBeVisible(); // the touch stick
 
       await page.getByRole('button', { name: 'Evidence Log' }).tap();
