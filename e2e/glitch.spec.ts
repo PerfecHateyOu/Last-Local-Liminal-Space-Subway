@@ -1,4 +1,6 @@
-import { test, expect, board } from './game';
+import { test, expect } from './game';
+
+test.use({ skipIntro: true });
 
 test.describe('screen glitch', () => {
   test('zero-strength pass matches the direct render', async ({ game }) => {

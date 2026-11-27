@@ -178,10 +178,14 @@ test.describe('PA board', () => {
   });
 
   test('a new run clears the feed and does not hide the next announcement behind the old seen count', async ({ page, game }) => {
-    await game(`G.Q = []; G.paFeed = []; G.paSeq = 0; ride(0); G.setPA('Old one', 30); G.setPA('Old two', 30); G.notifyUI();`);
+    await game(`G.skipCutscene(); G.Q = []; G.paFeed = []; G.paSeq = 0; ride(0); G.setPA('Old one', 30); G.setPA('Old two', 30); G.notifyUI();`);
     await page.keyboard.press('KeyB');
+    await expect(page.getByTestId('pa-board')).toContainText('Old two');
     await page.keyboard.press('KeyB');
-    await game(`G.startIntro(); G.Q = []; G.setPA('After reset', 30); G.notifyUI();`);
+    const resetFeed = await game(`G.startIntro(); G.skipCutscene(); G.Q = []; return G.paFeed.map((entry) => entry.text);`);
+    expect(resetFeed).not.toContain('Old one');
+    expect(resetFeed).not.toContain('Old two');
+    await game(`G.paFeed = []; G.setPA('After reset', 30); G.notifyUI();`);
     await expect(page.getByTestId('pa-board-unread')).toHaveText('1');
     await page.keyboard.press('KeyB');
     await expect(page.getByTestId('pa-board')).toContainText('After reset');

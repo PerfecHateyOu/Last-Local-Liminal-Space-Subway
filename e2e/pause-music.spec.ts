@@ -1,5 +1,7 @@
 import { test, expect, type Run } from './game';
 
+test.use({ skipIntro: true });
+
 // Peak RMS of the final output over a window, so checks hear real signal, not just scheduled notes.
 const METER = `if (!window.__peakRms) { const an = A.ac.createAnalyser(); an.fftSize = 2048; A.outGain.connect(an);
   window.__peakRms = async (ms) => { let m = 0; const t0 = performance.now();

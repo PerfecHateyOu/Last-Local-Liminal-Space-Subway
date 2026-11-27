@@ -4,6 +4,8 @@
 // zero and never flickering. Adapted from the GPT-Astra rebuild's door-tick-flicker spec.
 import { test, expect } from './game';
 
+test.use({ skipIntro: true });
+
 const READ = `G.applyLighting(); return {
   car: G.carBuilder.carLights.map((l) => l.intensity),
   hemi: G.carBuilder.hemiLight.intensity,

@@ -48,7 +48,10 @@ test('from a fresh start the whole loop plays from the keyboard', async ({ page 
   await page.keyboard.press('Tab');
   await expect(page.getByRole('button', { name: 'Board the Train' })).toBeFocused();
   await page.keyboard.press('Enter');
-  await page.waitForFunction(() => (window as any).__G?.phase !== 'menu');
+  const intro = page.getByTestId('cutscene-overlay');
+  await expect(intro).toBeVisible();
+  await page.keyboard.press('Space');
+  await expect(intro).toHaveCount(0);
 
   // P pauses with focus on Resume; Enter resumes.
   await page.keyboard.press('KeyP');
@@ -138,7 +141,7 @@ test('on the start screen, Settings and the Case Files hold focus and hand it ba
 });
 
 test('look speed and invert-Y set in Settings apply mid-ride at once and survive a reload', async ({ page }) => {
-  const game = await board(page);
+  const game = await board(page, { skipIntro: true });
   await game(`G.Q = [];`);
   // Touch-style drag on the canvas (headless pointer lock sends erratic mouse deltas).
   const drag = () =>
@@ -159,7 +162,7 @@ test('look speed and invert-Y set in Settings apply mid-ride at once and survive
   expect(live.ty / base.ty).toBeCloseTo(2, 3);
   expect(live.tp / base.tp).toBeCloseTo(-2, 3);
 
-  const again = await board(page, { keepStorage: true });
+  const again = await board(page, { keepStorage: true, skipIntro: true });
   await again(`G.Q = [];`);
   const reloaded = await drag();
   expect(reloaded.ty).toBeCloseTo(live.ty, 4);
