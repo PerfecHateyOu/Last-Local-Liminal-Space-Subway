@@ -109,7 +109,7 @@ test.describe('settings', () => {
     await d.locator('[role=alertdialog]').getByRole('button', { name: 'Cancel' }).click();
     expect(await page.evaluate(() => localStorage.getItem('gtrain-psychlog'))).not.toBeNull();
     await d.getByRole('button', { name: 'Erase saved progress' }).click();
-    await d.getByRole('alertdialog').getByRole('button', { name: 'Erase' }).click();
+    await d.locator('[role=alertdialog]').getByRole('button', { name: 'Erase' }).click();
     await expect(d.getByText('Saved progress erased.')).toBeVisible();
     const left = await page.evaluate(() => ({
       log: localStorage.getItem('gtrain-psychlog'), runs: localStorage.getItem('gtrain-runs'), settings: localStorage.getItem('gtrain-settings'),
