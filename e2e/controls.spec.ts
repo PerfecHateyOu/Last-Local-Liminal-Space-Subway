@@ -138,7 +138,7 @@ test.describe('Case Files on the start screen', () => {
 });
 
 test('tier-change whisper plays only when sanity drops a tier', async ({ game }) => {
-  const calls = await game(`G.Q = []; window.__tw = []; const o = A.tierTransitionWhisper.bind(A);
+  const calls = await game(`G.skipCutscene(); G.Q = []; window.__tw = []; const o = A.tierTransitionWhisper.bind(A);
     A.tierTransitionWhisper = (t) => { window.__tw.push(t); o(t); };
     toTier(100, 0); toTier(60, 1); toTier(5, 3); toTier(25, 2); toTier(100, 0); return window.__tw;`);
   expect(calls).toEqual([1, 3]);

@@ -100,7 +100,7 @@ test.describe('Route selector and HUD route panel work from the keyboard', () =>
   });
 
   test('the selector stays open as the train pulls out, and closes when it stops', async ({ page, game }) => {
-    await game(`G.startIntro();`);
+    await game(`G.startIntro(); G.skipCutscene();`);
     await page.keyboard.press('KeyL');
     const dialog = page.getByRole('dialog');
     await expect(dialog).toBeVisible();
