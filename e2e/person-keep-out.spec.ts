@@ -5,7 +5,7 @@ import { test, expect, board } from './game';
 test.use({ viewport: { width: 390, height: 844 } });
 
 test('walking into the standing passenger stops short and slides past', async ({ page }) => {
-  const g = await board(page);
+  const g = await board(page, { skipIntro: true });
   const r = await g(`
     await sleep(300);
     const s3 = G.carBuilder.strangers[2];

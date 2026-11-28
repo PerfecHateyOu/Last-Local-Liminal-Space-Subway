@@ -19,7 +19,7 @@ test.describe('settings', () => {
   });
 
   test('look speed scales dragging, and invert flips vertical look', async ({ page }) => {
-    const game = await board(page);
+    const game = await board(page, { skipIntro: true });
     await game(`G.Q = [];`);
     // Touch-style pointer drag on the canvas (headless pointer lock sends erratic mouse deltas).
     const drag = (dx: number, dy: number) =>
