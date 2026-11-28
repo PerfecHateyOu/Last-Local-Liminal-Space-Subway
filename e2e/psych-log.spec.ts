@@ -1,6 +1,8 @@
 import { test, expect, board } from './game';
 import { PSYCH_ENTRIES } from '../src/game/psychLog';
 
+test.use({ skipIntro: true });
+
 const mk = (stop: number, anoms: Array<{ id: string; desc: string; hit: boolean }>) => ({
   stop, b: false, name: 'S' + stop, anoms, fps: [], doors: null,
 });

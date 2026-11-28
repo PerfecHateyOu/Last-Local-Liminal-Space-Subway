@@ -1,5 +1,7 @@
 import { test, expect } from './game';
 
+test.use({ skipIntro: true });
+
 // #48: after choosing a line, every place that names a station or the line agrees: the HUD, the
 // platforms in view, the announcements, the pause menu, the chapter card and the report.
 
